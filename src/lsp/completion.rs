@@ -40,20 +40,24 @@ pub(super) async fn completion(
         return Ok(None);
     };
 
-    let index = match VaultIndex::build(&backend.root) {
-        Ok(index) => index,
-        Err(_) => return Ok(None),
-    };
+    if !backend.ensure_index().await {
+        return Ok(None);
+    }
 
-    let items = match context {
-        CompletionContext::File { kind, prefix } => {
-            complete_files(&index, &source_rel, kind, &prefix)
-        }
-        CompletionContext::Heading {
-            kind,
-            file,
-            anchor_prefix,
-        } => complete_headings(&index, &source_rel, kind, file.as_deref(), &anchor_prefix),
+    let Some(items) = backend
+        .with_index(move |index| match context {
+            CompletionContext::File { kind, prefix } => {
+                complete_files(index, &source_rel, kind, &prefix)
+            }
+            CompletionContext::Heading {
+                kind,
+                file,
+                anchor_prefix,
+            } => complete_headings(index, &source_rel, kind, file.as_deref(), &anchor_prefix),
+        })
+        .await
+    else {
+        return Ok(None);
     };
 
     Ok(Some(CompletionResponse::Array(items)))

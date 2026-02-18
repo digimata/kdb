@@ -56,6 +56,33 @@ fn check_exits_one_for_broken_links() {
 }
 
 #[test]
+fn check_respects_index_ignore_patterns_from_config() {
+    let temp = tempdir().expect("tempdir");
+    write_file(
+        temp.path(),
+        ".kdb/config.toml",
+        "[project]\nname = \"fixture\"\n[index]\nignore = [\"archive/**\"]\n",
+    );
+    write_file(temp.path(), "a.md", "# A\n\n[B](b.md)\n");
+    write_file(temp.path(), "b.md", "# B\n\n[A](a.md)\n");
+    write_file(
+        temp.path(),
+        "archive/bad.md",
+        "# Bad\n\n[Missing](missing.md)\n",
+    );
+
+    let output = Command::new(bin())
+        .arg("check")
+        .arg(temp.path())
+        .output()
+        .expect("run kdb check");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("kdb check: no issues found"));
+}
+
+#[test]
 fn check_orphan_only_reports_orphans_without_broken_links() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());

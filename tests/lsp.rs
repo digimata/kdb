@@ -384,6 +384,9 @@ fn symbols_definition_completion_and_hover_work() {
             }
         }
     }));
+    let _ = session.wait_for(Duration::from_secs(5), |message| {
+        diagnostics_for_uri(message, &fixture.scratch_uri)
+    });
 
     session.send(json!({
         "jsonrpc": "2.0",
@@ -576,6 +579,134 @@ fn completion_uses_unsaved_document_buffer_state() {
         .find(|item| item.get("label").and_then(Value::as_str) == Some("Target"))
         .expect("target heading completion");
     assert_eq!(target_heading["insertText"], json!("target"));
+
+    session.shutdown();
+}
+
+#[test]
+fn completion_includes_unsaved_open_file_from_cached_index() {
+    let fixture = VaultFixture::new();
+    let mut session = LspSession::start(&fixture.root);
+    session.initialize(&fixture.root);
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+            "textDocument": {
+                "uri": fixture.scratch_uri,
+                "languageId": "markdown",
+                "version": 1,
+                "text": "# Scratch\n\n[[\n"
+            }
+        }
+    }));
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "id": 10,
+        "method": "textDocument/completion",
+        "params": {
+            "textDocument": { "uri": fixture.scratch_uri },
+            "position": { "line": 2, "character": 2 }
+        }
+    }));
+
+    let response = session.wait_for_id(10, Duration::from_secs(5));
+    let labels = response["result"]
+        .as_array()
+        .expect("completion array")
+        .iter()
+        .filter_map(|item| item.get("label").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    assert!(labels.contains(&"scratch"));
+
+    session.shutdown();
+}
+
+#[test]
+fn heading_completion_reverts_to_disk_after_target_close() {
+    let fixture = VaultFixture::new();
+    let mut session = LspSession::start(&fixture.root);
+    session.initialize(&fixture.root);
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+            "textDocument": {
+                "uri": fixture.b_uri,
+                "languageId": "markdown",
+                "version": 1,
+                "text": "# B\n\n## Renamed\n"
+            }
+        }
+    }));
+    let _ = session.wait_for(Duration::from_secs(5), |message| {
+        diagnostics_for_uri(message, &fixture.b_uri)
+    });
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+            "textDocument": {
+                "uri": fixture.scratch_uri,
+                "languageId": "markdown",
+                "version": 1,
+                "text": "# Scratch\n\n[[b#\n"
+            }
+        }
+    }));
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "id": 11,
+        "method": "textDocument/completion",
+        "params": {
+            "textDocument": { "uri": fixture.scratch_uri },
+            "position": { "line": 2, "character": 4 }
+        }
+    }));
+
+    let open_completion = session.wait_for_id(11, Duration::from_secs(5));
+    let open_labels = open_completion["result"]
+        .as_array()
+        .expect("completion array")
+        .iter()
+        .filter_map(|item| item.get("label").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    assert!(open_labels.contains(&"Renamed"));
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didClose",
+        "params": {
+            "textDocument": { "uri": fixture.b_uri }
+        }
+    }));
+    let _ = session.wait_for(Duration::from_secs(5), |message| {
+        diagnostics_for_uri(message, &fixture.b_uri)
+    });
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "id": 12,
+        "method": "textDocument/completion",
+        "params": {
+            "textDocument": { "uri": fixture.scratch_uri },
+            "position": { "line": 2, "character": 4 }
+        }
+    }));
+
+    let closed_completion = session.wait_for_id(12, Duration::from_secs(5));
+    let closed_labels = closed_completion["result"]
+        .as_array()
+        .expect("completion array")
+        .iter()
+        .filter_map(|item| item.get("label").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    assert!(closed_labels.contains(&"Target"));
 
     session.shutdown();
 }

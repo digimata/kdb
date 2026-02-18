@@ -11,8 +11,8 @@ use tower_lsp::jsonrpc::Result as LspResult;
 use tower_lsp::lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind, Url};
 
 use crate::index::{
-    LinkKind, ParsedDocument, VaultIndex, parse_markdown, parse_markdown_target,
-    parse_wikilink_target, resolve_target_path, slug_anchor,
+    LinkKind, ParsedDocument, parse_markdown, parse_markdown_target, parse_wikilink_target,
+    resolve_target_path, slug_anchor,
 };
 
 use super::{
@@ -51,23 +51,28 @@ pub(super) async fn hover(backend: &Backend, params: HoverParams) -> LspResult<O
         return Ok(None);
     };
 
-    let index = match VaultIndex::build(&backend.root) {
-        Ok(index) => index,
-        Err(_) => return Ok(None),
-    };
-
-    let Some(target_file) = index.files.get(&target_rel) else {
+    if !backend.ensure_index().await {
         return Ok(None);
-    };
+    }
 
-    let Some(target_uri) = Url::from_file_path(&target_file.abs_path).ok() else {
-        return Ok(None);
-    };
-
-    let Some(target_content) = backend
-        .document_text(&target_uri, &target_file.abs_path)
+    let Some(target_file_abs) = backend
+        .with_index(|index| {
+            index
+                .files
+                .get(&target_rel)
+                .map(|entry| entry.abs_path.clone())
+        })
         .await
+        .flatten()
     else {
+        return Ok(None);
+    };
+
+    let Some(target_uri) = Url::from_file_path(&target_file_abs).ok() else {
+        return Ok(None);
+    };
+
+    let Some(target_content) = backend.document_text(&target_uri, &target_file_abs).await else {
         return Ok(None);
     };
 

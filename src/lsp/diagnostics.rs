@@ -47,25 +47,25 @@ async fn publish_for_uri(backend: &Backend, uri: &Url) {
     };
 
     let parsed = parse_markdown(&content);
-    let index = match VaultIndex::build(&backend.root) {
-        Ok(index) => index,
-        Err(error) => {
-            backend
-                .client
-                .log_message(
-                    tower_lsp::lsp_types::MessageType::ERROR,
-                    format!("failed to build index for diagnostics: {error:#}"),
-                )
-                .await;
-            backend
-                .client
-                .publish_diagnostics(uri.clone(), Vec::new(), None)
-                .await;
-            return;
-        }
+    if !backend.ensure_index().await {
+        backend
+            .client
+            .publish_diagnostics(uri.clone(), Vec::new(), None)
+            .await;
+        return;
+    }
+
+    let Some(diagnostics) = backend
+        .with_index(|index| collect_link_diagnostics(index, &parsed, &rel_path))
+        .await
+    else {
+        backend
+            .client
+            .publish_diagnostics(uri.clone(), Vec::new(), None)
+            .await;
+        return;
     };
 
-    let diagnostics = collect_link_diagnostics(&index, &parsed, &rel_path);
     backend
         .client
         .publish_diagnostics(uri.clone(), diagnostics, None)

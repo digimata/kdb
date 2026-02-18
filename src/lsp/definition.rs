@@ -11,8 +11,8 @@ use tower_lsp::lsp_types::{
 };
 
 use crate::index::{
-    LinkKind, LinkTarget, VaultIndex, parse_markdown_target, parse_wikilink_target,
-    resolve_target_path, slug_anchor,
+    LinkKind, LinkTarget, parse_markdown_target, parse_wikilink_target, resolve_target_path,
+    slug_anchor,
 };
 
 use super::backend::{Backend, position_to_byte_offset};
@@ -53,33 +53,40 @@ pub(super) async fn goto_definition(
         return Ok(None);
     };
 
-    let index = match VaultIndex::build(&backend.root) {
-        Ok(index) => index,
-        Err(_) => return Ok(None),
-    };
-
-    let Some(target_file) = index.files.get(&target_rel) else {
+    if !backend.ensure_index().await {
         return Ok(None);
     };
 
-    let target_pos = if let Some(anchor) = target.anchor.as_deref() {
-        let wanted = slug_anchor(anchor);
-        let Some(heading) = target_file
-            .headings
-            .iter()
-            .find(|heading| heading.anchor == wanted)
-        else {
-            return Ok(None);
-        };
-        Position::new(
-            heading.line.saturating_sub(1) as u32,
-            heading.column.saturating_sub(1) as u32,
-        )
-    } else {
-        Position::new(0, 0)
+    let Some(resolve_result) = backend
+        .with_index(|index| {
+            let target_file = index.files.get(&target_rel)?;
+
+            let target_pos = if let Some(anchor) = target.anchor.as_deref() {
+                let wanted = slug_anchor(anchor);
+                let heading = target_file
+                    .headings
+                    .iter()
+                    .find(|heading| heading.anchor == wanted)?;
+                Position::new(
+                    heading.line.saturating_sub(1) as u32,
+                    heading.column.saturating_sub(1) as u32,
+                )
+            } else {
+                Position::new(0, 0)
+            };
+
+            Some((target_file.abs_path.clone(), target_pos))
+        })
+        .await
+    else {
+        return Ok(None);
     };
 
-    let Some(target_uri) = Url::from_file_path(&target_file.abs_path).ok() else {
+    let Some((target_abs_path, target_pos)) = resolve_result else {
+        return Ok(None);
+    };
+
+    let Some(target_uri) = Url::from_file_path(&target_abs_path).ok() else {
         return Ok(None);
     };
 

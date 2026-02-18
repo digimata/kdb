@@ -8,9 +8,11 @@ license = "MIT"
 [dependencies]
 anyhow = "1.0.101"
 clap = { version = "4.5.59", features = ["derive"] }
+globset = "0.4.15"
 pulldown-cmark = "0.13.0"
 regex = "1.12.3"
 tokio = { version = "1.49.0", features = ["io-std", "macros", "rt-multi-thread", "sync"] }
+toml = "0.8.23"
 tower-lsp = "0.20.0"
 walkdir = "2.5.0"
 

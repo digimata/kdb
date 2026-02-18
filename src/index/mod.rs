@@ -15,6 +15,7 @@
 //!    its source file, handling both markdown and wikilink syntax.
 
 use anyhow::{Context, Result};
+use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
@@ -38,6 +39,8 @@ static WIKILINK_RE: LazyLock<Regex> =
 pub struct VaultIndex {
     /// Canonical absolute path to the vault root directory.
     pub root: PathBuf,
+    /// Compiled user ignore patterns used during discovery and incremental updates.
+    ignore_set: GlobSet,
     /// All indexed markdown files, keyed by their path relative to `root`.
     pub files: BTreeMap<PathBuf, FileEntry>,
     /// Inbound links grouped by target file path.
@@ -204,15 +207,26 @@ impl VaultIndex {
     /// Walks the directory tree under `root`, parses each `.md` file, and builds
     /// both the file map and inbound link graphs.
     pub fn build(root: &Path) -> Result<Self> {
+        Self::build_with_ignores(root, &[])
+    }
+
+    /// Build an index of the entire vault with user-defined ignore patterns.
+    ///
+    /// Ignore patterns use glob syntax and are matched against slash-separated
+    /// paths relative to `root`.
+    pub fn build_with_ignores(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
         let root = root
             .canonicalize()
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
+        let ignore_set = build_ignore_globset(ignore_patterns)?;
 
         let mut files = BTreeMap::new();
-        for rel_path in discover_markdown_files(&root)? {
+        for rel_path in discover_markdown_files(&root, &ignore_set)? {
             let abs_path = root.join(&rel_path);
-            let source = std::fs::read_to_string(&abs_path)
-                .with_context(|| format!("failed to read {}", abs_path.display()))?;
+            let source = match std::fs::read_to_string(&abs_path) {
+                Ok(s) => s,
+                Err(_) => continue, // skip files with invalid UTF-8
+            };
             let parsed = parse_markdown(&source);
             files.insert(
                 rel_path.clone(),
@@ -227,12 +241,74 @@ impl VaultIndex {
 
         let mut index = Self {
             root,
+            ignore_set,
             files,
             file_inbound: HashMap::new(),
             heading_inbound: HashMap::new(),
         };
         index.populate_inbound();
         Ok(index)
+    }
+
+    /// Insert or replace a file in the index using provided source text.
+    ///
+    /// This supports incremental index updates from unsaved LSP document state.
+    pub fn upsert_file(&mut self, rel_path: PathBuf, abs_path: PathBuf, source: &str) {
+        if path_is_ignored(&self.ignore_set, &rel_path, false) {
+            self.remove_file(&rel_path);
+            return;
+        }
+
+        let parsed = parse_markdown(source);
+        self.files.insert(
+            rel_path.clone(),
+            FileEntry {
+                rel_path,
+                abs_path,
+                headings: parsed.headings,
+                links: parsed.links,
+            },
+        );
+        self.populate_inbound();
+    }
+
+    /// Reload a file from disk and update the index.
+    ///
+    /// If the file no longer exists or can't be read as UTF-8, it is removed
+    /// from the index.
+    pub fn reload_file(&mut self, rel_path: &Path) {
+        if path_is_ignored(&self.ignore_set, rel_path, false) {
+            self.remove_file(rel_path);
+            return;
+        }
+
+        let abs_path = self.root.join(rel_path);
+        let source = match std::fs::read_to_string(&abs_path) {
+            Ok(source) => source,
+            Err(_) => {
+                self.remove_file(rel_path);
+                return;
+            }
+        };
+
+        let parsed = parse_markdown(&source);
+        self.files.insert(
+            rel_path.to_path_buf(),
+            FileEntry {
+                rel_path: rel_path.to_path_buf(),
+                abs_path,
+                headings: parsed.headings,
+                links: parsed.links,
+            },
+        );
+        self.populate_inbound();
+    }
+
+    /// Remove a file from the index.
+    pub fn remove_file(&mut self, rel_path: &Path) {
+        if self.files.remove(rel_path).is_some() {
+            self.populate_inbound();
+        }
     }
 
     /// Validate all links in the vault and return a report of broken references
@@ -512,13 +588,62 @@ pub fn parse_markdown(content: &str) -> ParsedDocument {
 /// Recursively discover all `.md` files under `root`.
 ///
 /// Returns a sorted list of paths relative to `root`. Symlinks are not
-/// followed and paths that resolve outside the root are rejected.
-fn discover_markdown_files(root: &Path) -> Result<Vec<PathBuf>> {
+/// followed and paths that resolve outside the root are rejected. Both built-in
+/// ignored directories and user-defined ignore patterns are respected.
+/// Directories to skip during discovery. These are common build artifacts,
+/// version control, and dependency directories that never contain useful
+/// knowledge-base markdown.
+const IGNORED_DIRS: &[&str] = &[
+    "node_modules",
+    ".git",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".cache",
+    "vendor",
+    "__pycache__",
+    ".venv",
+];
+
+fn build_ignore_globset(ignore_patterns: &[String]) -> Result<GlobSet> {
+    let mut builder = GlobSetBuilder::new();
+    for pattern in ignore_patterns {
+        let glob = GlobBuilder::new(pattern)
+            .literal_separator(true)
+            .build()
+            .with_context(|| format!("invalid ignore pattern `{pattern}`"))?;
+        builder.add(glob);
+    }
+
+    builder.build().context("failed to compile ignore patterns")
+}
+
+fn discover_markdown_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
 
     for entry in WalkDir::new(root)
         .follow_links(false)
         .into_iter()
+        .filter_entry(|entry| {
+            if !entry.file_type().is_dir() {
+                return true;
+            }
+
+            let Some(rel) = rel_path_from_root(root, entry.path()) else {
+                return false;
+            };
+            if rel.as_os_str().is_empty() {
+                return true;
+            }
+
+            let name = entry.file_name().to_string_lossy();
+            if IGNORED_DIRS.contains(&name.as_ref()) {
+                return false;
+            }
+
+            !path_is_ignored(ignore_set, &rel, true)
+        })
         .filter_map(std::result::Result::ok)
     {
         if !entry.file_type().is_file() {
@@ -550,11 +675,37 @@ fn discover_markdown_files(root: &Path) -> Result<Vec<PathBuf>> {
             )
         })?;
 
+        if path_is_ignored(ignore_set, &rel, false) {
+            continue;
+        }
+
         paths.push(rel);
     }
 
     paths.sort();
     Ok(paths)
+}
+
+fn rel_path_from_root(root: &Path, path: &Path) -> Option<PathBuf> {
+    let rel = path.strip_prefix(root).ok()?;
+    normalize_rel_path(rel)
+}
+
+fn path_is_ignored(ignore_set: &GlobSet, rel_path: &Path, is_dir: bool) -> bool {
+    let slash = rel_path.to_string_lossy().replace('\\', "/");
+    if slash.is_empty() {
+        return false;
+    }
+
+    if ignore_set.is_match(&slash) {
+        return true;
+    }
+
+    if is_dir {
+        return ignore_set.is_match(format!("{slash}/"));
+    }
+
+    false
 }
 
 // ---------------------------------------------------------------------------

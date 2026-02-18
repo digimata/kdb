@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::sync::RwLock;
+use tokio::task;
 use tower_lsp::jsonrpc::Result as LspResult;
 use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
@@ -19,6 +20,8 @@ use tower_lsp::lsp_types::{
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
+use crate::config;
+use crate::index::VaultIndex;
 use crate::root;
 
 use super::{completion, definition, diagnostics, hover, symbols};
@@ -47,8 +50,8 @@ pub async fn serve(path: Option<PathBuf>) -> Result<()> {
 
 /// Shared state for the LSP server.
 ///
-/// Each request handler receives a reference to this struct and uses `root`
-/// to build the vault index and `client` to send notifications back to the editor.
+/// Each request handler receives a reference to this struct. The vault index
+/// is built once and cached, then incrementally updated from document events.
 pub(super) struct Backend {
     /// Handle for sending notifications and log messages to the editor.
     pub(super) client: Client,
@@ -59,6 +62,8 @@ pub(super) struct Backend {
     /// We use this for completion/diagnostics so unsaved edits are reflected
     /// immediately instead of requiring a save.
     documents: RwLock<HashMap<Url, String>>,
+    /// Cached vault index shared by all requests.
+    index: RwLock<Option<VaultIndex>>,
 }
 
 impl Backend {
@@ -67,7 +72,53 @@ impl Backend {
             client,
             root,
             documents: RwLock::new(HashMap::new()),
+            index: RwLock::new(None),
         }
+    }
+
+    async fn build_index(&self) -> Result<VaultIndex> {
+        let root = self.root.clone();
+        let ignore_patterns = config::load_index_ignores(&root)?;
+        task::spawn_blocking(move || VaultIndex::build_with_ignores(&root, &ignore_patterns))
+            .await
+            .context("failed to join vault index build task")?
+    }
+
+    async fn ensure_index_loaded(&self) -> Result<()> {
+        if self.index.read().await.is_some() {
+            return Ok(());
+        }
+
+        let index = self.build_index().await?;
+        let mut guard = self.index.write().await;
+        if guard.is_none() {
+            *guard = Some(index);
+        }
+        Ok(())
+    }
+
+    /// Ensure the cached index exists, logging and returning false on failure.
+    pub(super) async fn ensure_index(&self) -> bool {
+        if let Err(error) = self.ensure_index_loaded().await {
+            self.client
+                .log_message(
+                    MessageType::ERROR,
+                    format!("failed to build vault index: {error:#}"),
+                )
+                .await;
+            return false;
+        }
+
+        true
+    }
+
+    /// Read from the cached index if available.
+    pub(super) async fn with_index<T, F>(&self, f: F) -> Option<T>
+    where
+        F: FnOnce(&VaultIndex) -> T,
+    {
+        let guard = self.index.read().await;
+        guard.as_ref().map(f)
     }
 
     /// Convert a document URI to its absolute and vault-relative paths.
@@ -106,6 +157,36 @@ impl Backend {
     pub(super) async fn clear_document_text(&self, uri: &Url) {
         self.documents.write().await.remove(uri);
     }
+
+    /// Apply in-memory document content to the cached index.
+    pub(super) async fn sync_document_into_index(&self, uri: &Url, content: &str) {
+        let Some((abs_path, rel_path)) = self.markdown_rel_path(uri) else {
+            return;
+        };
+        if !self.ensure_index().await {
+            return;
+        }
+
+        let mut guard = self.index.write().await;
+        if let Some(index) = guard.as_mut() {
+            index.upsert_file(rel_path, abs_path, content);
+        }
+    }
+
+    /// Re-sync a document from disk after the editor closes it.
+    pub(super) async fn sync_document_from_disk(&self, uri: &Url) {
+        let Some((_, rel_path)) = self.markdown_rel_path(uri) else {
+            return;
+        };
+        if !self.ensure_index().await {
+            return;
+        }
+
+        let mut guard = self.index.write().await;
+        if let Some(index) = guard.as_mut() {
+            index.reload_file(&rel_path);
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -140,6 +221,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
+        let _ = self.ensure_index().await;
         self.client
             .log_message(
                 MessageType::INFO,
@@ -158,6 +240,8 @@ impl LanguageServer for Backend {
             params.text_document.text.clone(),
         )
         .await;
+        self.sync_document_into_index(&params.text_document.uri, &params.text_document.text)
+            .await;
         diagnostics::did_open(self, params).await;
     }
 
@@ -165,12 +249,16 @@ impl LanguageServer for Backend {
         if let Some(change) = params.content_changes.last() {
             self.set_document_text(params.text_document.uri.clone(), change.text.clone())
                 .await;
+            self.sync_document_into_index(&params.text_document.uri, &change.text)
+                .await;
         }
         diagnostics::did_change(self, params).await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         self.clear_document_text(&params.text_document.uri).await;
+        self.sync_document_from_disk(&params.text_document.uri)
+            .await;
         diagnostics::did_close(self, params).await;
     }
 

@@ -8,6 +8,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::config;
 use crate::index::{VaultIndex, normalize_rel_path};
 use crate::root;
 
@@ -64,7 +65,8 @@ pub fn check(path: Option<PathBuf>) -> Result<bool> {
     };
 
     let root = root::find_root(&start)?;
-    let index = VaultIndex::build(&root)?;
+    let ignore_patterns = config::load_index_ignores(&root)?;
+    let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
     let report = index.check();
     report.print();
     Ok(report.has_issues())
@@ -104,7 +106,8 @@ pub fn outline(file: PathBuf) -> Result<()> {
             })
         })?;
 
-    let index = VaultIndex::build(&root)?;
+    let ignore_patterns = config::load_index_ignores(&root)?;
+    let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
     let file_entry = index.files.get(&rel_path).with_context(|| {
         format!(
             "file {} is not an indexed markdown file",

@@ -11,6 +11,7 @@
 //! - [`root`] — Project root discovery via `.kdb/`.
 
 pub mod cmd;
+pub mod config;
 pub mod index;
 pub mod lsp;
 pub mod root;

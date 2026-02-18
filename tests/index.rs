@@ -285,6 +285,45 @@ fn vault_index_ignores_non_markdown_files() {
 }
 
 #[test]
+fn vault_index_build_with_ignores_skips_matching_paths() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "keep.md", "# Keep\n");
+    write_file(temp.path(), "archive/hidden.md", "# Hidden\n");
+    write_file(temp.path(), "archive/nested/deep.md", "# Deep\n");
+
+    let ignore_patterns = vec!["archive/**".to_string()];
+    let index = VaultIndex::build_with_ignores(temp.path(), &ignore_patterns).expect("build index");
+
+    assert!(index.files.contains_key(Path::new("keep.md")));
+    assert!(!index.files.contains_key(Path::new("archive/hidden.md")));
+    assert!(
+        !index
+            .files
+            .contains_key(Path::new("archive/nested/deep.md"))
+    );
+}
+
+#[test]
+fn vault_index_incremental_upsert_respects_ignore_patterns() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "keep.md", "# Keep\n");
+
+    let ignore_patterns = vec!["archive/**".to_string()];
+    let mut index =
+        VaultIndex::build_with_ignores(temp.path(), &ignore_patterns).expect("build index");
+
+    index.upsert_file(
+        PathBuf::from("archive/live.md"),
+        temp.path().join("archive/live.md"),
+        "# Live\n",
+    );
+
+    assert!(!index.files.contains_key(Path::new("archive/live.md")));
+}
+
+#[test]
 fn slug_anchor_normalizes_heading_text() {
     assert_eq!(slug_anchor("  Hello, Rust World!  "), "hello-rust-world");
     assert_eq!(slug_anchor("___"), "section");
