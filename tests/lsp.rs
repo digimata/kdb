@@ -1,12 +1,12 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 use tower_lsp::lsp_types::Url;
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -110,7 +110,7 @@ impl LspSession {
         }
     }
 
-    fn initialize(&mut self, root: &Path) -> Value {
+    fn initialize_with_capabilities(&mut self, root: &Path, capabilities: Value) -> Value {
         let root_uri = Url::from_file_path(root).expect("root uri");
         self.send(json!({
             "jsonrpc": "2.0",
@@ -119,7 +119,7 @@ impl LspSession {
             "params": {
                 "processId": Value::Null,
                 "rootUri": root_uri,
-                "capabilities": {}
+                "capabilities": capabilities
             }
         }));
 
@@ -131,6 +131,10 @@ impl LspSession {
         }));
 
         response
+    }
+
+    fn initialize(&mut self, root: &Path) -> Value {
+        self.initialize_with_capabilities(root, json!({}))
     }
 
     fn send(&mut self, message: Value) {
@@ -317,6 +321,55 @@ fn initialize_advertises_expected_capabilities() {
 }
 
 #[test]
+fn initialize_registers_markdown_watcher_when_supported() {
+    let fixture = VaultFixture::new();
+    let mut session = LspSession::start(&fixture.root);
+    let _ = session.initialize_with_capabilities(
+        &fixture.root,
+        json!({
+            "workspace": {
+                "didChangeWatchedFiles": {
+                    "dynamicRegistration": true
+                }
+            }
+        }),
+    );
+
+    let register_request = session.wait_for(Duration::from_secs(5), |message| {
+        message.get("method").and_then(Value::as_str) == Some("client/registerCapability")
+    });
+
+    let registrations = register_request["params"]["registrations"]
+        .as_array()
+        .expect("registrations array");
+    assert_eq!(registrations.len(), 1);
+    assert_eq!(
+        registrations[0]["method"],
+        json!("workspace/didChangeWatchedFiles")
+    );
+    assert_eq!(
+        registrations[0]["registerOptions"]["watchers"][0]["globPattern"],
+        json!("**/*.md")
+    );
+    assert_eq!(
+        registrations[0]["registerOptions"]["watchers"][0]["kind"],
+        json!(7)
+    );
+
+    let register_id = register_request
+        .get("id")
+        .cloned()
+        .expect("register capability id");
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "id": register_id,
+        "result": Value::Null
+    }));
+
+    session.shutdown();
+}
+
+#[test]
 fn symbols_definition_completion_and_hover_work() {
     let fixture = VaultFixture::new();
     let mut session = LspSession::start(&fixture.root);
@@ -471,10 +524,12 @@ fn diagnostics_publish_on_open_change_and_close() {
         .as_array()
         .expect("diagnostics array on open");
     assert!(!open_diags.is_empty());
-    assert!(open_diags[0]["message"]
-        .as_str()
-        .expect("diagnostic message")
-        .contains("target file not found"));
+    assert!(
+        open_diags[0]["message"]
+            .as_str()
+            .expect("diagnostic message")
+            .contains("target file not found")
+    );
 
     session.send(json!({
         "jsonrpc": "2.0",
@@ -510,6 +565,95 @@ fn diagnostics_publish_on_open_change_and_close() {
         .as_array()
         .expect("diagnostics array on close");
     assert!(close_diags.is_empty());
+
+    session.shutdown();
+}
+
+#[test]
+fn watched_file_events_refresh_cached_index_and_diagnostics() {
+    let fixture = VaultFixture::new();
+    let mut session = LspSession::start(&fixture.root);
+    session.initialize(&fixture.root);
+
+    let a_text = fs::read_to_string(fixture.root.join("a.md")).expect("read a.md");
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+            "textDocument": {
+                "uri": fixture.a_uri,
+                "languageId": "markdown",
+                "version": 1,
+                "text": a_text
+            }
+        }
+    }));
+
+    let initial_diag = session.wait_for(Duration::from_secs(5), |message| {
+        diagnostics_for_uri(message, &fixture.a_uri)
+    });
+    let initial_diags = initial_diag["params"]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array after open");
+    assert!(initial_diags.is_empty());
+
+    let moved_dir = fixture.root.join("archived");
+    fs::create_dir_all(&moved_dir).expect("create archived directory");
+    let moved_b_path = moved_dir.join("b.md");
+    fs::rename(fixture.root.join("b.md"), &moved_b_path).expect("move b.md");
+    let moved_b_uri = Url::from_file_path(&moved_b_path).expect("moved b.md uri");
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "method": "workspace/didChangeWatchedFiles",
+        "params": {
+            "changes": [
+                {
+                    "uri": fixture.b_uri,
+                    "type": 3
+                },
+                {
+                    "uri": moved_b_uri,
+                    "type": 1
+                }
+            ]
+        }
+    }));
+
+    let stale_diag = session.wait_for(Duration::from_secs(5), |message| {
+        diagnostics_for_uri(message, &fixture.a_uri)
+    });
+    let stale_diags = stale_diag["params"]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array after move");
+    assert!(!stale_diags.is_empty());
+    assert!(
+        stale_diags[0]["message"]
+            .as_str()
+            .expect("stale diagnostic message")
+            .contains("target file not found: b.md")
+    );
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didChange",
+        "params": {
+            "textDocument": { "uri": fixture.a_uri, "version": 2 },
+            "contentChanges": [
+                {
+                    "text": "# A\n\n## Details\n\nSee [B](archived/b.md#target)\nSee [[archived/b#target]]\n"
+                }
+            ]
+        }
+    }));
+
+    let fixed_diag = session.wait_for(Duration::from_secs(5), |message| {
+        diagnostics_for_uri(message, &fixture.a_uri)
+    });
+    let fixed_diags = fixed_diag["params"]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array after link update");
+    assert!(fixed_diags.is_empty());
 
     session.shutdown();
 }
@@ -601,6 +745,9 @@ fn completion_includes_unsaved_open_file_from_cached_index() {
             }
         }
     }));
+    let _ = session.wait_for(Duration::from_secs(5), |message| {
+        diagnostics_for_uri(message, &fixture.scratch_uri)
+    });
 
     session.send(json!({
         "jsonrpc": "2.0",
@@ -772,10 +919,12 @@ fn diagnostics_include_missing_heading_anchor_errors() {
         .as_array()
         .expect("diagnostics array");
     assert!(!diagnostics.is_empty());
-    assert!(diagnostics[0]["message"]
-        .as_str()
-        .expect("diagnostic message")
-        .contains("target heading not found"));
+    assert!(
+        diagnostics[0]["message"]
+            .as_str()
+            .expect("diagnostic message")
+            .contains("target heading not found")
+    );
 
     session.shutdown();
 }

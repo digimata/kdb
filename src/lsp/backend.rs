@@ -7,16 +7,18 @@
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::RwLock;
 use tokio::task;
 use tower_lsp::jsonrpc::Result as LspResult;
 use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
+    DidChangeWatchedFilesParams, DidChangeWatchedFilesRegistrationOptions,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentSymbolParams,
-    DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
-    InitializeParams, InitializeResult, InitializedParams, MessageType, OneOf, Position,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    Url,
+    DocumentSymbolResponse, FileChangeType, FileSystemWatcher, GlobPattern, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverParams, InitializeParams, InitializeResult,
+    InitializedParams, MessageType, OneOf, Position, Registration, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, Url, WatchKind,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -64,6 +66,8 @@ pub(super) struct Backend {
     documents: RwLock<HashMap<Url, String>>,
     /// Cached vault index shared by all requests.
     index: RwLock<Option<VaultIndex>>,
+    /// Whether the client supports dynamic watched-files registration.
+    supports_dynamic_watched_files: AtomicBool,
 }
 
 impl Backend {
@@ -73,7 +77,13 @@ impl Backend {
             root,
             documents: RwLock::new(HashMap::new()),
             index: RwLock::new(None),
+            supports_dynamic_watched_files: AtomicBool::new(false),
         }
+    }
+
+    fn set_watched_files_support(&self, supported: bool) {
+        self.supports_dynamic_watched_files
+            .store(supported, Ordering::Relaxed);
     }
 
     async fn build_index(&self) -> Result<VaultIndex> {
@@ -158,6 +168,19 @@ impl Backend {
         self.documents.write().await.remove(uri);
     }
 
+    /// Snapshot of all currently open markdown document URIs.
+    pub(super) async fn open_document_uris(&self) -> Vec<Url> {
+        let mut uris = self
+            .documents
+            .read()
+            .await
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        uris.sort_by(|left, right| left.as_str().cmp(right.as_str()));
+        uris
+    }
+
     /// Apply in-memory document content to the cached index.
     pub(super) async fn sync_document_into_index(&self, uri: &Url, content: &str) {
         let Some((abs_path, rel_path)) = self.markdown_rel_path(uri) else {
@@ -187,11 +210,106 @@ impl Backend {
             index.reload_file(&rel_path);
         }
     }
+
+    async fn register_markdown_watcher(&self) {
+        if !self.supports_dynamic_watched_files.load(Ordering::Relaxed) {
+            return;
+        }
+
+        let register_options =
+            match serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
+                watchers: vec![FileSystemWatcher {
+                    glob_pattern: GlobPattern::String("**/*.md".to_string()),
+                    kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+                }],
+            }) {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(
+                            MessageType::ERROR,
+                            format!("failed to serialize watched-files registration: {error:#}"),
+                        )
+                        .await;
+                    return;
+                }
+            };
+
+        let registration = Registration {
+            id: "kdb-watch-markdown".to_string(),
+            method: "workspace/didChangeWatchedFiles".to_string(),
+            register_options: Some(register_options),
+        };
+
+        if let Err(error) = self.client.register_capability(vec![registration]).await {
+            self.client
+                .log_message(
+                    MessageType::WARNING,
+                    format!("failed to register markdown file watcher: {error:#}"),
+                )
+                .await;
+        }
+    }
+
+    async fn sync_watched_files_into_index(&self, params: &DidChangeWatchedFilesParams) -> bool {
+        let updates = params
+            .changes
+            .iter()
+            .filter_map(|change| {
+                self.markdown_rel_path(&change.uri)
+                    .map(|(abs_path, rel_path)| {
+                        (change.typ, change.uri.clone(), abs_path, rel_path)
+                    })
+            })
+            .collect::<Vec<_>>();
+        if updates.is_empty() {
+            return false;
+        }
+        if !self.ensure_index().await {
+            return false;
+        }
+
+        let open_documents = self.documents.read().await.clone();
+        let mut changed = false;
+
+        let mut guard = self.index.write().await;
+        let Some(index) = guard.as_mut() else {
+            return false;
+        };
+
+        for (change_type, uri, abs_path, rel_path) in updates {
+            if change_type == FileChangeType::DELETED {
+                index.remove_file(&rel_path);
+                changed = true;
+                continue;
+            }
+
+            if change_type == FileChangeType::CREATED || change_type == FileChangeType::CHANGED {
+                if let Some(content) = open_documents.get(&uri) {
+                    index.upsert_file(rel_path, abs_path, content);
+                } else {
+                    index.reload_file(&rel_path);
+                }
+                changed = true;
+            }
+        }
+
+        changed
+    }
 }
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> LspResult<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> LspResult<InitializeResult> {
+        let supports_dynamic_watched_files = params
+            .capabilities
+            .workspace
+            .as_ref()
+            .and_then(|workspace| workspace.did_change_watched_files)
+            .and_then(|caps| caps.dynamic_registration)
+            .unwrap_or(false);
+        self.set_watched_files_support(supports_dynamic_watched_files);
+
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Options(
@@ -221,6 +339,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
+        self.register_markdown_watcher().await;
         let _ = self.ensure_index().await;
         self.client
             .log_message(
@@ -260,6 +379,12 @@ impl LanguageServer for Backend {
         self.sync_document_from_disk(&params.text_document.uri)
             .await;
         diagnostics::did_close(self, params).await;
+    }
+
+    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        if self.sync_watched_files_into_index(&params).await {
+            diagnostics::refresh_open_documents(self).await;
+        }
     }
 
     async fn document_symbol(

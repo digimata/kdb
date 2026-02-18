@@ -33,6 +33,13 @@ pub(super) async fn did_close(backend: &Backend, params: DidCloseTextDocumentPar
         .await;
 }
 
+/// Re-publish diagnostics for every currently open markdown document.
+pub(super) async fn refresh_open_documents(backend: &Backend) {
+    for uri in backend.open_document_uris().await {
+        publish_for_uri(backend, &uri).await;
+    }
+}
+
 async fn publish_for_uri(backend: &Backend, uri: &Url) {
     let Some((abs_path, rel_path)) = backend.markdown_rel_path(uri) else {
         return;
