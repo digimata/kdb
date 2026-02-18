@@ -4,6 +4,8 @@ Local issue tracker for this kdb repo.
 
 | ID | Title | Status | Priority |
 | --- | --- | --- | --- |
+| [0011](iss-0011-install-script.md) | Install Script and Prebuilt Binaries | proposed | critical |
+| [0012](iss-0012-cli-commands.md) | CLI Commands | in_progress | high |
 | [0009](iss-0009-kdb-init.md) | kdb init and .kdb/ Directory | done | critical |
 | [0001](iss-0001-kdb-workspaces.md) | KDB Workspaces | proposed | medium |
 | [0002](iss-0002-templates.md) | Templates | proposed | medium |
