@@ -16,8 +16,6 @@ Local issue tracker for this kdb repo.
 | [0006](iss-0006-realtime-workspace.md) | Realtime Multiplayer Workspace | proposed | high |
 | [0007](iss-0007-production-readiness.md) | Production Readiness | proposed | high |
 | [0008](iss-0008-installable-packages.md) | Installable KDB Packages | proposed | medium |
-| [0010](iss-0010-completion-header-titles.md) | Show Header Titles in Completion | done | high |
-
 Lifecycle:
 
 `proposed` → `planned` → `in_progress` → `done`
