@@ -167,13 +167,13 @@ pub struct CheckReport {
 }
 
 impl CheckReport {
-    /// Returns `true` if the report contains any broken links or orphan files.
-    pub fn has_issues(&self) -> bool {
-        !self.broken_links.is_empty() || !self.orphans.is_empty()
+    /// Returns `true` if the report contains any broken links.
+    pub fn has_errors(&self) -> bool {
+        !self.broken_links.is_empty()
     }
 
     /// Print a human-readable summary to stdout.
-    pub fn print(&self) {
+    pub fn print(&self, list_orphans: bool) {
         for broken in &self.broken_links {
             println!(
                 "{}:{}:{} broken link {} ({})",
@@ -185,14 +185,44 @@ impl CheckReport {
             );
         }
 
-        for orphan in &self.orphans {
-            println!("{} orphan file (0 inbound links)", orphan.display());
+        if list_orphans {
+            for orphan in &self.orphans {
+                println!("{} orphan file (0 inbound links)", orphan.display());
+            }
+        } else if !self.orphans.is_empty() {
+            let noun = if self.orphans.len() == 1 {
+                "orphan file"
+            } else {
+                "orphan files"
+            };
+            println!(
+                "{} {} (run `kdb check --orphans` to list)",
+                self.orphans.len(),
+                noun
+            );
         }
 
-        if self.has_issues() {
-            println!("{} errors", self.broken_links.len() + self.orphans.len());
-        } else {
+        if self.broken_links.is_empty() && self.orphans.is_empty() {
             println!("kdb check: no issues found");
+            return;
+        }
+
+        if !self.broken_links.is_empty() {
+            let noun = if self.broken_links.len() == 1 {
+                "error"
+            } else {
+                "errors"
+            };
+            println!("{} {noun}", self.broken_links.len());
+        }
+
+        if !self.orphans.is_empty() {
+            let noun = if self.orphans.len() == 1 {
+                "warning"
+            } else {
+                "warnings"
+            };
+            println!("{} {noun}", self.orphans.len());
         }
     }
 }

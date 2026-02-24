@@ -1,7 +1,7 @@
 //! CLI command implementations.
 //!
 //! Each public function corresponds to a subcommand of the `kdb` binary:
-//! `init`, `check`, `outline`, and `lsp`.
+//! `init`, `check`, `outline`, `fmt`, and `lsp`.
 
 use anyhow::{Context, Result, bail};
 use std::env;
@@ -9,6 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::config;
+use crate::fmt;
 use crate::index::{VaultIndex, normalize_rel_path};
 use crate::root;
 
@@ -58,7 +59,7 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
 ///
 /// Returns `Ok(true)` if any issues were found (caller should exit with code 1),
 /// or `Ok(false)` if the vault is clean.
-pub fn check(path: Option<PathBuf>) -> Result<bool> {
+pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
     let start = match path {
         Some(path) => make_absolute(&path)?,
         None => env::current_dir().context("failed to read current directory")?,
@@ -68,8 +69,8 @@ pub fn check(path: Option<PathBuf>) -> Result<bool> {
     let ignore_patterns = config::load_index_ignores(&root)?;
     let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
     let report = index.check();
-    report.print();
-    Ok(report.has_issues())
+    report.print(list_orphans);
+    Ok(report.has_errors())
 }
 
 /// Print the heading tree for a single markdown file.
@@ -125,6 +126,26 @@ pub fn outline(file: PathBuf) -> Result<()> {
         println!("{indent}- {}", heading.title);
     }
 
+    Ok(())
+}
+
+/// Generate or update code index headers for supported code files.
+///
+/// Walks the project root and rewrites Rust, TypeScript/JavaScript, Python,
+/// and Go files with a managed index block at the top of each file.
+pub fn fmt(path: Option<PathBuf>) -> Result<()> {
+    let start = match path {
+        Some(path) => make_absolute(&path)?,
+        None => env::current_dir().context("failed to read current directory")?,
+    };
+
+    let root = root::find_root(&start)?;
+    let ignore_patterns = config::load_index_ignores(&root)?;
+    let report = fmt::format_workspace(&root, &ignore_patterns)?;
+    println!(
+        "kdb fmt: updated {} of {} files",
+        report.updated_files, report.scanned_files
+    );
     Ok(())
 }
 

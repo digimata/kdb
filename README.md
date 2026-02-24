@@ -57,7 +57,7 @@ Both standard markdown links and wikilinks are supported:
 ## Commands
 
 ```
-kdb check              # compile — report all errors/warnings
+kdb check [--orphans]  # compile — report all errors/warnings (orphans listed with --orphans)
 kdb outline <file>     # print heading tree
 kdb refs <file>#<head> # find all references to a heading
 kdb orphans            # list orphan files
@@ -65,7 +65,7 @@ kdb stubs              # list empty stubs
 kdb graph              # output dependency graph (dot format)
 kdb graph --cluster    # detect clusters of related knowledge
 kdb init               # initialize a kdb project (creates .kdb/config.toml)
-kdb fmt                # normalize link formats, fix slugs
+kdb fmt                # generate/update code index headers (Rust, TS/JS, Python, Go)
 kdb lsp                # start the language server (stdio)
 ```
 

@@ -17,6 +17,9 @@ enum Command {
     },
     /// Report broken links and orphan files.
     Check {
+        /// Print each orphan file path.
+        #[arg(long)]
+        orphans: bool,
         /// Optional starting path to discover kdb root from.
         path: Option<PathBuf>,
     },
@@ -24,6 +27,11 @@ enum Command {
     Outline {
         /// File path to outline.
         file: PathBuf,
+    },
+    /// Generate or update code index headers in supported code files.
+    Fmt {
+        /// Optional starting path to discover kdb root from.
+        path: Option<PathBuf>,
     },
     /// Run the language server over stdio.
     Lsp {
@@ -38,7 +46,7 @@ async fn main() {
 
     let result = match cli.command {
         Command::Init { path } => kdb::cmd::init(path),
-        Command::Check { path } => match kdb::cmd::check(path) {
+        Command::Check { path, orphans } => match kdb::cmd::check(path, orphans) {
             Ok(has_issues) => {
                 if has_issues {
                     std::process::exit(1);
@@ -48,6 +56,7 @@ async fn main() {
             Err(error) => Err(error),
         },
         Command::Outline { file } => kdb::cmd::outline(file),
+        Command::Fmt { path } => kdb::cmd::fmt(path),
         Command::Lsp { path } => kdb::cmd::lsp(path).await,
     };
 
