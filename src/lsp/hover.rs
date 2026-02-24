@@ -1,8 +1,8 @@
 //! Hover previews for markdown links.
 //!
 //! Hovering a link shows a short markdown preview from the target section.
-//! Preview text starts at the target heading and runs until the next heading,
-//! then is truncated to a fixed character limit.
+//! Preview text starts at the target heading and runs until the next heading
+//! of equal or higher level, then is truncated to a fixed character limit.
 
 use regex::{Captures, Regex};
 use std::path::Path;
@@ -12,7 +12,7 @@ use tower_lsp::lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, Mar
 
 use crate::index::{
     LinkKind, ParsedDocument, parse_markdown, parse_markdown_target, parse_wikilink_target,
-    resolve_target_path, slug_anchor,
+    resolve_target_path, section_byte_bounds, slug_anchor,
 };
 
 use super::{
@@ -21,7 +21,7 @@ use super::{
 };
 
 // -----------------------------------
-// src/lsp/hover.rs
+// kdb/src/lsp/hover.rs
 //
 // const HOVER_CHAR_LIMIT          L39
 // static MARKDOWN_LINK_RE         L40
@@ -31,9 +31,7 @@ use super::{
 // fn resolve_target_url()        L171
 // fn is_external_link()          L190
 // fn section_preview()           L197
-// fn section_line_bounds()       L217
-// fn line_start_offsets()        L245
-// fn truncate_chars()            L255
+// fn truncate_chars()            L217
 // -----------------------------------
 
 const HOVER_CHAR_LIMIT: usize = 420;
@@ -195,16 +193,7 @@ fn is_external_link(raw: &str) -> bool {
 }
 
 fn section_preview(content: &str, parsed: &ParsedDocument, anchor: Option<&str>) -> Option<String> {
-    let (start_line, end_line) = section_line_bounds(parsed, anchor)?;
-    let line_starts = line_start_offsets(content);
-    let start = line_starts.get(start_line).copied().unwrap_or(0);
-    let end = end_line
-        .and_then(|line| line_starts.get(line).copied())
-        .unwrap_or(content.len());
-
-    if end <= start {
-        return None;
-    }
+    let (start, end) = section_byte_bounds(content, parsed, anchor)?;
 
     let snippet = content[start..end].trim();
     if snippet.is_empty() {
@@ -213,45 +202,6 @@ fn section_preview(content: &str, parsed: &ParsedDocument, anchor: Option<&str>)
 
     Some(truncate_chars(snippet, HOVER_CHAR_LIMIT))
 }
-
-fn section_line_bounds(
-    parsed: &ParsedDocument,
-    anchor: Option<&str>,
-) -> Option<(usize, Option<usize>)> {
-    if parsed.headings.is_empty() {
-        return Some((0, None));
-    }
-
-    let start_index = match anchor {
-        Some(anchor) => {
-            let wanted = slug_anchor(anchor);
-            parsed
-                .headings
-                .iter()
-                .position(|heading| heading.anchor == wanted)?
-        }
-        None => 0,
-    };
-
-    let start_line = parsed.headings[start_index].line.saturating_sub(1);
-    let end_line = parsed
-        .headings
-        .get(start_index + 1)
-        .map(|heading| heading.line.saturating_sub(1));
-
-    Some((start_line, end_line))
-}
-
-fn line_start_offsets(content: &str) -> Vec<usize> {
-    let mut starts = vec![0];
-    for (index, byte) in content.bytes().enumerate() {
-        if byte == b'\n' {
-            starts.push(index + 1);
-        }
-    }
-    starts
-}
-
 fn truncate_chars(input: &str, max_chars: usize) -> String {
     let mut out = String::new();
     for (index, ch) in input.chars().enumerate() {

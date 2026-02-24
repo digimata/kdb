@@ -15,76 +15,65 @@
 //!    its source file, handling both markdown and wikilink syntax.
 
 pub mod deps;
+mod markdown;
 pub mod refs;
 
 use anyhow::{Context, Result};
 use globset::GlobSet;
-use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
-use regex::Regex;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Component, Path, PathBuf};
-use std::sync::LazyLock;
 
 use crate::discovery::{build_ignore_globset, discover_files, path_is_ignored};
-use crate::resolve::{ResolvedImport, build_workspace_import_index};
+use crate::resolve::{ResolvedImport, RustWorkspaceCache, build_workspace_import_index};
 
-// ----------------------------------------
-// kdb/src/index/mod.rs
-//
-// pub mod deps                         L17
-// pub mod refs                         L18
-// static WIKILINK_RE                   L82
-// pub struct VaultIndex                L94
-// pub struct FileEntry                L113
-// pub struct Heading                  L126
-// pub enum LinkKind                   L142
-// pub struct LinkTarget               L151
-// pub struct Link                     L160
-// pub struct HeadingKey               L175
-// pub struct LinkRef                  L184
-// pub struct ParsedDocument           L199
-// pub struct BrokenLink               L208
-// pub struct CheckReport              L223
-//   pub fn has_errors()               L232
-//   pub fn print()                    L237
-//   pub fn build()                    L300
-//   pub fn build_with_ignores()       L308
-//   pub fn upsert_file()              L350
-//   pub fn reload_file()              L373
-//   pub fn remove_file()              L402
-//   pub fn check()                    L410
-//   fn populate_inbound()             L449
-//   fn resolve_link()                 L502
-// enum ResolveError                   L535
-//   fn message()                      L542
-// pub fn parse_markdown()             L563
-// const IGNORED_DIRS                  L690
-// fn discover_markdown_files()        L703
-// fn resolve_target_file()            L721
-// pub fn resolve_target_path()        L734
-// pub fn resolve_file_target()        L762
-// pub fn normalize_rel_path()         L786
-// pub fn parse_markdown_target()      L813
-// pub fn parse_wikilink_target()      L861
-// pub fn slug_anchor()                L898
-// fn is_external()                    L907
-// fn slug()                           L919
-// fn build_line_starts()              L951
-// fn line_col()                       L962
-// fn normalize_inline_whitespace()    L973
-// fn heading_level_number()           L978
-// fn range_contains_offset()          L989
-// struct ActiveHeading                L996
-// ----------------------------------------
-
-/// Regex for matching `[[wikilink]]` syntax in raw markdown source.
-static WIKILINK_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\[\[([^\]\r\n]+)\]\]").expect("valid wikilink regex"));
+pub use markdown::{
+    parse_markdown, parse_markdown_target, parse_wikilink_target, section_byte_bounds,
+    section_line_bounds, slug_anchor,
+};
 
 // ---------------------------------------------------------------------------
 // Data types
 // ---------------------------------------------------------------------------
+
+// -------------------------------------
+// src/index/mod.rs
+//
+// pub mod deps                      L17
+// mod markdown                      L18
+// pub mod refs                      L19
+// pub struct VaultIndex             L83
+// pub struct FileEntry             L104
+// pub struct Heading               L117
+// pub enum LinkKind                L133
+// pub struct LinkTarget            L142
+// pub struct Link                  L151
+// pub struct HeadingKey            L166
+// pub struct LinkRef               L175
+// pub struct ParsedDocument        L190
+// pub struct BrokenLink            L199
+// pub struct CheckReport           L214
+//   pub fn has_errors()            L223
+//   pub fn print()                 L228
+//   pub fn scoped_to()             L285
+// fn path_is_in_check_scope()      L294
+//   pub fn build()                 L315
+//   pub fn build_with_ignores()    L323
+//   pub fn upsert_file()           L366
+//   pub fn reload_file()           L389
+//   pub fn remove_file()           L418
+//   pub fn check()                 L426
+//   fn populate_inbound()          L465
+//   fn resolve_link()              L518
+// enum ResolveError                L551
+//   fn message()                   L558
+// const IGNORED_DIRS               L581
+// fn discover_markdown_files()     L594
+// fn resolve_target_file()         L612
+// pub fn resolve_target_path()     L625
+// pub fn resolve_file_target()     L653
+// pub fn normalize_rel_path()      L677
+// -------------------------------------
 
 /// Complete index of a markdown vault.
 ///
@@ -104,6 +93,8 @@ pub struct VaultIndex {
     pub heading_inbound: HashMap<HeadingKey, Vec<LinkRef>>,
     /// Workspace package map (`package.json` name -> local relative directory).
     pub workspace_packages: HashMap<String, PathBuf>,
+    /// Rust workspace crate/dependency cache used during import resolution.
+    pub rust_workspace: RustWorkspaceCache,
     /// Per-code-file resolved imports used by `kdb deps` and code refs.
     pub code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
 }
@@ -286,6 +277,30 @@ impl CheckReport {
             println!("{} {noun}", self.orphans.len());
         }
     }
+
+    /// Return a copy of this report limited to issues originating in `scope_rel`.
+    ///
+    /// When `scope_is_dir` is true, all descendants of `scope_rel` are kept.
+    /// Otherwise, only entries whose source file exactly equals `scope_rel` are kept.
+    pub fn scoped_to(mut self, scope_rel: &Path, scope_is_dir: bool) -> Self {
+        self.broken_links
+            .retain(|broken| path_is_in_check_scope(&broken.source_file, scope_rel, scope_is_dir));
+        self.orphans
+            .retain(|orphan| path_is_in_check_scope(orphan, scope_rel, scope_is_dir));
+        self
+    }
+}
+
+fn path_is_in_check_scope(path: &Path, scope_rel: &Path, scope_is_dir: bool) -> bool {
+    if scope_rel.as_os_str().is_empty() {
+        return true;
+    }
+
+    if scope_is_dir {
+        path.starts_with(scope_rel)
+    } else {
+        path == scope_rel
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -338,6 +353,7 @@ impl VaultIndex {
             file_inbound: HashMap::new(),
             heading_inbound: HashMap::new(),
             workspace_packages: import_index.workspace_packages,
+            rust_workspace: import_index.rust_workspace,
             code_imports: import_index.file_imports,
         };
         index.populate_inbound();
@@ -472,7 +488,7 @@ impl VaultIndex {
                     .or_default()
                     .push(link_ref.clone());
 
-                if let Some(anchor) = link.target.anchor.as_deref().map(slug) {
+                if let Some(anchor) = link.target.anchor.as_deref().map(slug_anchor) {
                     let heading_exists = self.files.get(&target_file).is_some_and(|target| {
                         target
                             .headings
@@ -510,7 +526,7 @@ impl VaultIndex {
         }
 
         if let Some(raw_anchor) = link.target.anchor.as_deref() {
-            let anchor = slug(raw_anchor);
+            let anchor = slug_anchor(raw_anchor);
             let heading_exists = self.files.get(&target_file).is_some_and(|target| {
                 target
                     .headings
@@ -548,131 +564,6 @@ impl ResolveError {
             }
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Markdown parsing
-// ---------------------------------------------------------------------------
-
-/// Parse a markdown string and extract all headings and internal links.
-///
-/// Handles both standard markdown links (`[text](path.md#anchor)`) and
-/// wikilinks (`[[path#anchor]]`). External URLs (http, mailto, etc.) are
-/// excluded. Headings get auto-generated anchor slugs that are deduplicated
-/// with numeric suffixes when collisions occur.
-pub fn parse_markdown(content: &str) -> ParsedDocument {
-    let line_starts = build_line_starts(content);
-    let mut headings = Vec::new();
-    let mut links = Vec::new();
-    let mut active_heading: Option<ActiveHeading> = None;
-    let mut excluded_wikilink_ranges: Vec<(usize, usize)> = Vec::new();
-    let mut code_block_start: Option<usize> = None;
-
-    for (event, range) in Parser::new_ext(content, Options::all()).into_offset_iter() {
-        match event {
-            Event::Start(Tag::Heading { level, .. }) => {
-                let (line, column) = line_col(&line_starts, range.start);
-                active_heading = Some(ActiveHeading {
-                    level: heading_level_number(level),
-                    line,
-                    column,
-                    title: String::new(),
-                });
-            }
-            Event::Start(Tag::CodeBlock(_)) => {
-                code_block_start = Some(range.start);
-            }
-            Event::End(TagEnd::Heading(..)) => {
-                if let Some(active) = active_heading.take() {
-                    let title = normalize_inline_whitespace(active.title);
-                    headings.push(Heading {
-                        title,
-                        anchor: String::new(),
-                        level: active.level,
-                        line: active.line,
-                        column: active.column,
-                    });
-                }
-            }
-            Event::End(TagEnd::CodeBlock) => {
-                if let Some(start) = code_block_start.take() {
-                    excluded_wikilink_ranges.push((start, range.end));
-                }
-            }
-            Event::Text(text) => {
-                if let Some(active) = &mut active_heading {
-                    active.title.push_str(&text);
-                }
-            }
-            Event::Code(text) => {
-                if let Some(active) = &mut active_heading {
-                    active.title.push_str(&text);
-                }
-                excluded_wikilink_ranges.push((range.start, range.end));
-            }
-            Event::SoftBreak | Event::HardBreak => {
-                if let Some(active) = &mut active_heading {
-                    active.title.push(' ');
-                }
-            }
-            Event::Start(Tag::Link { dest_url, .. }) => {
-                if let Some(target) = parse_markdown_target(dest_url.as_ref()) {
-                    let (line, column) = line_col(&line_starts, range.start);
-                    links.push(Link {
-                        kind: LinkKind::Markdown,
-                        raw: dest_url.to_string(),
-                        target,
-                        line,
-                        column,
-                    });
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // Assign anchor slugs, deduplicating collisions with numeric suffixes.
-    let mut anchor_counts: HashMap<String, usize> = HashMap::new();
-    for heading in &mut headings {
-        let base = slug(&heading.title);
-        let count = anchor_counts.entry(base.clone()).or_insert(0);
-        let anchor = if *count == 0 {
-            base
-        } else {
-            format!("{}-{}", base, *count)
-        };
-        *count += 1;
-        heading.anchor = anchor;
-    }
-
-    // Second pass: scan raw source for wikilinks since pulldown-cmark doesn't
-    // parse `[[...]]` syntax natively.
-    for captures in WIKILINK_RE.captures_iter(content) {
-        let Some(full_match) = captures.get(0) else {
-            continue;
-        };
-        let Some(inner_match) = captures.get(1) else {
-            continue;
-        };
-
-        if range_contains_offset(&excluded_wikilink_ranges, full_match.start()) {
-            continue;
-        }
-
-        let raw = inner_match.as_str();
-        if let Some(target) = parse_wikilink_target(raw) {
-            let (line, column) = line_col(&line_starts, full_match.start());
-            links.push(Link {
-                kind: LinkKind::Wikilink,
-                raw: format!("[[{raw}]]"),
-                target,
-                line,
-                column,
-            });
-        }
-    }
-
-    ParsedDocument { headings, links }
 }
 
 // ---------------------------------------------------------------------------
@@ -800,202 +691,4 @@ pub fn normalize_rel_path(path: &Path) -> Option<PathBuf> {
     }
 
     Some(normalized)
-}
-
-// ---------------------------------------------------------------------------
-// Link target parsing
-// ---------------------------------------------------------------------------
-
-/// Parse a standard markdown link URL into a [`LinkTarget`].
-///
-/// Returns `None` for external URLs, empty links, and links to non-markdown files.
-/// A bare anchor like `#section` is parsed as a same-file heading reference.
-pub fn parse_markdown_target(raw: &str) -> Option<LinkTarget> {
-    let raw = raw.trim();
-    if raw.is_empty() || is_external(raw) {
-        return None;
-    }
-
-    if let Some(anchor) = raw.strip_prefix('#') {
-        let anchor = anchor.trim();
-        if anchor.is_empty() {
-            return None;
-        }
-        return Some(LinkTarget {
-            file: None,
-            anchor: Some(anchor.to_string()),
-        });
-    }
-
-    let (file, anchor) = match raw.split_once('#') {
-        Some((file, anchor)) => (file.trim(), Some(anchor.trim())),
-        None => (raw, None),
-    };
-
-    if file.is_empty() {
-        return None;
-    }
-
-    let is_markdown_path = Path::new(file)
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
-    if !is_markdown_path {
-        return None;
-    }
-
-    let anchor = anchor
-        .filter(|anchor| !anchor.is_empty())
-        .map(ToString::to_string);
-
-    Some(LinkTarget {
-        file: Some(file.to_string()),
-        anchor,
-    })
-}
-
-/// Parse the inner content of a `[[wikilink]]` into a [`LinkTarget`].
-///
-/// Supports `file`, `file#anchor`, `#anchor`, and display text via `|`
-/// (e.g. `[[file|display text]]` — the display text is ignored).
-pub fn parse_wikilink_target(raw: &str) -> Option<LinkTarget> {
-    let body = raw.split('|').next()?.trim();
-    if body.is_empty() {
-        return None;
-    }
-
-    if let Some(anchor) = body.strip_prefix('#') {
-        let anchor = anchor.trim();
-        if anchor.is_empty() {
-            return None;
-        }
-        return Some(LinkTarget {
-            file: None,
-            anchor: Some(anchor.to_string()),
-        });
-    }
-
-    let (file, anchor) = match body.split_once('#') {
-        Some((file, anchor)) => (Some(file.trim()), Some(anchor.trim())),
-        None => (Some(body), None),
-    };
-
-    let file = file
-        .filter(|file| !file.is_empty())
-        .map(ToString::to_string);
-    let anchor = anchor
-        .filter(|anchor| !anchor.is_empty())
-        .map(ToString::to_string);
-
-    if file.is_none() && anchor.is_none() {
-        return None;
-    }
-
-    Some(LinkTarget { file, anchor })
-}
-
-/// Public wrapper around [`slug`] for use by the LSP module.
-pub fn slug_anchor(input: &str) -> String {
-    slug(input)
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Returns `true` for URLs that point outside the vault (http, mailto, etc.).
-fn is_external(raw: &str) -> bool {
-    raw.contains("://")
-        || raw.starts_with("mailto:")
-        || raw.starts_with("tel:")
-        || raw.starts_with("data:")
-}
-
-/// Convert a heading title to a URL-safe anchor slug.
-///
-/// Lowercases the input, replaces whitespace/hyphens/underscores with single
-/// dashes, strips non-alphanumeric characters, and trims trailing dashes.
-/// Returns `"section"` for inputs that produce an empty slug.
-fn slug(input: &str) -> String {
-    let mut out = String::new();
-    let mut last_dash = false;
-
-    for ch in input.trim().to_ascii_lowercase().chars() {
-        if ch.is_ascii_alphanumeric() {
-            out.push(ch);
-            last_dash = false;
-            continue;
-        }
-
-        if (ch.is_ascii_whitespace() || ch == '-' || ch == '_') && !out.is_empty() && !last_dash {
-            out.push('-');
-            last_dash = true;
-        }
-    }
-
-    while out.ends_with('-') {
-        out.pop();
-    }
-
-    if out.is_empty() {
-        "section".to_string()
-    } else {
-        out
-    }
-}
-
-/// Build an index of byte offsets where each line starts in the content.
-///
-/// Used together with [`line_col`] to convert byte offsets from the parser
-/// into human-readable 1-based line and column numbers.
-fn build_line_starts(content: &str) -> Vec<usize> {
-    let mut starts = vec![0];
-    for (index, byte) in content.bytes().enumerate() {
-        if byte == b'\n' {
-            starts.push(index + 1);
-        }
-    }
-    starts
-}
-
-/// Convert a byte offset into a 1-based (line, column) pair.
-fn line_col(line_starts: &[usize], byte_index: usize) -> (usize, usize) {
-    let line_idx = match line_starts.binary_search(&byte_index) {
-        Ok(index) => index,
-        Err(0) => 0,
-        Err(index) => index - 1,
-    };
-    let line_start = line_starts[line_idx];
-    (line_idx + 1, byte_index.saturating_sub(line_start) + 1)
-}
-
-/// Collapse runs of whitespace into single spaces.
-fn normalize_inline_whitespace(input: String) -> String {
-    input.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-/// Convert a pulldown-cmark heading level enum to a numeric level (1-6).
-fn heading_level_number(level: HeadingLevel) -> u8 {
-    match level {
-        HeadingLevel::H1 => 1,
-        HeadingLevel::H2 => 2,
-        HeadingLevel::H3 => 3,
-        HeadingLevel::H4 => 4,
-        HeadingLevel::H5 => 5,
-        HeadingLevel::H6 => 6,
-    }
-}
-
-fn range_contains_offset(ranges: &[(usize, usize)], offset: usize) -> bool {
-    ranges
-        .iter()
-        .any(|(start, end)| offset >= *start && offset < *end)
-}
-
-/// Accumulator for heading text while parsing events between heading open/close tags.
-struct ActiveHeading {
-    level: u8,
-    line: usize,
-    column: usize,
-    title: String,
 }

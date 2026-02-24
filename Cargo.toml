@@ -10,7 +10,6 @@ anyhow = "1.0.101"
 clap = { version = "4.5.59", features = ["derive"] }
 globset = "0.4.15"
 ignore = "0.4.24"
-pulldown-cmark = "0.13.0"
 regex = "1.12.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -20,6 +19,7 @@ tower-lsp = "0.20.0"
 tree-sitter = "0.26.5"
 tree-sitter-go = "0.25.0"
 tree-sitter-javascript = "0.25.0"
+tree-sitter-md = { version = "0.5.2", features = ["parser"] }
 tree-sitter-python = "0.25.0"
 tree-sitter-rust = "0.24.0"
 tree-sitter-typescript = "0.23.2"
