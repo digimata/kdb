@@ -9,7 +9,7 @@ use walkdir::WalkDir;
 
 use crate::index::normalize_rel_path;
 use crate::symbols::{
-    CodeLanguage, Symbol, SymbolKind, extract_symbols, keyword_for_kind, language_for_path,
+    CodeLanguage, Symbol, extract_symbols, format_symbol_display, language_for_path,
 };
 
 pub mod preamble;
@@ -40,15 +40,6 @@ use self::preamble::{comment_prefix, preamble_end_index};
 
 const LEGACY_INDEX_HEADER: &str = "## Index";
 const LINE_GAP: usize = 4;
-const CANONICAL_KEYWORDS: &[&str] = &[
-    "fn",
-    "struct",
-    "enum",
-    "trait",
-    "type",
-    "class",
-    "interface",
-];
 
 /// Directories to skip during formatting discovery.
 const IGNORED_DIRS: &[&str] = &[
@@ -359,14 +350,16 @@ fn is_canonical_index_body_line(line: &str, prefix: &str) -> bool {
         return false;
     };
 
-    let text = rest.trim_start();
+    let text = rest.trim();
     if text.chars().all(|ch| ch == '-') && !text.is_empty() {
         return true;
     }
 
-    CANONICAL_KEYWORDS
-        .iter()
-        .any(|keyword| text.starts_with(&format!("{keyword} ")) && text.contains(" L"))
+    let Some((_, line_label)) = text.rsplit_once(" L") else {
+        return false;
+    };
+
+    !line_label.is_empty() && line_label.chars().all(|ch| ch.is_ascii_digit())
 }
 
 fn is_separator_only_comment_line(line: &str, prefix: &str) -> bool {
@@ -386,26 +379,7 @@ fn is_separator_only_comment_line(line: &str, prefix: &str) -> bool {
 fn render_block(prefix: &str, header: &str, symbols: &[Symbol]) -> Vec<String> {
     let mut rows = Vec::new();
     for symbol in symbols {
-        let indent = if matches!(symbol.kind, SymbolKind::Method) {
-            "  "
-        } else {
-            ""
-        };
-        let keyword = keyword_for_kind(symbol.kind);
-        let qualified_name = match (&symbol.parent, symbol.kind) {
-            (Some(parent), SymbolKind::Method) => format!("{parent}::{}", symbol.name),
-            _ => symbol.name.clone(),
-        };
-        let display_name = if matches!(symbol.kind, SymbolKind::Function | SymbolKind::Method) {
-            format!("{qualified_name}()")
-        } else {
-            qualified_name
-        };
-
-        rows.push((
-            format!("{indent}{keyword} {display_name}"),
-            format!("L{}", symbol.line),
-        ));
+        rows.push((format_symbol_display(symbol), format!("L{}", symbol.line)));
     }
 
     let left_width = rows.iter().map(|(left, _)| left.len()).max().unwrap_or(0);

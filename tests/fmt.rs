@@ -61,28 +61,28 @@ fn format_workspace_formats_supported_languages_with_readable_rows() {
 
     let rust = fs::read_to_string(temp.path().join("src/lib.rs")).expect("read rust file");
     assert!(rust.contains("// src/lib.rs"));
-    assert!(rust.contains("// struct User"));
-    assert!(rust.contains("//   fn User::name()"));
-    assert!(rust.contains("// fn build()"));
+    assert!(rust.contains("// pub struct User"));
+    assert!(rust.contains("//   pub fn name()"));
+    assert!(rust.contains("// pub fn build()"));
 
     let ts = fs::read_to_string(temp.path().join("web/app.ts")).expect("read ts file");
     assert!(ts.contains("// web/app.ts"));
-    assert!(ts.contains("// class Service"));
-    assert!(ts.contains("//   fn Service::run()"));
-    assert!(ts.contains("// fn helper()"));
-    assert!(ts.contains("// fn make()"));
+    assert!(ts.contains("// export class Service"));
+    assert!(ts.contains("//   run()"));
+    assert!(ts.contains("// export function helper()"));
+    assert!(ts.contains("// const make"));
 
     let py = fs::read_to_string(temp.path().join("scripts/tool.py")).expect("read python file");
     assert!(py.contains("# scripts/tool.py"));
     assert!(py.contains("# class Greeter"));
-    assert!(py.contains("#   fn Greeter::hi()"));
-    assert!(py.contains("# fn util()"));
+    assert!(py.contains("#   def hi()"));
+    assert!(py.contains("# def util()"));
 
     let go = fs::read_to_string(temp.path().join("cmd/main.go")).expect("read go file");
     assert!(go.contains("// cmd/main.go"));
-    assert!(go.contains("// struct Server"));
-    assert!(go.contains("// fn Start()"));
-    assert!(go.contains("//   fn Server::Run()"));
+    assert!(go.contains("// type struct Server"));
+    assert!(go.contains("// func Start()"));
+    assert!(go.contains("//   func Run()"));
 }
 
 #[test]

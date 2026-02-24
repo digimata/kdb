@@ -506,6 +506,7 @@ fn symbols_json_outputs_structured_rows() {
     let rows = json.as_array().expect("symbols json array");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0]["kind"], "fn");
+    assert_eq!(rows[0]["display_kind"], "pub fn");
     assert_eq!(rows[0]["name"], "open");
     assert_eq!(rows[0]["public"], true);
 }

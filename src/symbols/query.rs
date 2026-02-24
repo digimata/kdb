@@ -40,6 +40,7 @@ pub fn collect_rows(root: &Path, file_abs: &Path, rel_path: &Path) -> Result<Vec
                     heading.title
                 ),
                 kind: "heading".to_string(),
+                display_kind: None,
                 name: heading.title.clone(),
                 line: heading.line,
                 parent: None,

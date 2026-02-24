@@ -27,8 +27,9 @@ mod python;
 // fn normalize_type_name()         L233
 // fn extract_go_receiver_type()    L268
 // fn decorated_parent_or_self()    L304
-// fn is_js_function_value()        L312
-// fn keyword_for_kind()            L323
+// fn kind_label()                  L312
+// fn is_callable_kind()            L332
+// fn format_symbol_display()       L343
 // -------------------------------------
 
 pub(crate) mod query;
@@ -58,6 +59,15 @@ pub enum SymbolKind {
     TypeAlias,
     Class,
     Interface,
+    Const,
+    Static,
+    Property,
+    Getter,
+    Setter,
+    Module,
+    Macro,
+    Constructor,
+    Variable,
 }
 
 /// A declaration extracted from a source file.
@@ -66,11 +76,12 @@ pub struct Symbol {
     pub name: String,
     pub parent: Option<String>,
     pub kind: SymbolKind,
+    pub display_kind: String,
     pub line: usize,
     pub is_public: bool,
 }
 
-type SeenSymbols = HashSet<(usize, String, Option<String>, SymbolKind, bool)>;
+type SeenSymbols = HashSet<(usize, String, Option<String>, SymbolKind, String, bool)>;
 
 /// Determine the language from file extension, if supported.
 pub fn language_for_path(path: &Path) -> Option<CodeLanguage> {
@@ -203,15 +214,24 @@ pub(super) fn push_symbol(
     name: String,
     parent: Option<String>,
     kind: SymbolKind,
+    display_kind: String,
     is_public: bool,
 ) {
     let line = node.start_position().row as usize + 1;
-    let key = (line, name.clone(), parent.clone(), kind, is_public);
+    let key = (
+        line,
+        name.clone(),
+        parent.clone(),
+        kind,
+        display_kind.clone(),
+        is_public,
+    );
     if seen.insert(key) {
         symbols.push(Symbol {
             name,
             parent,
             kind,
+            display_kind,
             line,
             is_public,
         });
@@ -308,26 +328,63 @@ pub(super) fn decorated_parent_or_self(node: Node<'_>) -> Node<'_> {
     }
 }
 
-/// Return whether a JS/TS node kind is function-like.
-pub(super) fn is_js_function_value(kind: &str) -> bool {
-    matches!(
-        kind,
-        "arrow_function"
-            | "function_expression"
-            | "generator_function"
-            | "generator_function_declaration"
-    )
-}
-
-/// Render the canonical keyword for a symbol kind.
-pub fn keyword_for_kind(kind: SymbolKind) -> &'static str {
+/// Stable symbol kind labels for JSON output and filtering.
+pub fn kind_label(kind: SymbolKind) -> &'static str {
     match kind {
-        SymbolKind::Function | SymbolKind::Method => "fn",
+        SymbolKind::Function | SymbolKind::Method | SymbolKind::Constructor => "fn",
         SymbolKind::Struct => "struct",
         SymbolKind::Enum => "enum",
         SymbolKind::Trait => "trait",
         SymbolKind::TypeAlias => "type",
         SymbolKind::Class => "class",
         SymbolKind::Interface => "interface",
+        SymbolKind::Const => "const",
+        SymbolKind::Static => "static",
+        SymbolKind::Property => "property",
+        SymbolKind::Getter => "getter",
+        SymbolKind::Setter => "setter",
+        SymbolKind::Module => "module",
+        SymbolKind::Macro => "macro",
+        SymbolKind::Variable => "variable",
+    }
+}
+
+/// Return whether a symbol should be displayed as callable with trailing `()`.
+pub fn is_callable_kind(kind: SymbolKind) -> bool {
+    matches!(
+        kind,
+        SymbolKind::Function
+            | SymbolKind::Method
+            | SymbolKind::Constructor
+            | SymbolKind::Getter
+            | SymbolKind::Setter
+    )
+}
+
+/// Build a display line fragment for a code symbol.
+pub fn format_symbol_display(symbol: &Symbol) -> String {
+    let indent = if symbol.parent.is_some() { "  " } else { "" };
+    let display_kind = symbol.display_kind.trim();
+
+    if symbol.kind == SymbolKind::Constructor
+        && display_kind == "constructor"
+        && symbol.name == "constructor"
+    {
+        return format!("{indent}constructor()");
+    }
+
+    let mut display_name = symbol.name.clone();
+    if is_callable_kind(symbol.kind) {
+        display_name.push_str("()");
+    }
+
+    if display_kind == "#" {
+        return format!("{indent}#{}", display_name.trim_start_matches('#'));
+    }
+
+    if display_kind.is_empty() {
+        format!("{indent}{display_name}")
+    } else {
+        format!("{indent}{display_kind} {display_name}")
     }
 }

@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use serde_json::{Map, Value};
 
-use super::{Symbol, SymbolKind, keyword_for_kind};
+use super::{Symbol, format_symbol_display, kind_label};
 
 // ---------------------------
 // src/symbols/render.rs
@@ -20,8 +20,10 @@ use super::{Symbol, SymbolKind, keyword_for_kind};
 pub struct SymbolRow {
     /// Formatted display string (e.g. `"  fn Backend::new()"`).
     pub display: String,
-    /// Kind keyword (e.g. `"fn"`, `"struct"`).
+    /// Stable kind label used for machine filtering.
     pub kind: String,
+    /// Language-native declaration keyword chain, if available.
+    pub display_kind: Option<String>,
     /// Raw symbol name.
     pub name: String,
     /// 1-based line number.
@@ -38,27 +40,12 @@ pub struct SymbolRow {
 
 /// Convert a code symbol into a display row.
 pub fn code_symbol_row(symbol: Symbol) -> SymbolRow {
-    let keyword = keyword_for_kind(symbol.kind);
-    let indent = if matches!(symbol.kind, SymbolKind::Method) {
-        "  "
-    } else {
-        ""
-    };
-
-    let qualified_name = match (&symbol.parent, symbol.kind) {
-        (Some(parent), SymbolKind::Method) => format!("{parent}::{}", symbol.name),
-        _ => symbol.name.clone(),
-    };
-
-    let display_name = if matches!(symbol.kind, SymbolKind::Function | SymbolKind::Method) {
-        format!("{qualified_name}()")
-    } else {
-        qualified_name
-    };
+    let display_kind = symbol.display_kind.clone();
 
     SymbolRow {
-        display: format!("{indent}{keyword} {display_name}"),
-        kind: keyword.to_string(),
+        display: format_symbol_display(&symbol),
+        kind: kind_label(symbol.kind).to_string(),
+        display_kind: Some(display_kind),
         name: symbol.name,
         line: symbol.line,
         parent: symbol.parent,
@@ -96,6 +83,13 @@ fn row_to_json(row: &SymbolRow) -> Value {
     object.insert("name".to_string(), Value::String(row.name.clone()));
     object.insert("line".to_string(), Value::from(row.line as u64));
     object.insert("public".to_string(), Value::Bool(row.is_public));
+
+    if let Some(display_kind) = &row.display_kind {
+        object.insert(
+            "display_kind".to_string(),
+            Value::String(display_kind.clone()),
+        );
+    }
 
     if let Some(parent) = &row.parent {
         object.insert("parent".to_string(), Value::String(parent.clone()));

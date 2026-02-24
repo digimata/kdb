@@ -6,16 +6,7 @@ use super::{
     walk_depth_first,
 };
 
-// -------------------------------
-// src/symbols/rust.rs
-//
-// fn extract()                L19
-// fn method_parent()         L100
-// fn function_is_public()    L114
-// fn item_is_public()        L127
-// -------------------------------
-
-/// Extract Rust symbols used by the code index and codemap features.
+/// Extract Rust symbols used by code indexing and symbol listing.
 pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
     let mut symbols = Vec::new();
     let mut seen = HashSet::new();
@@ -32,7 +23,17 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
                 SymbolKind::Function
             };
             let is_public = function_is_public(node, source);
-            push_symbol(&mut symbols, &mut seen, node, name, parent, kind, is_public);
+            let display_kind = function_display_kind(node, source);
+            push_symbol(
+                &mut symbols,
+                &mut seen,
+                node,
+                name,
+                parent,
+                kind,
+                display_kind,
+                is_public,
+            );
         }
         "struct_item" => {
             if let Some(name) = name_from_field(node, source, "name") {
@@ -44,6 +45,7 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
                     name,
                     None,
                     SymbolKind::Struct,
+                    item_display_kind(node, source, "struct"),
                     is_public,
                 );
             }
@@ -58,6 +60,7 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
                     name,
                     None,
                     SymbolKind::Enum,
+                    item_display_kind(node, source, "enum"),
                     is_public,
                 );
             }
@@ -72,6 +75,7 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
                     name,
                     None,
                     SymbolKind::Trait,
+                    trait_display_kind(node, source),
                     is_public,
                 );
             }
@@ -86,6 +90,67 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
                     name,
                     None,
                     SymbolKind::TypeAlias,
+                    item_display_kind(node, source, "type"),
+                    is_public,
+                );
+            }
+        }
+        "const_item" => {
+            if let Some(name) = name_from_field(node, source, "name") {
+                let is_public = item_is_public(node, source);
+                push_symbol(
+                    &mut symbols,
+                    &mut seen,
+                    node,
+                    name,
+                    None,
+                    SymbolKind::Const,
+                    item_display_kind(node, source, "const"),
+                    is_public,
+                );
+            }
+        }
+        "static_item" => {
+            if let Some(name) = name_from_field(node, source, "name") {
+                let is_public = item_is_public(node, source);
+                push_symbol(
+                    &mut symbols,
+                    &mut seen,
+                    node,
+                    name,
+                    None,
+                    SymbolKind::Static,
+                    static_display_kind(node, source),
+                    is_public,
+                );
+            }
+        }
+        "mod_item" => {
+            if let Some(name) = name_from_field(node, source, "name") {
+                let is_public = item_is_public(node, source);
+                push_symbol(
+                    &mut symbols,
+                    &mut seen,
+                    node,
+                    name,
+                    None,
+                    SymbolKind::Module,
+                    item_display_kind(node, source, "mod"),
+                    is_public,
+                );
+            }
+        }
+        "macro_definition" | "macro_rule" => {
+            if let Some(name) = macro_name(node, source) {
+                let is_public = item_is_public(node, source);
+                push_symbol(
+                    &mut symbols,
+                    &mut seen,
+                    node,
+                    name,
+                    None,
+                    SymbolKind::Macro,
+                    "macro_rules!".to_string(),
                     is_public,
                 );
             }
@@ -130,4 +195,182 @@ fn item_is_public(node: Node<'_>, source: &[u8]) -> bool {
     };
     let trimmed = text.trim_start();
     trimmed.starts_with("pub ") || trimmed.starts_with("pub(")
+}
+
+fn function_display_kind(node: Node<'_>, source: &[u8]) -> String {
+    let Some(signature) = declaration_signature(node, source) else {
+        return "fn".to_string();
+    };
+
+    let before_fn = find_keyword_index(&signature, "fn")
+        .map(|index| signature[..index].trim())
+        .unwrap_or(signature.as_str());
+
+    let mut parts = Vec::new();
+    if let Some(visibility) = visibility_prefix(node, source)
+        .or_else(|| leading_visibility(before_fn))
+        .or_else(|| item_is_public(node, source).then(|| "pub".to_string()))
+    {
+        parts.push(visibility);
+    }
+    if contains_keyword(before_fn, "const") {
+        parts.push("const".to_string());
+    }
+    if contains_keyword(before_fn, "async") {
+        parts.push("async".to_string());
+    }
+    if contains_keyword(before_fn, "unsafe") {
+        parts.push("unsafe".to_string());
+    }
+    if contains_keyword(before_fn, "extern") {
+        parts.push("extern".to_string());
+    }
+    parts.push("fn".to_string());
+
+    parts.join(" ")
+}
+
+fn trait_display_kind(node: Node<'_>, source: &[u8]) -> String {
+    let Some(signature) = declaration_signature(node, source) else {
+        return "trait".to_string();
+    };
+
+    let mut parts = Vec::new();
+    if let Some(visibility) = visibility_prefix(node, source)
+        .or_else(|| leading_visibility(&signature))
+        .or_else(|| item_is_public(node, source).then(|| "pub".to_string()))
+    {
+        parts.push(visibility);
+    }
+    if contains_keyword(&signature, "unsafe") {
+        parts.push("unsafe".to_string());
+    }
+    parts.push("trait".to_string());
+    parts.join(" ")
+}
+
+fn item_display_kind(node: Node<'_>, source: &[u8], item_keyword: &str) -> String {
+    let Some(signature) = declaration_signature(node, source) else {
+        return item_keyword.to_string();
+    };
+
+    let mut parts = Vec::new();
+    if let Some(visibility) = visibility_prefix(node, source)
+        .or_else(|| leading_visibility(&signature))
+        .or_else(|| item_is_public(node, source).then(|| "pub".to_string()))
+    {
+        parts.push(visibility);
+    }
+    parts.push(item_keyword.to_string());
+    parts.join(" ")
+}
+
+fn static_display_kind(node: Node<'_>, source: &[u8]) -> String {
+    let Some(signature) = declaration_signature(node, source) else {
+        return "static".to_string();
+    };
+
+    let mut parts = Vec::new();
+    if let Some(visibility) = visibility_prefix(node, source)
+        .or_else(|| leading_visibility(&signature))
+        .or_else(|| item_is_public(node, source).then(|| "pub".to_string()))
+    {
+        parts.push(visibility);
+    }
+    parts.push("static".to_string());
+    if contains_keyword(&signature, "mut") {
+        parts.push("mut".to_string());
+    }
+    parts.join(" ")
+}
+
+fn macro_name(node: Node<'_>, source: &[u8]) -> Option<String> {
+    if let Some(name) = name_from_field(node, source, "name") {
+        return Some(name);
+    }
+
+    let text = node.utf8_text(source).ok()?.trim_start();
+    let rest = text.strip_prefix("macro_rules!")?.trim_start();
+    let end = rest
+        .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
+        .unwrap_or(rest.len());
+    let name = &rest[..end];
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
+}
+
+fn declaration_signature(node: Node<'_>, source: &[u8]) -> Option<String> {
+    let text = node.utf8_text(source).ok()?;
+    let without_body = text.split('{').next().unwrap_or(text);
+    let without_semicolon = without_body.split(';').next().unwrap_or(without_body);
+    let signature = without_semicolon.trim();
+    if signature.is_empty() {
+        None
+    } else {
+        Some(signature.to_string())
+    }
+}
+
+fn visibility_prefix(node: Node<'_>, source: &[u8]) -> Option<String> {
+    node.child_by_field_name("visibility")
+        .and_then(|visibility| visibility.utf8_text(source).ok())
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
+}
+
+fn leading_visibility(text: &str) -> Option<String> {
+    let trimmed = text.trim_start();
+    if !trimmed.starts_with("pub") {
+        return None;
+    }
+
+    let rest = &trimmed[3..];
+    if rest.starts_with('(') {
+        let mut depth = 0i32;
+        for (index, ch) in rest.char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(trimmed[..3 + index + 1].to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+        return Some("pub".to_string());
+    }
+
+    if rest
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_whitespace())
+    {
+        return Some("pub".to_string());
+    }
+
+    None
+}
+
+fn contains_keyword(text: &str, keyword: &str) -> bool {
+    text.split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
+        .any(|token| token == keyword)
+}
+
+fn find_keyword_index(text: &str, keyword: &str) -> Option<usize> {
+    for (index, _) in text.match_indices(keyword) {
+        let before = text[..index].chars().next_back();
+        let after = text[index + keyword.len()..].chars().next();
+        let before_ok = before.is_none_or(|ch| !(ch.is_ascii_alphanumeric() || ch == '_'));
+        let after_ok = after.is_none_or(|ch| !(ch.is_ascii_alphanumeric() || ch == '_'));
+        if before_ok && after_ok {
+            return Some(index);
+        }
+    }
+
+    None
 }
