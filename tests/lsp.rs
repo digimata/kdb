@@ -9,38 +9,39 @@ use std::time::{Duration, Instant};
 use tempfile::{TempDir, tempdir};
 use tower_lsp::lsp_types::Url;
 
-// ---------------------------------------------------------------------
+// ----------------------------------------------------------------------
 // tests/lsp.rs
 //
-// fn write_file()                                                   L45
-// fn bin()                                                          L53
-// struct VaultFixture                                               L57
-//   fn VaultFixture::new()                                          L66
-// struct LspSession                                                L102
-//   fn LspSession::start()                                         L111
-//   fn LspSession::initialize_with_capabilities()                  L146
-//   fn LspSession::initialize()                                    L169
-//   fn LspSession::send()                                          L173
-//   fn LspSession::wait_for_id()                                   L180
-//   fn LspSession::wait_for()                                      L187
-//   fn LspSession::shutdown()                                      L225
-//   fn LspSession::stderr_snapshot()                               L256
-//   fn LspSession::drop()                                          L262
-// fn read_stdout_loop()                                            L270
-// fn read_message()                                                L285
-// fn diagnostics_for_uri()                                         L324
-// fn initialize_advertises_expected_capabilities()                 L334
-// fn initialize_registers_markdown_watcher_when_supported()        L357
-// fn symbols_definition_completion_and_hover_work()                L406
-// fn diagnostics_publish_on_open_change_and_close()                L535
-// fn watched_file_events_refresh_cached_index_and_diagnostics()    L606
-// fn goto_definition_resolves_wikilink_targets()                   L695
-// fn completion_uses_unsaved_document_buffer_state()               L718
-// fn completion_includes_unsaved_open_file_from_cached_index()     L764
-// fn heading_completion_reverts_to_disk_after_target_close()       L808
-// fn hover_on_nonexistent_target_returns_none()                    L895
-// fn diagnostics_include_missing_heading_anchor_errors()           L930
-// ---------------------------------------------------------------------
+// fn write_file()                                                    L46
+// fn bin()                                                           L54
+// struct VaultFixture                                                L58
+//   fn new()                                                         L68
+// struct LspSession                                                 L107
+//   fn start()                                                      L116
+//   fn initialize_with_capabilities()                               L151
+//   fn initialize()                                                 L174
+//   fn send()                                                       L178
+//   fn wait_for_id()                                                L185
+//   fn wait_for()                                                   L192
+//   fn shutdown()                                                   L230
+//   fn stderr_snapshot()                                            L261
+//   fn drop()                                                       L267
+// fn read_stdout_loop()                                             L275
+// fn read_message()                                                 L290
+// fn diagnostics_for_uri()                                          L329
+// fn initialize_advertises_expected_capabilities()                  L339
+// fn initialize_registers_markdown_watcher_when_supported()         L363
+// fn formatting_rewrites_code_index_blocks_for_supported_files()    L412
+// fn symbols_definition_completion_and_hover_work()                 L443
+// fn diagnostics_publish_on_open_change_and_close()                 L572
+// fn watched_file_events_refresh_cached_index_and_diagnostics()     L643
+// fn goto_definition_resolves_wikilink_targets()                    L732
+// fn completion_uses_unsaved_document_buffer_state()                L755
+// fn completion_includes_unsaved_open_file_from_cached_index()      L801
+// fn heading_completion_reverts_to_disk_after_target_close()        L845
+// fn hover_on_nonexistent_target_returns_none()                     L932
+// fn diagnostics_include_missing_heading_anchor_errors()            L967
+// ----------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
     let path = root.join(rel_path);
@@ -60,6 +61,7 @@ struct VaultFixture {
     a_uri: Url,
     b_uri: Url,
     scratch_uri: Url,
+    code_uri: Url,
 }
 
 impl VaultFixture {
@@ -82,12 +84,14 @@ impl VaultFixture {
             "b.md",
             "# B\n\n## Target\nHello from target section.\n",
         );
+        write_file(&root_path, "src/lib.rs", "pub fn run() {}\n");
 
         let root = root_path.canonicalize().expect("canonicalize root");
 
         let a_uri = Url::from_file_path(root.join("a.md")).expect("a uri");
         let b_uri = Url::from_file_path(root.join("b.md")).expect("b uri");
         let scratch_uri = Url::from_file_path(root.join("scratch.md")).expect("scratch uri");
+        let code_uri = Url::from_file_path(root.join("src/lib.rs")).expect("code uri");
 
         Self {
             _temp: temp,
@@ -95,6 +99,7 @@ impl VaultFixture {
             a_uri,
             b_uri,
             scratch_uri,
+            code_uri,
         }
     }
 }
@@ -340,6 +345,7 @@ fn initialize_advertises_expected_capabilities() {
     assert_eq!(caps["documentSymbolProvider"], json!(true));
     assert_eq!(caps["definitionProvider"], json!(true));
     assert_eq!(caps["hoverProvider"], json!(true));
+    assert_eq!(caps["documentFormattingProvider"], json!(true));
     assert_eq!(caps["textDocumentSync"]["openClose"], json!(true));
     assert_eq!(caps["textDocumentSync"]["change"], json!(1));
 
@@ -398,6 +404,37 @@ fn initialize_registers_markdown_watcher_when_supported() {
         "id": register_id,
         "result": Value::Null
     }));
+
+    session.shutdown();
+}
+
+#[test]
+fn formatting_rewrites_code_index_blocks_for_supported_files() {
+    let fixture = VaultFixture::new();
+    let mut session = LspSession::start(&fixture.root);
+    session.initialize(&fixture.root);
+
+    session.send(json!({
+        "jsonrpc": "2.0",
+        "id": 13,
+        "method": "textDocument/formatting",
+        "params": {
+            "textDocument": { "uri": fixture.code_uri },
+            "options": {
+                "tabSize": 4,
+                "insertSpaces": true
+            }
+        }
+    }));
+
+    let response = session.wait_for_id(13, Duration::from_secs(5));
+    let edits = response["result"]
+        .as_array()
+        .expect("formatting edits array");
+    assert_eq!(edits.len(), 1);
+    let new_text = edits[0]["newText"].as_str().expect("formatting newText");
+    assert!(new_text.contains("// src/lib.rs"));
+    assert!(new_text.contains("// pub fn run()"));
 
     session.shutdown();
 }

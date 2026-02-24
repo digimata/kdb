@@ -5,8 +5,8 @@ use crate::symbols::CodeLanguage;
 // -------------------------------------------
 // src/fmt/preamble.rs
 //
-// fn comment_prefix()                     L30
-// fn preamble_end_index()                 L43
+// pub fn comment_prefix()                 L30
+// pub fn preamble_end_index()             L43
 // fn rust_preamble_end()                  L56
 // fn ts_js_preamble_end()                L118
 // fn python_preamble_end()               L158

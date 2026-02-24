@@ -1,6 +1,6 @@
 //! Code index formatter for supported source files.
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use std::fs;
 use std::io::ErrorKind;
@@ -19,23 +19,30 @@ use self::preamble::{comment_prefix, preamble_end_index};
 // -------------------------------------------
 // src/fmt/mod.rs
 //
-// struct FormatReport                     L69
-// struct FormatWarning                    L77
-// struct RewriteResult                    L83
-// fn format_workspace()                   L91
-// fn rewrite_code_index()                L146
-// fn removal_warning_message()           L250
-// fn find_managed_block()                L270
-// fn is_header_candidate()               L301
-// fn looks_like_path_header()            L314
-// fn is_index_body_line()                L334
-// fn is_canonical_index_body_line()      L346
-// fn is_separator_only_comment_line()    L372
-// fn render_block()                      L386
-// fn build_ignore_globset()              L436
-// fn discover_code_files()               L451
-// fn rel_path_from_root()                L511
-// fn path_is_ignored()                   L518
+// pub mod preamble                        L15
+// const LEGACY_INDEX_HEADER               L48
+// const LINE_GAP                          L49
+// const IGNORED_DIRS                      L52
+// pub struct FormatReport                 L67
+// pub struct FormatWarning                L75
+// struct RewriteResult                    L81
+// pub fn format_workspace()               L89
+// pub fn format_path()                   L103
+// pub fn format_source()                 L126
+// fn format_files()                      L135
+// fn rewrite_code_index()                L184
+// fn removal_warning_message()           L294
+// fn find_managed_block()                L314
+// fn is_header_candidate()               L345
+// fn looks_like_path_header()            L358
+// fn is_index_body_line()                L378
+// fn is_canonical_index_body_line()      L390
+// fn is_separator_only_comment_line()    L418
+// fn render_block()                      L432
+// fn build_ignore_globset()              L463
+// fn discover_code_files_in_scope()      L478
+// fn rel_path_from_root()                L565
+// fn path_is_ignored()                   L572
 // -------------------------------------------
 
 const LEGACY_INDEX_HEADER: &str = "## Index";
@@ -84,8 +91,48 @@ pub fn format_workspace(root: &Path, ignore_patterns: &[String]) -> Result<Forma
         .canonicalize()
         .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
     let ignore_set = build_ignore_globset(ignore_patterns)?;
-    let files = discover_code_files(&root, &ignore_set)?;
+    let files = discover_code_files_in_scope(&root, &root, &ignore_set)?;
 
+    format_files(&root, files)
+}
+
+/// Rewrite code index headers for either a single file or a directory scope.
+///
+/// `target` must be inside `root`. If `target` is a file, only that file is
+/// considered; if it is a directory, the subtree is scanned.
+pub fn format_path(root: &Path, target: &Path, ignore_patterns: &[String]) -> Result<FormatReport> {
+    let root = root
+        .canonicalize()
+        .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
+    let target = target
+        .canonicalize()
+        .with_context(|| format!("failed to canonicalize target {}", target.display()))?;
+
+    if !target.starts_with(&root) {
+        bail!(
+            "format target {} is not inside kdb root {}",
+            target.display(),
+            root.display()
+        );
+    }
+
+    let ignore_set = build_ignore_globset(ignore_patterns)?;
+    let files = discover_code_files_in_scope(&root, &target, &ignore_set)?;
+
+    format_files(&root, files)
+}
+
+/// Rewrite a single source string for a supported code file path.
+pub fn format_source(rel_path: &Path, source: &str) -> Result<Option<String>> {
+    let Some(language) = language_for_path(rel_path) else {
+        return Ok(None);
+    };
+
+    let rewrite = rewrite_code_index(language, source, rel_path)?;
+    Ok(Some(rewrite.content))
+}
+
+fn format_files(root: &Path, files: Vec<PathBuf>) -> Result<FormatReport> {
     let mut report = FormatReport {
         scanned_files: files.len(),
         updated_files: 0,
@@ -214,8 +261,14 @@ fn rewrite_code_index(
             } else {
                 symbol.line
             };
+            let shifted_end_line = if symbol.end_line >= insertion_line {
+                symbol.end_line + inserted_line_count
+            } else {
+                symbol.end_line
+            };
             Symbol {
                 line: shifted_line,
+                end_line: shifted_end_line,
                 ..symbol
             }
         })
@@ -422,10 +475,37 @@ fn build_ignore_globset(ignore_patterns: &[String]) -> Result<GlobSet> {
 
 /// Recursively walk `root`, returning sorted relative paths for every
 /// source file whose extension maps to a supported language.
-fn discover_code_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>> {
+fn discover_code_files_in_scope(
+    root: &Path,
+    scope: &Path,
+    ignore_set: &GlobSet,
+) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
 
-    for entry in WalkDir::new(root)
+    if scope.is_file() {
+        let rel = scope.strip_prefix(root).with_context(|| {
+            format!(
+                "failed to strip root {} from {}",
+                root.display(),
+                scope.display()
+            )
+        })?;
+        let rel = normalize_rel_path(rel).with_context(|| {
+            format!(
+                "code path {} resolves outside root {}",
+                scope.display(),
+                root.display()
+            )
+        })?;
+
+        if !path_is_ignored(ignore_set, &rel, false) && language_for_path(&rel).is_some() {
+            paths.push(rel);
+        }
+
+        return Ok(paths);
+    }
+
+    for entry in WalkDir::new(scope)
         .follow_links(false)
         .into_iter()
         .filter_entry(|entry| {

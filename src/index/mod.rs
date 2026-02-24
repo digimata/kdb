@@ -21,58 +21,65 @@ use anyhow::{Context, Result};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use regex::Regex;
+use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Component, Path, PathBuf};
 use std::sync::LazyLock;
 use walkdir::WalkDir;
 
-// ----------------------------------------------
+use crate::resolve::{ResolvedImport, build_workspace_import_index};
+
+// -----------------------------------------
 // src/index/mod.rs
 //
-// struct VaultIndex                          L90
-// struct FileEntry                          L105
-// struct Heading                            L118
-// enum LinkKind                             L134
-// struct LinkTarget                         L143
-// struct Link                               L152
-// struct HeadingKey                         L167
-// struct LinkRef                            L176
-// struct ParsedDocument                     L189
-// struct BrokenLink                         L198
-// struct CheckReport                        L213
-//   fn CheckReport::has_errors()            L222
-//   fn CheckReport::print()                 L227
-//   fn VaultIndex::build()                  L290
-//   fn VaultIndex::build_with_ignores()     L298
-//   fn VaultIndex::upsert_file()            L337
-//   fn VaultIndex::reload_file()            L360
-//   fn VaultIndex::remove_file()            L389
-//   fn VaultIndex::check()                  L397
-//   fn VaultIndex::populate_inbound()       L436
-//   fn VaultIndex::resolve_link()           L489
-// enum ResolveError                         L522
-//   fn ResolveError::message()              L529
-// fn parse_markdown()                       L550
-// fn build_ignore_globset()                 L690
-// fn discover_markdown_files()              L703
-// fn rel_path_from_root()                   L770
-// fn path_is_ignored()                      L775
-// fn resolve_target_file()                  L798
-// fn resolve_target_path()                  L811
-// fn resolve_file_target()                  L839
-// fn normalize_rel_path()                   L863
-// fn parse_markdown_target()                L890
-// fn parse_wikilink_target()                L938
-// fn slug_anchor()                          L975
-// fn is_external()                          L984
-// fn slug()                                 L996
-// fn build_line_starts()                   L1028
-// fn line_col()                            L1039
-// fn normalize_inline_whitespace()         L1050
-// fn heading_level_number()                L1055
-// fn range_contains_offset()               L1066
-// struct ActiveHeading                     L1073
-// ----------------------------------------------
+// pub mod deps                          L17
+// pub mod refs                          L18
+// static WIKILINK_RE                    L85
+// pub struct VaultIndex                 L97
+// pub struct FileEntry                 L116
+// pub struct Heading                   L129
+// pub enum LinkKind                    L145
+// pub struct LinkTarget                L154
+// pub struct Link                      L163
+// pub struct HeadingKey                L178
+// pub struct LinkRef                   L187
+// pub struct ParsedDocument            L202
+// pub struct BrokenLink                L211
+// pub struct CheckReport               L226
+//   pub fn has_errors()                L235
+//   pub fn print()                     L240
+//   pub fn build()                     L303
+//   pub fn build_with_ignores()        L311
+//   pub fn upsert_file()               L353
+//   pub fn reload_file()               L376
+//   pub fn remove_file()               L405
+//   pub fn check()                     L413
+//   fn populate_inbound()              L452
+//   fn resolve_link()                  L505
+// enum ResolveError                    L538
+//   fn message()                       L545
+// pub fn parse_markdown()              L566
+// const IGNORED_DIRS                   L693
+// fn build_ignore_globset()            L706
+// fn discover_markdown_files()         L719
+// fn rel_path_from_root()              L786
+// fn path_is_ignored()                 L791
+// fn resolve_target_file()             L814
+// pub fn resolve_target_path()         L827
+// pub fn resolve_file_target()         L855
+// pub fn normalize_rel_path()          L879
+// pub fn parse_markdown_target()       L906
+// pub fn parse_wikilink_target()       L954
+// pub fn slug_anchor()                 L991
+// fn is_external()                    L1000
+// fn slug()                           L1012
+// fn build_line_starts()              L1044
+// fn line_col()                       L1055
+// fn normalize_inline_whitespace()    L1066
+// fn heading_level_number()           L1071
+// fn range_contains_offset()          L1082
+// struct ActiveHeading                L1089
+// -----------------------------------------
 
 /// Regex for matching `[[wikilink]]` syntax in raw markdown source.
 static WIKILINK_RE: LazyLock<Regex> =
@@ -98,6 +105,10 @@ pub struct VaultIndex {
     pub file_inbound: HashMap<PathBuf, Vec<LinkRef>>,
     /// Inbound links grouped by target heading (file + anchor).
     pub heading_inbound: HashMap<HeadingKey, Vec<LinkRef>>,
+    /// Workspace package map (`package.json` name -> local relative directory).
+    pub workspace_packages: HashMap<String, PathBuf>,
+    /// Per-code-file resolved imports used by `kdb deps` and code refs.
+    pub code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
 }
 
 /// A single indexed markdown file.
@@ -172,13 +183,15 @@ pub struct HeadingKey {
 }
 
 /// A record of where a link originates, used for inbound reference tracking.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct LinkRef {
     /// Relative path to the file containing the link.
     pub source_file: PathBuf,
     /// 1-based line number of the link.
+    #[serde(rename = "line")]
     pub source_line: usize,
     /// 1-based column number of the link.
+    #[serde(rename = "column")]
     pub source_column: usize,
     /// Raw link text for display in diagnostics.
     pub raw: String,
@@ -300,6 +313,7 @@ impl VaultIndex {
             .canonicalize()
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
         let ignore_set = build_ignore_globset(ignore_patterns)?;
+        let import_index = build_workspace_import_index(&root, ignore_patterns)?;
 
         let mut files = BTreeMap::new();
         for rel_path in discover_markdown_files(&root, &ignore_set)? {
@@ -326,6 +340,8 @@ impl VaultIndex {
             files,
             file_inbound: HashMap::new(),
             heading_inbound: HashMap::new(),
+            workspace_packages: import_index.workspace_packages,
+            code_imports: import_index.file_imports,
         };
         index.populate_inbound();
         Ok(index)

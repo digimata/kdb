@@ -1,41 +1,72 @@
 //! Symbol display formatting for CLI output and codemap generation.
 
-use anyhow::{Context, Result};
-use serde_json::{Map, Value};
+use serde::Serialize;
 
 use super::{Symbol, format_symbol_display, kind_label};
 
-// ---------------------------
+// -------------------------------------
 // src/symbols/render.rs
 //
-// struct SymbolRow        L20
-// fn code_symbol_row()    L40
-// fn print_text()         L72
-// fn print_json()         L85
-// fn row_to_json()        L93
-// ---------------------------
+// pub struct SymbolRow              L20
+// pub struct SymbolBodyRow          L49
+// pub fn code_symbol_row()          L73
+// pub fn code_symbol_body_row()     L90
+// pub fn print_text()              L105
+// pub fn print_bodies_text()       L118
+// -------------------------------------
 
 /// A formatted symbol row ready for display.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SymbolRow {
     /// Formatted display string (e.g. `"  fn Backend::new()"`).
+    #[serde(skip_serializing)]
     pub display: String,
     /// Stable kind label used for machine filtering.
     pub kind: String,
     /// Language-native declaration keyword chain, if available.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub display_kind: Option<String>,
     /// Raw symbol name.
     pub name: String,
     /// 1-based line number.
     pub line: usize,
     /// Parent type name for methods.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
     /// Heading level for markdown symbols.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub level: Option<u8>,
     /// Anchor slug for markdown headings.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor: Option<String>,
     /// Whether the symbol is publicly visible.
+    #[serde(rename = "public")]
     pub is_public: bool,
+}
+
+/// A formatted symbol body row for `kdb symbols -s` output.
+#[derive(Debug, Clone, Serialize)]
+pub struct SymbolBodyRow {
+    /// Path to file containing the symbol, relative to kdb root.
+    pub file: String,
+    /// Stable kind label used for machine filtering.
+    pub kind: String,
+    /// Language-native declaration keyword chain.
+    pub display_kind: String,
+    /// Raw symbol name.
+    pub name: String,
+    /// 1-based start line number.
+    pub line: usize,
+    /// 1-based end line number.
+    pub end_line: usize,
+    /// Parent type/class name for member symbols.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    /// Whether the symbol is publicly visible.
+    #[serde(rename = "public")]
+    pub is_public: bool,
+    /// Full source snippet for the symbol declaration/body.
+    pub body: String,
 }
 
 /// Convert a code symbol into a display row.
@@ -55,6 +86,21 @@ pub fn code_symbol_row(symbol: Symbol) -> SymbolRow {
     }
 }
 
+/// Convert a code symbol and source body into a body output row.
+pub fn code_symbol_body_row(file: &str, symbol: Symbol, body: String) -> SymbolBodyRow {
+    SymbolBodyRow {
+        file: file.to_string(),
+        kind: kind_label(symbol.kind).to_string(),
+        display_kind: symbol.display_kind,
+        name: symbol.name,
+        line: symbol.line,
+        end_line: symbol.end_line,
+        parent: symbol.parent,
+        is_public: symbol.is_public,
+        body,
+    }
+}
+
 /// Print symbol rows as aligned plain text.
 pub fn print_text(rows: &[SymbolRow]) {
     if rows.is_empty() {
@@ -68,38 +114,20 @@ pub fn print_text(rows: &[SymbolRow]) {
     }
 }
 
-/// Print symbol rows as formatted JSON.
-pub fn print_json(rows: &[SymbolRow]) -> Result<()> {
-    let payload = rows.iter().map(row_to_json).collect::<Vec<_>>();
-    let output =
-        serde_json::to_string_pretty(&payload).context("failed to serialize symbols as JSON")?;
-    println!("{output}");
-    Ok(())
-}
-
-fn row_to_json(row: &SymbolRow) -> Value {
-    let mut object = Map::new();
-    object.insert("kind".to_string(), Value::String(row.kind.clone()));
-    object.insert("name".to_string(), Value::String(row.name.clone()));
-    object.insert("line".to_string(), Value::from(row.line as u64));
-    object.insert("public".to_string(), Value::Bool(row.is_public));
-
-    if let Some(display_kind) = &row.display_kind {
-        object.insert(
-            "display_kind".to_string(),
-            Value::String(display_kind.clone()),
-        );
+/// Print full symbol bodies as plain text.
+pub fn print_bodies_text(rows: &[SymbolBodyRow]) {
+    if rows.is_empty() {
+        println!("(no symbols)");
+        return;
     }
 
-    if let Some(parent) = &row.parent {
-        object.insert("parent".to_string(), Value::String(parent.clone()));
+    for (index, row) in rows.iter().enumerate() {
+        if index > 0 {
+            println!();
+        }
+        print!("{}", row.body);
+        if !row.body.ends_with('\n') {
+            println!();
+        }
     }
-    if let Some(level) = row.level {
-        object.insert("level".to_string(), Value::from(level as u64));
-    }
-    if let Some(anchor) = &row.anchor {
-        object.insert("anchor".to_string(), Value::String(anchor.clone()));
-    }
-
-    Value::Object(object)
 }

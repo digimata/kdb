@@ -14,11 +14,16 @@ mod rust;
 mod typescript;
 mod utils;
 
-// -------------------------
+// --------------------------------
 // src/deps/mod.rs
 //
-// fn collect_outbound()    L22
-// -------------------------
+// mod go                       L11
+// mod python                   L12
+// mod rust                     L13
+// mod typescript               L14
+// mod utils                    L15
+// pub fn collect_outbound()    L28
+// --------------------------------
 
 pub fn collect_outbound(root: &Path, source_file: &Path) -> Result<Vec<Dependency>> {
     let language = language_for_path(source_file).with_context(|| {

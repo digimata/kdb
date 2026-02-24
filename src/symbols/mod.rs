@@ -7,30 +7,37 @@ use tree_sitter::{Language, Node, Parser};
 
 mod go;
 mod python;
-// -------------------------------------
+// ------------------------------------------------
 // src/symbols/mod.rs
 //
-// enum CodeLanguage                 L41
-// enum SymbolKind                   L52
-// struct Symbol                     L65
-// type SeenSymbols                  L73
-// fn language_for_path()            L76
-// fn extract_symbols()              L90
-// fn parse_tree()                  L108
-// fn tree_sitter_language()        L121
-//   fn CodeLanguage::as_str()      L134
-// fn walk_depth_first()            L147
-// fn name_from_field()             L174
-// fn normalized_node_text()        L180
-// fn push_symbol()                 L199
-// fn nearest_ancestor()            L222
-// fn normalize_type_name()         L233
-// fn extract_go_receiver_type()    L268
-// fn decorated_parent_or_self()    L304
-// fn kind_label()                  L312
-// fn is_callable_kind()            L332
-// fn format_symbol_display()       L343
-// -------------------------------------
+// mod go                                        L8
+// mod python                                    L9
+// pub(crate) mod query                         L42
+// pub mod render                               L43
+// mod rust                                     L44
+// mod typescript                               L45
+// pub enum CodeLanguage                        L49
+// pub enum SymbolKind                          L60
+// pub struct Symbol                            L82
+// type SeenSymbols                             L94
+// pub fn language_for_path()                  L106
+// pub fn extract_symbols()                    L120
+// fn parse_tree()                             L138
+// fn tree_sitter_language()                   L151
+//   fn as_str()                               L164
+// pub(super) fn walk_depth_first()            L177
+// pub(super) fn name_from_field()             L204
+// pub(super) fn normalized_node_text()        L210
+// pub(super) fn push_symbol()                 L229
+// pub fn extract_symbol_body()                L269
+// pub(super) fn nearest_ancestor()            L282
+// pub(super) fn normalize_type_name()         L293
+// pub(super) fn extract_go_receiver_type()    L328
+// pub(super) fn decorated_parent_or_self()    L364
+// pub fn kind_label()                         L372
+// pub fn is_callable_kind()                   L393
+// pub fn format_symbol_display()              L405
+// ------------------------------------------------
 
 pub(crate) mod query;
 pub mod render;
@@ -78,10 +85,22 @@ pub struct Symbol {
     pub kind: SymbolKind,
     pub display_kind: String,
     pub line: usize,
+    pub end_line: usize,
+    pub start_byte: usize,
+    pub end_byte: usize,
     pub is_public: bool,
 }
 
-type SeenSymbols = HashSet<(usize, String, Option<String>, SymbolKind, String, bool)>;
+type SeenSymbols = HashSet<(
+    usize,
+    usize,
+    usize,
+    String,
+    Option<String>,
+    SymbolKind,
+    String,
+    bool,
+)>;
 
 /// Determine the language from file extension, if supported.
 pub fn language_for_path(path: &Path) -> Option<CodeLanguage> {
@@ -218,8 +237,13 @@ pub(super) fn push_symbol(
     is_public: bool,
 ) {
     let line = node.start_position().row as usize + 1;
+    let end_line = node.end_position().row as usize + 1;
+    let start_byte = node.start_byte();
+    let end_byte = node.end_byte();
     let key = (
         line,
+        end_line,
+        start_byte,
         name.clone(),
         parent.clone(),
         kind,
@@ -233,9 +257,25 @@ pub(super) fn push_symbol(
             kind,
             display_kind,
             line,
+            end_line,
+            start_byte,
+            end_byte,
             is_public,
         });
     }
+}
+
+/// Extract the source body for a symbol using byte span coordinates.
+pub fn extract_symbol_body(source: &str, symbol: &Symbol) -> Result<String> {
+    source
+        .get(symbol.start_byte..symbol.end_byte)
+        .map(|slice| slice.to_string())
+        .with_context(|| {
+            format!(
+                "invalid symbol span {}..{} for `{}`",
+                symbol.start_byte, symbol.end_byte, symbol.name
+            )
+        })
 }
 
 /// Find the nearest ancestor node of a given kind.

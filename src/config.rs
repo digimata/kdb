@@ -3,19 +3,23 @@
 //! kdb stores project settings in `.kdb/config.toml`. We currently read
 //! indexing options from that file so callers can customize discovery.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 
 use crate::root;
 
-// -------------------------------
+// ----------------------------------
 // src/config.rs
 //
-// fn load_index_ignores()     L24
-// fn parse_index_ignores()    L40
-// -------------------------------
+// pub const CUSTOM_IGNORE_FILE     L21
+// pub fn load_index_ignores()    L24
+// fn parse_index_ignores()       L40
+// ----------------------------------
+
+/// Project-local ignore file loaded by discovery walkers.
+pub const CUSTOM_IGNORE_FILE: &str = ".kdbignore";
 
 /// Load user-configured index ignore patterns from `.kdb/config.toml`.
 ///

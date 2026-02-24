@@ -6,15 +6,15 @@ use crate::index::normalize_rel_path;
 
 use super::utils::resolve_file;
 
-// -----------------------------
+// --------------------------------
 // src/deps/python.rs
 //
-// fn collect()                L16
-// fn parse_names()            L61
-// fn resolve_module()         L84
-// fn module_path()            L89
-// fn resolve_module_path()   L111
-// -----------------------------
+// pub(super) fn collect()      L19
+// fn parse_names()             L72
+// fn resolve_module()          L96
+// fn module_path()            L101
+// fn resolve_module_path()    L123
+// --------------------------------
 
 pub(super) fn collect(
     root: &Path,

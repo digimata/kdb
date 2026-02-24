@@ -1,21 +1,18 @@
 use anyhow::{Context, Result, bail};
-use serde_json::{Map, Value};
 use std::path::Path;
 
 use super::{
     HeadingKey, LinkRef, VaultIndex, parse_markdown_target, resolve_file_target, slug_anchor,
 };
 
-// ----------------------------
+// -------------------------------
 // src/index/refs.rs
 //
-// struct RefsTarget        L21
-// fn parse_target()        L26
-// fn collect_inbound()     L45
-// fn print_text()         L100
-// fn print_json()         L117
-// fn json_row()           L124
-// ----------------------------
+// pub struct RefsTarget       L18
+// pub fn parse_target()       L23
+// pub fn collect_inbound()    L42
+// pub fn print_text()         L97
+// -------------------------------
 
 #[derive(Debug, Clone)]
 pub struct RefsTarget {
@@ -112,26 +109,4 @@ pub fn print_text(inbound: &[LinkRef]) {
             link_ref.raw
         );
     }
-}
-
-pub fn print_json(inbound: &[LinkRef]) -> Result<()> {
-    let rows = inbound.iter().map(json_row).collect::<Vec<_>>();
-    let output = serde_json::to_string_pretty(&rows).context("failed to serialize refs as JSON")?;
-    println!("{output}");
-    Ok(())
-}
-
-fn json_row(link_ref: &LinkRef) -> Value {
-    let mut object = Map::new();
-    object.insert(
-        "source_file".to_string(),
-        Value::String(link_ref.source_file.to_string_lossy().to_string()),
-    );
-    object.insert("line".to_string(), Value::from(link_ref.source_line as u64));
-    object.insert(
-        "column".to_string(),
-        Value::from(link_ref.source_column as u64),
-    );
-    object.insert("raw".to_string(), Value::String(link_ref.raw.clone()));
-    Value::Object(object)
 }

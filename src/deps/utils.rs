@@ -3,13 +3,13 @@ use std::path::{Path, PathBuf};
 
 use crate::index::normalize_rel_path;
 
-// ---------------------------
+// --------------------------------------------
 // src/deps/utils.rs
 //
-// fn resolve_with_exts()     L10
-// fn resolve_file()          L39
-// fn list_go_package_files() L48
-// ---------------------------
+// pub(super) fn resolve_with_exts()        L14
+// pub(super) fn resolve_file()             L40
+// pub(super) fn list_go_package_files()    L49
+// --------------------------------------------
 
 pub(super) fn resolve_with_exts(root: &Path, base: &Path, exts: &[&str]) -> Option<PathBuf> {
     if base.extension().is_some() {

@@ -12,10 +12,21 @@ mod backend;
 mod completion;
 mod definition;
 mod diagnostics;
+mod formatting;
 mod hover;
 mod semantic_tokens;
 mod symbols;
 
 pub use backend::serve;
+// --------------------------
 // src/lsp/mod.rs
 //
+// mod backend            L11
+// mod completion         L12
+// mod definition         L13
+// mod diagnostics        L14
+// mod formatting         L15
+// mod hover              L16
+// mod semantic_tokens    L17
+// mod symbols            L18
+// --------------------------

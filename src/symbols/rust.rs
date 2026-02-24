@@ -6,6 +6,25 @@ use super::{
     walk_depth_first,
 };
 
+// ----------------------------------
+// src/symbols/rust.rs
+//
+// pub(super) fn extract()        L29
+// fn method_parent()            L184
+// fn function_is_public()       L198
+// fn item_is_public()           L211
+// fn function_display_kind()    L219
+// fn trait_display_kind()       L252
+// fn item_display_kind()        L271
+// fn static_display_kind()      L287
+// fn macro_name()               L306
+// fn declaration_signature()    L324
+// fn visibility_prefix()        L336
+// fn leading_visibility()       L343
+// fn contains_keyword()         L378
+// fn find_keyword_index()       L383
+// ----------------------------------
+
 /// Extract Rust symbols used by code indexing and symbol listing.
 pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
     let mut symbols = Vec::new();

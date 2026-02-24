@@ -6,6 +6,16 @@ use super::{
     push_symbol, walk_depth_first,
 };
 
+// -------------------------------
+// src/symbols/go.rs
+//
+// pub(super) fn extract()     L20
+// fn receiver_parent()       L123
+// fn is_top_level_spec()     L129
+// fn names_from_spec()       L144
+// fn is_exported_name()      L169
+// -------------------------------
+
 /// Extract Go functions, methods, named types, and top-level const/var symbols.
 pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
     let mut symbols = Vec::new();

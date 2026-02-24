@@ -15,18 +15,18 @@ use crate::index::{
 
 use super::backend::Backend;
 
-// -------------------------------------
+// ----------------------------------------------------
 // src/lsp/diagnostics.rs
 //
-// fn did_open()                     L32
-// fn did_change()                   L37
-// fn did_close()                    L42
-// fn refresh_open_documents()       L50
-// fn publish_for_uri()              L56
-// fn collect_link_diagnostics()     L95
-// fn link_error_reason()           L117
-// fn link_range()                  L158
-// -------------------------------------
+// pub(super) async fn did_open()                   L32
+// pub(super) async fn did_change()                 L37
+// pub(super) async fn did_close()                  L42
+// pub(super) async fn refresh_open_documents()     L50
+// async fn publish_for_uri()                       L56
+// fn collect_link_diagnostics()                    L95
+// fn link_error_reason()                          L117
+// fn link_range()                                 L158
+// ----------------------------------------------------
 
 /// Called when a document is opened. Publish diagnostics immediately.
 pub(super) async fn did_open(backend: &Backend, params: DidOpenTextDocumentParams) {

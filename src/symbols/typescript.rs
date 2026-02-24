@@ -5,6 +5,31 @@ use super::{
     Symbol, SymbolKind, name_from_field, normalized_node_text, push_symbol, walk_depth_first,
 };
 
+// -------------------------------------
+// src/symbols/typescript.rs
+//
+// pub(super) fn extract()           L34
+// fn member_parent()               L230
+// fn declaration_span_node()       L252
+// fn variable_span_node()          L267
+// fn declaration_display_kind()    L283
+// fn class_display_kind()          L307
+// fn function_display_kind()       L323
+// fn member_display_kind()         L348
+// fn property_display_kind()       L365
+// fn is_module_level_variable()    L380
+// fn declaration_keyword()         L396
+// fn signature_until_name()        L423
+// fn signature_head()              L446
+// fn is_exported()                 L465
+// fn has_export_ancestor()         L476
+// fn is_default_export()           L490
+// fn is_private_member()           L516
+// fn normalize_whitespace()        L537
+// fn ends_with_token()             L541
+// fn contains_token()              L545
+// -------------------------------------
+
 /// Extract JavaScript/TypeScript symbols used by code indexing and symbol listing.
 pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
     let mut symbols = Vec::new();
@@ -14,10 +39,11 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
         "class_declaration" | "abstract_class_declaration" | "class" => {
             if let Some(name) = name_from_field(node, source, "name") {
                 let is_public = is_exported(node, source);
+                let span_node = declaration_span_node(node);
                 push_symbol(
                     &mut symbols,
                     &mut seen,
-                    node,
+                    span_node,
                     name,
                     None,
                     SymbolKind::Class,
@@ -29,10 +55,11 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
         "interface_declaration" => {
             if let Some(name) = name_from_field(node, source, "name") {
                 let is_public = is_exported(node, source);
+                let span_node = declaration_span_node(node);
                 push_symbol(
                     &mut symbols,
                     &mut seen,
-                    node,
+                    span_node,
                     name,
                     None,
                     SymbolKind::Interface,
@@ -44,10 +71,11 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
         "type_alias_declaration" => {
             if let Some(name) = name_from_field(node, source, "name") {
                 let is_public = is_exported(node, source);
+                let span_node = declaration_span_node(node);
                 push_symbol(
                     &mut symbols,
                     &mut seen,
-                    node,
+                    span_node,
                     name,
                     None,
                     SymbolKind::TypeAlias,
@@ -59,10 +87,11 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
         "enum_declaration" => {
             if let Some(name) = name_from_field(node, source, "name") {
                 let is_public = is_exported(node, source);
+                let span_node = declaration_span_node(node);
                 push_symbol(
                     &mut symbols,
                     &mut seen,
-                    node,
+                    span_node,
                     name,
                     None,
                     SymbolKind::Enum,
@@ -74,10 +103,11 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
         "function_declaration" | "generator_function_declaration" | "function_signature" => {
             if let Some(name) = name_from_field(node, source, "name") {
                 let is_public = is_exported(node, source);
+                let span_node = declaration_span_node(node);
                 push_symbol(
                     &mut symbols,
                     &mut seen,
-                    node,
+                    span_node,
                     name,
                     None,
                     SymbolKind::Function,
@@ -178,11 +208,12 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             } else {
                 SymbolKind::Variable
             };
+            let span_node = variable_span_node(node);
 
             push_symbol(
                 &mut symbols,
                 &mut seen,
-                node,
+                span_node,
                 name,
                 None,
                 kind,
@@ -216,6 +247,37 @@ fn member_parent(node: Node<'_>, source: &[u8]) -> (Option<String>, bool) {
     }
 
     (None, false)
+}
+
+fn declaration_span_node(node: Node<'_>) -> Node<'_> {
+    let mut cursor = node;
+    while let Some(parent) = cursor.parent() {
+        if parent.kind() == "export_statement" {
+            return parent;
+        }
+        if parent.kind() == "program" {
+            break;
+        }
+        cursor = parent;
+    }
+
+    node
+}
+
+fn variable_span_node(node: Node<'_>) -> Node<'_> {
+    let mut cursor = node;
+    let mut declaration = None;
+    while let Some(parent) = cursor.parent() {
+        match parent.kind() {
+            "lexical_declaration" | "variable_declaration" => declaration = Some(parent),
+            "export_statement" => return parent,
+            "program" => break,
+            _ => {}
+        }
+        cursor = parent;
+    }
+
+    declaration.unwrap_or(node)
 }
 
 fn declaration_display_kind(

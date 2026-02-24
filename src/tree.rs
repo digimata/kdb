@@ -2,31 +2,32 @@
 
 use anyhow::{Context, Result, bail};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
-use serde_json::{Map, Value};
+use serde::Serialize;
 use std::cmp::Ordering;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::index::normalize_rel_path;
 
-// ----------------------------------
+// -----------------------------------
 // src/tree.rs
 //
-// struct TreeOptions             L48
-// struct TreeNode                L56
-// enum TreeNodeKind              L65
-// fn build_tree()                L72
-// fn render_text()              L113
-// fn print_text()               L120
-// fn print_json()               L125
-// fn build_node()               L132
-// fn append_children_lines()    L237
-// fn json_value()               L252
-// fn build_ignore_globset()     L270
-// fn is_ignored_path()          L283
-// fn display_rel_path()         L311
-// struct ChildEntry             L319
-// ----------------------------------
+// const ALWAYS_IGNORED_DIRS       L33
+// pub struct TreeOptions          L49
+// pub struct TreeNode             L60
+// pub enum TreeNodeKind           L70
+// pub fn build_tree()             L77
+// pub fn render_text()           L140
+// fn build_node()                L146
+// fn append_children_lines()     L273
+// fn build_ignore_globset()      L288
+// fn build_optional_globset()    L301
+// fn explode_patterns()          L321
+// fn is_ignored_path()           L334
+// fn path_matches()              L376
+// fn display_rel_path()          L388
+// struct ChildEntry              L396
+// -----------------------------------
 
 /// Directories that are always excluded from tree output.
 const ALWAYS_IGNORED_DIRS: &[&str] = &[
@@ -55,7 +56,7 @@ pub struct TreeOptions {
 }
 
 /// Machine-readable tree node used by `--json` output.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TreeNode {
     pub name: String,
     pub path: String,
@@ -64,7 +65,8 @@ pub struct TreeNode {
 }
 
 /// File-system node kind for `TreeNode`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum TreeNodeKind {
     File,
     Directory,
@@ -139,19 +141,6 @@ pub fn render_text(tree: &TreeNode) -> String {
     let mut lines = vec![tree.name.clone()];
     append_children_lines(tree, "", &mut lines);
     lines.join("\n")
-}
-
-/// Print the tree in text form.
-pub fn print_text(tree: &TreeNode) {
-    println!("{}", render_text(tree));
-}
-
-/// Print the tree in pretty JSON form.
-pub fn print_json(tree: &TreeNode) -> Result<()> {
-    let output = serde_json::to_string_pretty(&json_value(tree))
-        .context("failed to serialize tree as JSON")?;
-    println!("{output}");
-    Ok(())
 }
 
 fn build_node(
@@ -294,24 +283,6 @@ fn append_children_lines(node: &TreeNode, prefix: &str, out: &mut Vec<String>) {
         };
         append_children_lines(child, &child_prefix, out);
     }
-}
-
-fn json_value(node: &TreeNode) -> Value {
-    let mut object = Map::new();
-    object.insert("name".to_string(), Value::String(node.name.clone()));
-    object.insert("path".to_string(), Value::String(node.path.clone()));
-    object.insert(
-        "kind".to_string(),
-        Value::String(match node.kind {
-            TreeNodeKind::File => "file".to_string(),
-            TreeNodeKind::Directory => "directory".to_string(),
-        }),
-    );
-    object.insert(
-        "children".to_string(),
-        Value::Array(node.children.iter().map(json_value).collect()),
-    );
-    Value::Object(object)
 }
 
 fn build_ignore_globset(ignore_patterns: &[String]) -> Result<GlobSet> {

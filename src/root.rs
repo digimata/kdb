@@ -8,13 +8,15 @@ use anyhow::{Context, Result, bail};
 use std::env;
 use std::path::{Path, PathBuf};
 
-// -------------------------
+// -----------------------------
 // src/root.rs
 //
-// fn config_path()      L26
-// fn find_root()        L34
-// fn make_absolute()    L69
-// -------------------------
+// pub const ROOT_MARKER     L22
+// pub const CONFIG_FILE     L25
+// pub fn config_path()      L28
+// pub fn find_root()        L36
+// pub fn make_absolute()    L71
+// -----------------------------
 
 /// Marker directory that identifies the root of a kdb project.
 pub const ROOT_MARKER: &str = ".kdb";

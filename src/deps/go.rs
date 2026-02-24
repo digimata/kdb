@@ -6,14 +6,14 @@ use crate::index::deps::Dependency;
 
 use super::utils::list_go_package_files;
 
-// -------------------------
+// -------------------------------
 // src/deps/go.rs
 //
-// fn collect()             L15
-// fn go_module_name()      L52
-// fn resolve_import()       L67
-// fn quoted_value()         L96
-// -------------------------
+// pub(super) fn collect()     L18
+// fn go_module_name()         L62
+// fn resolve_import()         L76
+// fn quoted_value()          L105
+// -------------------------------
 
 pub(super) fn collect(
     root: &Path,

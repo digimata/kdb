@@ -1,13 +1,13 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-// --------------------
+// -----------------------
 // src/main.rs
 //
-// struct Cli       L14
-// enum Command     L20
-// fn main()       L121
-// --------------------
+// struct Cli          L14
+// enum Command        L20
+// async fn main()    L116
+// -----------------------
 
 #[derive(Debug, Parser)]
 #[command(name = "kdb", version, about = "Markdown knowledge base CLI and LSP")]
@@ -66,6 +66,9 @@ enum Command {
     Symbols {
         /// File path to inspect.
         path: PathBuf,
+        /// Select a specific symbol by name or `Parent::name`.
+        #[arg(short = 's', long = "symbol")]
+        symbol: Option<String>,
         /// Emit structured JSON output.
         #[arg(long)]
         json: bool,
@@ -96,13 +99,10 @@ enum Command {
     Graph {
         /// Optional starting path to discover kdb root from.
         path: Option<PathBuf>,
-        /// Group nodes into clusters (placeholder flag).
-        #[arg(long)]
-        cluster: bool,
     },
     /// Generate or update code index headers in supported code files.
     Fmt {
-        /// Optional starting path to discover kdb root from.
+        /// Optional file or directory path to format (defaults to project root).
         path: Option<PathBuf>,
     },
     /// Run the language server over stdio.
@@ -142,18 +142,19 @@ async fn main() {
         ),
         Command::Symbols {
             path,
+            symbol,
             json,
             public_only,
-        } => kdb::cmd::symbols(path, json, public_only),
+        } => kdb::cmd::symbols(path, symbol, json, public_only),
         Command::Refs {
             target,
             json,
             count,
         } => kdb::cmd::refs(target, json, count),
         Command::Deps { target, json } => kdb::cmd::deps(target, json),
-        Command::Graph { path, cluster } => kdb::cmd::graph(path, cluster),
+        Command::Graph { path } => kdb::cmd::graph(path),
         Command::Fmt { path } => kdb::cmd::fmt(path),
-        Command::Lsp { path } => kdb::cmd::lsp(path).await,
+        Command::Lsp { path } => kdb::lsp::serve(path).await,
     };
 
     if let Err(error) = result {

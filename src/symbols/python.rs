@@ -6,6 +6,17 @@ use super::{
     normalized_node_text, push_symbol, walk_depth_first,
 };
 
+// --------------------------------------
+// src/symbols/python.rs
+//
+// pub(super) fn extract()            L21
+// fn function_kind_and_display()     L73
+// fn symbol_kind_for_context()      L129
+// fn decorators_for()               L137
+// fn is_async_function()            L169
+// fn is_public_name()               L177
+// --------------------------------------
+
 /// Extract Python classes, methods, and module-level functions.
 pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
     let mut symbols = Vec::new();

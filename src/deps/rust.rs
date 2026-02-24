@@ -7,17 +7,19 @@ use crate::index::deps::Dependency;
 
 use super::utils::resolve_file;
 
-// --------------------------
+// ---------------------------------
 // src/deps/rust.rs
 //
-// fn collect()              L24
-// fn parse_use_prefix()     L48
-// fn resolve_mod_decl()     L60
-// fn resolve_use()          L81
-// fn rust_module_path()    L122
-// fn rust_file_candidates() L139
-// fn source_segments()      L147
-// --------------------------
+// static MOD_RE                 L24
+// static USE_RE                 L29
+// pub(super) fn collect()       L33
+// fn parse_use_prefix()         L61
+// fn resolve_mod_decl()         L73
+// fn resolve_use()              L94
+// fn rust_module_path()        L138
+// fn rust_file_candidates()    L155
+// fn source_segments()         L163
+// ---------------------------------
 
 static MOD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;")

@@ -7,13 +7,16 @@ use crate::index::deps::Dependency;
 
 use super::utils::resolve_with_exts;
 
-// --------------------------------
+// ------------------------------
 // src/deps/typescript.rs
 //
-// fn collect()                L27
-// fn parse_specifiers()       L39
-// fn resolve_specifier()      L66
-// --------------------------------
+// static IMPORT_RE           L21
+// static EXPORT_RE           L25
+// static REQUIRE_RE          L29
+// pub(super) fn collect()    L33
+// fn parse_specifiers()      L46
+// fn resolve_specifier()     L75
+// ------------------------------
 
 static IMPORT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?m)^\s*import(?:\s+type)?(?:\s+[^"'\n]+?\s+from)?\s*["']([^"']+)["']"#)

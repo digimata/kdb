@@ -1,5 +1,15 @@
 use kdb::symbols::{CodeLanguage, Symbol, SymbolKind, extract_symbols};
 
+// --------------------------------------------------------------------------
+// tests/symbols.rs
+//
+// fn extract_symbols_rust_tracks_visibility_and_display_kind()           L14
+// fn extract_symbols_typescript_tracks_visibility_and_display_kind()     L76
+// fn extract_symbols_python_tracks_visibility_and_display_kind()        L154
+// fn extract_symbols_go_tracks_visibility_and_display_kind()            L225
+// fn find()                                                             L274
+// --------------------------------------------------------------------------
+
 #[test]
 fn extract_symbols_rust_tracks_visibility_and_display_kind() {
     let source = concat!(

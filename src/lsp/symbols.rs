@@ -14,15 +14,15 @@ use crate::index::{Heading, parse_markdown};
 
 use super::backend::Backend;
 
-// ----------------------------------
+// ---------------------------------------------
 // src/lsp/symbols.rs
 //
-// struct SymbolNode              L28
-// fn document_symbol()           L36
-// fn heading_tree_symbols()      L68
-// fn build_document_symbol()    L114
-// fn build_symbol()             L128
-// ----------------------------------
+// struct SymbolNode                         L28
+// pub(super) async fn document_symbol()     L36
+// fn heading_tree_symbols()                 L68
+// fn build_document_symbol()               L114
+// fn build_symbol()                        L128
+// ---------------------------------------------
 
 /// Intermediate node used while building the heading tree.
 struct SymbolNode {

@@ -14,56 +14,60 @@ use tower_lsp::jsonrpc::Result as LspResult;
 use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
     DidChangeWatchedFilesParams, DidChangeWatchedFilesRegistrationOptions,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FileChangeType, FileSystemWatcher, GlobPattern, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverParams, InitializeParams, InitializeResult,
-    InitializedParams, MessageType, OneOf, Position, Registration, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, Url, WatchKind,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FileChangeType, FileSystemWatcher, GlobPattern,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InitializeParams,
+    InitializeResult, InitializedParams, MessageType, OneOf, Position, Registration,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextEdit, Url, WatchKind,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::config;
 use crate::index::VaultIndex;
 use crate::root;
+use crate::symbols::language_for_path;
 
-use super::{completion, definition, diagnostics, hover, symbols};
+use super::{completion, definition, diagnostics, formatting, hover, symbols};
 
-// -----------------------------------------------------
+// --------------------------------------------------------
 // src/lsp/backend.rs
 //
-// fn serve()                                        L72
-// struct Backend                                    L94
-//   fn Backend::new()                              L111
-//   fn Backend::set_watched_files_support()        L121
-//   fn Backend::build_index()                      L126
-//   fn Backend::ensure_index_loaded()              L134
-//   fn Backend::ensure_index()                     L148
-//   fn Backend::with_index()                       L163
-//   fn Backend::markdown_rel_path()                L175
-//   fn Backend::document_text()                    L191
-//   fn Backend::set_document_text()                L199
-//   fn Backend::clear_document_text()              L204
-//   fn Backend::open_document_uris()               L209
-//   fn Backend::sync_document_into_index()         L222
-//   fn Backend::sync_document_from_disk()          L237
-//   fn Backend::register_markdown_watcher()        L251
-//   fn Backend::sync_watched_files_into_index()    L291
-//   fn Backend::initialize()                       L340
-//   fn Backend::initialized()                      L378
-//   fn Backend::shutdown()                         L389
-//   fn Backend::did_open()                         L393
-//   fn Backend::did_change()                       L404
-//   fn Backend::did_close()                        L414
-//   fn Backend::did_change_watched_files()         L421
-//   fn Backend::document_symbol()                  L427
-//   fn Backend::goto_definition()                  L434
-//   fn Backend::completion()                       L441
-//   fn Backend::hover()                            L445
-// fn is_markdown_path()                            L451
-// fn relative_path()                               L461
-// fn path_to_slash()                               L492
-// fn position_to_byte_offset()                     L500
-// -----------------------------------------------------
+// pub async fn serve()                                 L76
+// pub(super) struct Backend                            L98
+//   pub(super) fn new()                               L115
+//   fn set_watched_files_support()                    L125
+//   async fn build_index()                            L130
+//   async fn ensure_index_loaded()                    L138
+//   pub(super) async fn ensure_index()                L152
+//   pub(super) async fn with_index()                  L167
+//   pub(super) fn markdown_rel_path()                 L179
+//   pub(super) fn code_rel_path()                     L195
+//   pub(super) async fn document_text()               L211
+//   pub(super) async fn set_document_text()           L219
+//   pub(super) async fn clear_document_text()         L224
+//   pub(super) async fn open_document_uris()          L229
+//   pub(super) async fn sync_document_into_index()    L242
+//   pub(super) async fn sync_document_from_disk()     L257
+//   async fn register_markdown_watcher()              L271
+//   async fn sync_watched_files_into_index()          L311
+//   async fn initialize()                             L360
+//   async fn initialized()                            L399
+//   async fn shutdown()                               L410
+//   async fn did_open()                               L414
+//   async fn did_change()                             L425
+//   async fn did_close()                              L435
+//   async fn did_change_watched_files()               L442
+//   async fn document_symbol()                        L448
+//   async fn goto_definition()                        L455
+//   async fn completion()                             L462
+//   async fn hover()                                  L466
+//   async fn formatting()                             L470
+// pub(super) fn is_markdown_path()                    L479
+// pub(super) fn relative_path()                       L489
+// pub(super) fn path_to_slash()                       L520
+// pub(super) fn position_to_byte_offset()             L528
+// --------------------------------------------------------
 
 /// Start the LSP server on stdin/stdout.
 ///
@@ -181,6 +185,22 @@ impl Backend {
         let rel = abs.strip_prefix(&self.root).ok()?;
         let rel = crate::index::normalize_rel_path(rel)?;
         if !is_markdown_path(&rel) {
+            return None;
+        }
+
+        Some((abs, rel))
+    }
+
+    /// Convert a document URI to absolute and relative paths for supported code files.
+    pub(super) fn code_rel_path(&self, uri: &Url) -> Option<(PathBuf, PathBuf)> {
+        let abs = uri.to_file_path().ok()?;
+        if !abs.starts_with(&self.root) {
+            return None;
+        }
+
+        let rel = abs.strip_prefix(&self.root).ok()?;
+        let rel = crate::index::normalize_rel_path(rel)?;
+        if language_for_path(&rel).is_none() {
             return None;
         }
 
@@ -369,6 +389,7 @@ impl LanguageServer for Backend {
                     ]),
                     ..CompletionOptions::default()
                 }),
+                document_formatting_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
             ..InitializeResult::default()
@@ -444,6 +465,13 @@ impl LanguageServer for Backend {
 
     async fn hover(&self, params: HoverParams) -> LspResult<Option<Hover>> {
         hover::hover(self, params).await
+    }
+
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> LspResult<Option<Vec<TextEdit>>> {
+        formatting::formatting(self, params).await
     }
 }
 

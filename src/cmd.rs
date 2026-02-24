@@ -4,38 +4,31 @@
 //! `init`, `check`, `outline`, `tree`, `symbols`, `refs`, `deps`, `graph`, `fmt`, and `lsp`.
 
 use anyhow::{Context, Result, bail};
+use serde_json;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 
 use crate::config;
-use crate::deps as code_deps;
 use crate::fmt;
 use crate::index::{self, VaultIndex, deps as md_deps, refs};
-use crate::lsp;
 use crate::root;
 use crate::symbols;
 use crate::tree;
 
-// --------------------
+// ------------------------
 // src/cmd.rs
 //
-// fn lsp()         L35
-// fn init()        L40
-// fn check()       L85
-// fn outline()    L103
-// fn tree()       L156
-// fn symbols()    L215
-// fn refs()       L260
-// fn deps()       L284
-// fn graph()      L302
-// fn fmt()        L317
-// --------------------
-
-/// Start the language server over stdio.
-pub async fn lsp(path: Option<PathBuf>) -> Result<()> {
-    lsp::serve(path).await
-}
+// pub fn init()        L34
+// pub fn check()       L79
+// pub fn outline()     L97
+// pub fn tree()       L150
+// pub fn symbols()    L202
+// pub fn refs()       L270
+// pub fn deps()       L296
+// pub fn graph()      L333
+// pub fn fmt()        L347
+// ------------------------
 
 /// Initialize a kdb project by creating `.kdb/config.toml`.
 pub fn init(path: Option<PathBuf>) -> Result<()> {
@@ -195,16 +188,23 @@ pub fn tree(
         },
     )?;
     if as_json {
-        tree::print_json(&tree)?;
+        let output =
+            serde_json::to_string_pretty(&tree).context("failed to serialize tree as JSON")?;
+        println!("{output}");
     } else {
-        tree::print_text(&tree);
+        println!("{}", tree::render_text(&tree));
     }
 
     Ok(())
 }
 
 /// Print symbols for a single markdown or supported code file.
-pub fn symbols(path: PathBuf, as_json: bool, public_only: bool) -> Result<()> {
+pub fn symbols(
+    path: PathBuf,
+    symbol: Option<String>,
+    as_json: bool,
+    public_only: bool,
+) -> Result<()> {
     let file_abs = root::make_absolute(&path)?;
     if !file_abs.is_file() {
         bail!("file not found: {}", file_abs.display());
@@ -234,15 +234,33 @@ pub fn symbols(path: PathBuf, as_json: bool, public_only: bool) -> Result<()> {
             })
         })?;
 
-    let mut rows = symbols::query::collect_rows(&root, &file_abs, &rel_path)?;
-    if public_only {
-        rows.retain(|row| row.is_public);
-    }
-
-    if as_json {
-        symbols::render::print_json(&rows)?;
+    if let Some(selector) = symbol {
+        let rows = symbols::query::collect_body_rows(
+            &file_abs,
+            &rel_path,
+            selector.as_str(),
+            public_only,
+        )?;
+        if as_json {
+            let output = serde_json::to_string_pretty(&rows)
+                .context("failed to serialize symbol bodies as JSON")?;
+            println!("{output}");
+        } else {
+            symbols::render::print_bodies_text(&rows);
+        }
     } else {
-        symbols::render::print_text(&rows);
+        let mut rows = symbols::query::collect_rows(&root, &file_abs, &rel_path)?;
+        if public_only {
+            rows.retain(|row| row.is_public);
+        }
+
+        if as_json {
+            let output = serde_json::to_string_pretty(&rows)
+                .context("failed to serialize symbols as JSON")?;
+            println!("{output}");
+        } else {
+            symbols::render::print_text(&rows);
+        }
     }
 
     Ok(())
@@ -264,7 +282,9 @@ pub fn refs(target: String, as_json: bool, count_only: bool) -> Result<()> {
     }
 
     if as_json {
-        refs::print_json(&inbound)?;
+        let output =
+            serde_json::to_string_pretty(&inbound).context("failed to serialize refs as JSON")?;
+        println!("{output}");
     } else {
         refs::print_text(&inbound);
     }
@@ -282,16 +302,26 @@ pub fn deps(target: String, as_json: bool) -> Result<()> {
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
 
+    if !is_markdown && symbols::language_for_path(&source_file).is_none() {
+        bail!(
+            "deps is not supported for file type: {}",
+            source_file.display()
+        );
+    }
+
+    let ignore_patterns = config::load_index_ignores(&root)?;
+    let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
+
     let outbound = if is_markdown {
-        let ignore_patterns = config::load_index_ignores(&root)?;
-        let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
         md_deps::collect_outbound(&index, &source_file)?
     } else {
-        code_deps::collect_outbound(&root, &source_file)?
+        md_deps::collect_code_outbound(&index, &source_file)?
     };
 
     if as_json {
-        md_deps::print_json(&outbound)?;
+        let output =
+            serde_json::to_string_pretty(&outbound).context("failed to serialize deps as JSON")?;
+        println!("{output}");
     } else {
         md_deps::print_text(&outbound);
     }
@@ -300,14 +330,13 @@ pub fn deps(target: String, as_json: bool) -> Result<()> {
 }
 
 /// Stub for `kdb graph` until graph rendering lands.
-pub fn graph(path: Option<PathBuf>, cluster: bool) -> Result<()> {
+pub fn graph(path: Option<PathBuf>) -> Result<()> {
     let requested = path
         .as_ref()
         .map(|value| value.display().to_string())
         .unwrap_or_else(|| "<root>".to_string());
-    let mode = if cluster { "cluster" } else { "plain" };
     bail!(
-        "`kdb graph` is not implemented yet (path: {requested}, mode: {mode}). See .issues/iss-0021-graph-command.md"
+        "`kdb graph` is not implemented yet (path: {requested}). See .issues/iss-0021-graph-command.md"
     )
 }
 
@@ -316,14 +345,23 @@ pub fn graph(path: Option<PathBuf>, cluster: bool) -> Result<()> {
 /// Walks the project root and rewrites Rust, TypeScript/JavaScript, Python,
 /// and Go files with a managed index block at the top of each file.
 pub fn fmt(path: Option<PathBuf>) -> Result<()> {
-    let start = match path {
-        Some(path) => root::make_absolute(&path)?,
+    let has_explicit_path = path.is_some();
+    let explicit_start = match path.as_ref() {
+        Some(path) => root::make_absolute(path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
+    if !explicit_start.exists() {
+        bail!("path does not exist: {}", explicit_start.display());
+    }
 
-    let root = root::find_root(&start)?;
+    let root = root::find_root(&explicit_start)?;
+    let fmt_target = if has_explicit_path {
+        explicit_start
+    } else {
+        root.clone()
+    };
     let ignore_patterns = config::load_index_ignores(&root)?;
-    let report = fmt::format_workspace(&root, &ignore_patterns)?;
+    let report = fmt::format_path(&root, &fmt_target, &ignore_patterns)?;
     println!(
         "kdb fmt: updated {} of {} files",
         report.updated_files, report.scanned_files

@@ -20,18 +20,21 @@ use super::{
     definition::link_under_position,
 };
 
-// ----------------------------------
+// -----------------------------------
 // src/lsp/hover.rs
 //
-// fn hover()                     L47
-// fn rewrite_preview_links()    L114
-// fn resolve_target_url()       L168
-// fn is_external_link()         L187
-// fn section_preview()          L194
-// fn section_line_bounds()      L214
-// fn line_start_offsets()       L242
-// fn truncate_chars()           L252
-// ----------------------------------
+// const HOVER_CHAR_LIMIT          L39
+// static MARKDOWN_LINK_RE         L40
+// static WIKILINK_RE              L43
+// pub(super) async fn hover()     L50
+// fn rewrite_preview_links()     L117
+// fn resolve_target_url()        L171
+// fn is_external_link()          L190
+// fn section_preview()           L197
+// fn section_line_bounds()       L217
+// fn line_start_offsets()        L245
+// fn truncate_chars()            L255
+// -----------------------------------
 
 const HOVER_CHAR_LIMIT: usize = 420;
 static MARKDOWN_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {

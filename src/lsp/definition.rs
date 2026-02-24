@@ -17,12 +17,14 @@ use crate::index::{
 
 use super::backend::{Backend, position_to_byte_offset};
 
-// --------------------------------
+// ---------------------------------------------
 // src/lsp/definition.rs
 //
-// fn goto_definition()         L40
-// fn link_under_position()    L113
-// --------------------------------
+// static MARKDOWN_LINK_RE                   L30
+// static WIKILINK_RE                        L35
+// pub(super) async fn goto_definition()     L42
+// pub(super) fn link_under_position()      L115
+// ---------------------------------------------
 
 /// Regex matching `[text](target)` markdown links.
 static MARKDOWN_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {

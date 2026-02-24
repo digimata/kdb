@@ -3,11 +3,11 @@
 //! This module is intentionally minimal for now and will be expanded in
 //! `iss-0017` to colorize index header rows in supported editors.
 
-// --------------------------------
+// -------------------------------------------
 // src/lsp/semantic_tokens.rs
 //
-// fn is_index_header_line()    L14
-// --------------------------------
+// pub(crate) fn is_index_header_line()    L14
+// -------------------------------------------
 
 /// Return `true` if a line looks like the start of a generated code index block.
 #[allow(dead_code)]
