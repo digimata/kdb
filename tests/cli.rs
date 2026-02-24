@@ -7,32 +7,39 @@ use tempfile::tempdir;
 // ----------------------------------------------------------------------
 // tests/cli.rs
 //
-// fn write_file()                                                    L38
-// fn bin()                                                           L46
-// fn write_root_config()                                             L50
-// fn check_exits_zero_for_clean_vault()                              L55
-// fn check_exits_one_for_broken_links()                              L73
-// fn check_respects_index_ignore_patterns_from_config()              L91
-// fn check_orphan_only_shows_orphan_count_hint_without_listing()    L118
-// fn check_orphans_flag_lists_orphan_files()                        L140
-// fn check_errors_when_root_marker_missing()                        L162
-// fn outline_prints_heading_tree()                                  L178
-// fn outline_reports_no_headings_for_plain_markdown()               L201
-// fn outline_errors_for_nonexistent_file()                          L222
-// fn fmt_generates_code_index_headers_for_supported_files()         L238
-// fn fmt_warns_when_nonstandard_index_rows_are_removed()            L260
-// fn symbols_prints_markdown_heading_symbols()                      L283
-// fn symbols_supports_public_filter_for_code_files()                L309
-// fn symbols_json_outputs_structured_rows()                         L341
-// fn refs_lists_inbound_references_for_file_target()                L368
-// fn refs_lists_inbound_references_for_heading_target()             L395
-// fn refs_count_prints_number_of_inbound_references()               L426
-// fn refs_json_outputs_structured_rows()                            L447
-// fn deps_lists_outbound_dependencies_for_file_target()             L474
-// fn deps_json_outputs_structured_rows()                            L507
-// fn graph_is_stubbed_with_clear_message()                          L544
-// fn init_creates_kdb_directory_and_default_config()                L558
-// fn init_errors_if_kdb_directory_already_exists()                  L580
+// fn write_file()                                                    L41
+// fn bin()                                                           L49
+// fn write_root_config()                                             L53
+// fn check_exits_zero_for_clean_vault()                              L58
+// fn check_exits_one_for_broken_links()                              L76
+// fn check_respects_index_ignore_patterns_from_config()              L94
+// fn check_orphan_only_shows_orphan_count_hint_without_listing()    L121
+// fn check_orphans_flag_lists_orphan_files()                        L143
+// fn check_errors_when_root_marker_missing()                        L165
+// fn outline_prints_heading_tree()                                  L181
+// fn outline_reports_no_headings_for_plain_markdown()               L204
+// fn outline_errors_for_nonexistent_file()                          L225
+// fn fmt_generates_code_index_headers_for_supported_files()         L241
+// fn fmt_warns_when_nonstandard_index_rows_are_removed()            L263
+// fn tree_prints_filtered_directory_structure()                     L286
+// fn tree_level_option_matches_tree_l_flag()                        L316
+// fn tree_json_dirs_only_and_all_flags_are_supported()              L336
+// fn symbols_prints_markdown_heading_symbols()                      L362
+// fn symbols_supports_public_filter_for_code_files()                L388
+// fn symbols_json_outputs_structured_rows()                         L420
+// fn refs_lists_inbound_references_for_file_target()                L447
+// fn refs_lists_inbound_references_for_heading_target()             L474
+// fn refs_count_prints_number_of_inbound_references()               L505
+// fn refs_json_outputs_structured_rows()                            L526
+// fn deps_lists_outbound_dependencies_for_file_target()             L553
+// fn deps_json_outputs_structured_rows()                            L586
+// fn deps_supports_rust_code_file_targets()                         L622
+// fn deps_supports_typescript_code_file_targets()                   L648
+// fn deps_supports_python_code_file_targets()                       L675
+// fn deps_supports_go_code_file_targets()                           L700
+// fn graph_is_stubbed_with_clear_message()                          L726
+// fn init_creates_kdb_directory_and_default_config()                L740
+// fn init_errors_if_kdb_directory_already_exists()                  L762
 // ----------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -277,6 +284,145 @@ fn fmt_warns_when_nonstandard_index_rows_are_removed() {
     assert!(stderr.contains("kdb fmt: 1 warning(s)"));
     assert!(stderr.contains("removed 1 non-standard index row"));
     assert!(stderr.contains("src/main.rs"));
+}
+
+#[test]
+fn tree_prints_filtered_directory_structure() {
+    let temp = tempdir().expect("tempdir");
+    write_file(
+        temp.path(),
+        ".kdb/config.toml",
+        "[project]\nname = \"fixture\"\n[index]\nignore = [\"archive/**\"]\n",
+    );
+    write_file(temp.path(), "src/main.rs", "fn main() {}\n");
+    write_file(temp.path(), "notes/todo.md", "# TODO\n");
+    write_file(temp.path(), ".hidden.md", "# hidden\n");
+    write_file(temp.path(), "archive/old.md", "# old\n");
+    write_file(temp.path(), "target/generated.txt", "generated\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("tree")
+        .output()
+        .expect("run kdb tree");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.lines().next().is_some_and(|line| line == "."));
+    assert!(stdout.contains("notes"));
+    assert!(stdout.contains("src"));
+    assert!(!stdout.contains(".hidden.md"));
+    assert!(!stdout.contains("archive"));
+    assert!(!stdout.contains("target"));
+}
+
+#[test]
+fn tree_level_option_matches_tree_l_flag() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "a/b/c/deep.md", "# deep\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("tree")
+        .arg("-L")
+        .arg("1")
+        .output()
+        .expect("run kdb tree -L 1");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("a"));
+    assert!(!stdout.contains("b"));
+}
+
+#[test]
+fn tree_json_dirs_only_and_all_flags_are_supported() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "docs/page.md", "# page\n");
+    write_file(temp.path(), ".private/notes.md", "# private\n");
+    write_file(temp.path(), "root.md", "# root\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("tree")
+        .arg("-J")
+        .arg("-d")
+        .arg("-a")
+        .output()
+        .expect("run kdb tree -J -d -a");
+
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("parse tree json");
+    assert_eq!(json["kind"], "directory");
+    let children = json["children"].as_array().expect("children array");
+    assert!(children.iter().any(|node| node["name"] == ".private"));
+    assert!(children.iter().any(|node| node["name"] == "docs"));
+    assert!(!children.iter().any(|node| node["name"] == "root.md"));
+}
+
+#[test]
+fn tree_full_path_flag_prints_full_relative_paths() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "src/main.rs", "fn main() {}\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("tree")
+        .arg("-f")
+        .output()
+        .expect("run kdb tree -f");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("src/main.rs"));
+}
+
+#[test]
+fn tree_ignore_pattern_flag_excludes_matches() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "docs/page.md", "# page\n");
+    write_file(temp.path(), "src/main.rs", "fn main() {}\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("tree")
+        .arg("-I")
+        .arg("docs/**")
+        .output()
+        .expect("run kdb tree -I docs/**");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("docs"));
+    assert!(stdout.contains("src"));
+}
+
+#[test]
+fn tree_pattern_flag_includes_only_matching_subtrees() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "docs/page.md", "# page\n");
+    write_file(temp.path(), "src/main.rs", "fn main() {}\n");
+    write_file(temp.path(), "tests/cli.rs", "// test\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("tree")
+        .arg("-P")
+        .arg("src/**")
+        .output()
+        .expect("run kdb tree -P src/**");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("src"));
+    assert!(stdout.contains("main.rs"));
+    assert!(!stdout.contains("docs"));
+    assert!(!stdout.contains("tests"));
 }
 
 #[test]
@@ -538,6 +684,126 @@ fn deps_json_outputs_structured_rows() {
     assert!(rows[1]["anchor"].is_null());
     assert_eq!(rows[2]["file"], "docs/state.md");
     assert!(rows[2]["anchor"].is_null());
+}
+
+#[test]
+fn deps_supports_rust_code_file_targets() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "src/lib.rs",
+        "mod util;\nuse crate::core::engine::Runner;\n",
+    );
+    write_file(temp.path(), "src/util.rs", "pub fn helper() {}\n");
+    write_file(temp.path(), "src/core/engine.rs", "pub struct Runner;\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("src/lib.rs")
+        .output()
+        .expect("run kdb deps for rust");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["src/core/engine.rs", "src/util.rs"]
+    );
+}
+
+#[test]
+fn deps_supports_typescript_code_file_targets() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "web/main.ts",
+        "import x from './lib';\nexport { y } from './shared/util';\nconst z = require('./cjs');\n",
+    );
+    write_file(temp.path(), "web/lib.ts", "export const x = 1;\n");
+    write_file(temp.path(), "web/shared/util.ts", "export const y = 2;\n");
+    write_file(temp.path(), "web/cjs.js", "module.exports = {};\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("web/main.ts")
+        .output()
+        .expect("run kdb deps for ts");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["web/cjs.js", "web/lib.ts", "web/shared/util.ts"]
+    );
+}
+
+#[test]
+fn deps_supports_python_code_file_targets() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "app/main.py",
+        "import pkg.utils\nfrom .local import helper\n",
+    );
+    write_file(temp.path(), "pkg/utils.py", "VALUE = 1\n");
+    write_file(temp.path(), "app/local/__init__.py", "\n");
+    write_file(
+        temp.path(),
+        "app/local/helper.py",
+        "def run():\n    return 1\n",
+    );
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("app/main.py")
+        .output()
+        .expect("run kdb deps for python");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec![
+            "app/local/__init__.py",
+            "app/local/helper.py",
+            "pkg/utils.py"
+        ]
+    );
+}
+
+#[test]
+fn deps_supports_go_code_file_targets() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "go.mod", "module example.com/acme\n");
+    write_file(
+        temp.path(),
+        "cmd/main.go",
+        "package main\nimport (\n\t\"example.com/acme/internal/pkg\"\n\t\"./local\"\n\t\"fmt\"\n)\n",
+    );
+    write_file(temp.path(), "internal/pkg/a.go", "package pkg\n");
+    write_file(temp.path(), "internal/pkg/b.go", "package pkg\n");
+    write_file(temp.path(), "cmd/local/x.go", "package local\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("cmd/main.go")
+        .output()
+        .expect("run kdb deps for go");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["cmd/local/x.go", "internal/pkg/a.go", "internal/pkg/b.go"]
+    );
 }
 
 #[test]

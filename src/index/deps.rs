@@ -3,16 +3,16 @@ use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use super::{VaultIndex, resolve_file_target, resolve_target_path};
+use super::{VaultIndex, resolve_target_path};
 
 // ----------------------------
 // src/index/deps.rs
 //
 // struct Dependency        L19
 // fn collect_outbound()    L24
-// fn print_text()          L50
-// fn print_json()          L65
-// fn json_row()            L72
+// fn print_text()          L49
+// fn print_json()          L64
+// fn json_row()            L71
 // ----------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -21,9 +21,8 @@ pub struct Dependency {
     pub anchor: Option<String>,
 }
 
-pub fn collect_outbound(index: &VaultIndex, root: &Path, file: &str) -> Result<Vec<Dependency>> {
-    let source_file = resolve_file_target(root, file)?;
-    let file_entry = index.files.get(&source_file).with_context(|| {
+pub fn collect_outbound(index: &VaultIndex, source_file: &Path) -> Result<Vec<Dependency>> {
+    let file_entry = index.files.get(source_file).with_context(|| {
         format!(
             "target file is not an indexed markdown file: {}",
             source_file.display()

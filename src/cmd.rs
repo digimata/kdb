@@ -1,7 +1,7 @@
 //! CLI command implementations.
 //!
 //! Each public function corresponds to a subcommand of the `kdb` binary:
-//! `init`, `check`, `outline`, `symbols`, `refs`, `deps`, `graph`, `fmt`, and `lsp`.
+//! `init`, `check`, `outline`, `tree`, `symbols`, `refs`, `deps`, `graph`, `fmt`, and `lsp`.
 
 use anyhow::{Context, Result, bail};
 use std::env;
@@ -9,24 +9,27 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::config;
+use crate::deps as code_deps;
 use crate::fmt;
-use crate::index::{self, VaultIndex, deps, refs};
+use crate::index::{self, VaultIndex, deps as md_deps, refs};
 use crate::lsp;
 use crate::root;
 use crate::symbols;
+use crate::tree;
 
 // --------------------
 // src/cmd.rs
 //
-// fn lsp()         L33
-// fn init()        L38
-// fn check()       L83
-// fn outline()    L101
-// fn symbols()    L154
-// fn refs()       L199
-// fn deps()       L223
-// fn graph()      L240
-// fn fmt()        L255
+// fn lsp()         L35
+// fn init()        L40
+// fn check()       L85
+// fn outline()    L103
+// fn tree()       L156
+// fn symbols()    L215
+// fn refs()       L260
+// fn deps()       L284
+// fn graph()      L302
+// fn fmt()        L317
 // --------------------
 
 /// Start the language server over stdio.
@@ -150,6 +153,56 @@ pub fn outline(file: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Print a filtered project tree for a path under the current kdb root.
+pub fn tree(
+    path: Option<PathBuf>,
+    level: Option<usize>,
+    as_json: bool,
+    all: bool,
+    dirs_only: bool,
+    full_path: bool,
+    ignore: Vec<String>,
+    pattern: Vec<String>,
+) -> Result<()> {
+    let has_explicit_path = path.is_some();
+    let explicit_start = match path.as_ref() {
+        Some(path) => root::make_absolute(path)?,
+        None => env::current_dir().context("failed to read current directory")?,
+    };
+    if !explicit_start.exists() {
+        bail!("path does not exist: {}", explicit_start.display());
+    }
+
+    let root = root::find_root(&explicit_start)?;
+    let tree_start = if has_explicit_path {
+        explicit_start
+    } else {
+        root.clone()
+    };
+
+    let ignore_patterns = config::load_index_ignores(&root)?;
+    let tree = tree::build_tree(
+        &root,
+        &tree_start,
+        &ignore_patterns,
+        tree::TreeOptions {
+            max_depth: level,
+            show_hidden: all,
+            dirs_only,
+            full_paths: full_path,
+            ignore_patterns: ignore,
+            include_patterns: pattern,
+        },
+    )?;
+    if as_json {
+        tree::print_json(&tree)?;
+    } else {
+        tree::print_text(&tree);
+    }
+
+    Ok(())
+}
+
 /// Print symbols for a single markdown or supported code file.
 pub fn symbols(path: PathBuf, as_json: bool, public_only: bool) -> Result<()> {
     let file_abs = root::make_absolute(&path)?;
@@ -219,18 +272,28 @@ pub fn refs(target: String, as_json: bool, count_only: bool) -> Result<()> {
     Ok(())
 }
 
-/// List outbound markdown dependencies for a file.
+/// List outbound dependencies for a markdown or supported code file.
 pub fn deps(target: String, as_json: bool) -> Result<()> {
     let start = env::current_dir().context("failed to read current directory")?;
     let root = root::find_root(&start)?;
-    let ignore_patterns = config::load_index_ignores(&root)?;
-    let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
-    let outbound = deps::collect_outbound(&index, &root, &target)?;
+    let source_file = index::resolve_file_target(&root, &target)?;
+    let is_markdown = source_file
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
+
+    let outbound = if is_markdown {
+        let ignore_patterns = config::load_index_ignores(&root)?;
+        let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
+        md_deps::collect_outbound(&index, &source_file)?
+    } else {
+        code_deps::collect_outbound(&root, &source_file)?
+    };
 
     if as_json {
-        deps::print_json(&outbound)?;
+        md_deps::print_json(&outbound)?;
     } else {
-        deps::print_text(&outbound);
+        md_deps::print_text(&outbound);
     }
 
     Ok(())

@@ -19,6 +19,7 @@ Tracking issue for the full kdb CLI surface area.
 - [x] `kdb check`
 - [x] `kdb outline`
 - [x] `kdb lsp`
+- [x] `kdb tree`
 
 ## In progress
 
@@ -46,4 +47,3 @@ Tracking issue for the full kdb CLI surface area.
 
 - `kdb orphans` → folded into `kdb check --orphans`
 - `kdb stubs` → TBD, may become a `check` flag
-- `kdb tree` → replaced by `kdb codemap`

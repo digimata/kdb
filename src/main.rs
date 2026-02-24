@@ -1,13 +1,13 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-// -------------------
+// --------------------
 // src/main.rs
 //
-// struct Cli      L14
-// enum Command    L20
-// fn main()       L90
-// -------------------
+// struct Cli       L14
+// enum Command     L20
+// fn main()       L121
+// --------------------
 
 #[derive(Debug, Parser)]
 #[command(name = "kdb", version, about = "Markdown knowledge base CLI and LSP")]
@@ -35,6 +35,32 @@ enum Command {
     Outline {
         /// File path to outline.
         file: PathBuf,
+    },
+    /// Print a filtered directory tree for the project.
+    Tree {
+        /// Maximum display depth (same as `tree -L`).
+        #[arg(short = 'L', long = "level", alias = "depth")]
+        level: Option<usize>,
+        /// Include hidden entries (same as `tree -a`).
+        #[arg(short = 'a', long)]
+        all: bool,
+        /// Show directories only (same as `tree -d`).
+        #[arg(short = 'd', long = "dirs-only")]
+        dirs_only: bool,
+        /// Print full relative paths for each entry (same as `tree -f`).
+        #[arg(short = 'f', long = "full-path")]
+        full_path: bool,
+        /// Exclude entries matching a wildcard pattern (same as `tree -I`).
+        #[arg(short = 'I', long = "ignore")]
+        ignore: Vec<String>,
+        /// Include only entries matching a wildcard pattern (same as `tree -P`).
+        #[arg(short = 'P', long = "pattern")]
+        pattern: Vec<String>,
+        /// Emit machine-readable JSON output.
+        #[arg(short = 'J', long)]
+        json: bool,
+        /// Optional path to render (defaults to project root).
+        path: Option<PathBuf>,
     },
     /// Print symbols for a markdown or supported code file.
     Symbols {
@@ -102,6 +128,18 @@ async fn main() {
             Err(error) => Err(error),
         },
         Command::Outline { file } => kdb::cmd::outline(file),
+        Command::Tree {
+            level,
+            all,
+            dirs_only,
+            full_path,
+            ignore,
+            pattern,
+            json,
+            path,
+        } => kdb::cmd::tree(
+            path, level, json, all, dirs_only, full_path, ignore, pattern,
+        ),
         Command::Symbols {
             path,
             json,

@@ -4,6 +4,8 @@ Local issue tracker for this kdb repo.
 
 | ID | Title | Status | Priority |
 | --- | --- | --- | --- |
+| [0025](iss-0025-symbol-body-and-code-refs.md) | Symbol Body Extraction and Code Refs | proposed | high |
+| [0024](iss-0024-native-symbol-display.md) | Language-Native Symbol Display | proposed | high |
 | [0012](iss-0012-cli-commands.md) | CLI Commands (tracking) | in_progress | high |
 | [0018](iss-0018-symbols-command.md) | kdb symbols Command | proposed | high |
 | [0016](iss-0016-codemap.md) | Codemap | proposed | high |
@@ -11,7 +13,6 @@ Local issue tracker for this kdb repo.
 | [0014](iss-0014-code-file-indexes.md) | Code File Index Headers | in_progress | medium |
 | [0019](iss-0019-refs-command.md) | kdb refs Command | proposed | high |
 | [0020](iss-0020-deps-command.md) | kdb deps Command | proposed | high |
-| [0022](iss-0022-tree-command.md) | kdb tree Command | proposed | high |
 | [0021](iss-0021-graph-command.md) | kdb graph Command | proposed | medium |
 | [0017](iss-0017-index-syntax-highlighting.md) | Syntax Highlighting for Code Index Headers | proposed | medium |
 | [0015](iss-0015-check-orphans-flag.md) | Gate Orphan Listing Behind Flag | proposed | medium |

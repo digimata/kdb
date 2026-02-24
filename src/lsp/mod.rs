@@ -19,4 +19,3 @@ mod symbols;
 pub use backend::serve;
 // src/lsp/mod.rs
 //
-
