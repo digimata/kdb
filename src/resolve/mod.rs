@@ -23,50 +23,72 @@ mod tsjs;
 // mod python                                      L15
 // mod rust                                        L16
 // mod tsjs                                        L17
-// pub type WorkspacePackages                      L69
-// pub enum ImportKind                             L72
-// pub struct ResolvedImport                       L80
-// pub struct WorkspaceImportIndex                 L89
-// pub fn build_workspace_import_index()           L94
-// pub fn resolve_imports_for_language()          L134
-// const IGNORED_DIRS                             L151
-// const TSJS_EXTS                                L165
-// fn build_ignore_globset()                      L169
-// fn discover_code_files()                       L182
-// fn discover_workspace_packages()               L237
-// struct WorkspacePatternSet                     L312
-// fn workspace_patterns()                        L317
-// fn read_pnpm_workspace_patterns()              L341
-// fn read_package_json_workspace_patterns()      L387
-// fn compile_globset()                           L424
-// fn workspace_path_allowed()                    L440
-// fn globset_matches_path()                      L458
-// fn package_name_from_manifest()                L470
-// pub(super) fn classify_local_kind()            L482
-// pub(super) fn sanitize_specifier()             L497
-// pub(super) fn normalize_identifier()           L514
-// pub(super) fn resolve_with_exts()              L542
-// pub(super) fn resolve_file()                   L568
-// pub(super) fn list_go_package_files()          L577
-// pub(super) fn build_line_starts()              L611
-// pub(super) fn line_number_for_offset()         L621
-// pub(super) fn normalize_rel_path()             L630
-// pub(super) fn slash_path()                     L649
-// pub(super) fn to_root_relative()               L653
-// fn rel_path_from_root()                        L658
-// fn path_is_ignored()                           L663
-// pub(super) struct WorkspaceMatch               L681
-// pub(super) fn workspace_match()                L686
-// fn split_package_specifier()                   L698
-// pub(super) fn resolve_workspace_specifier()    L728
-// fn resolve_workspace_entry()                   L741
-// fn resolve_package_target()                    L793
-// fn export_target()                             L804
-// fn first_export_string()                       L832
-// fn read_json_value()                           L848
+// pub type WorkspacePackages                      L72
+// pub struct GoWorkspaceCache                     L75
+// pub struct RustWorkspaceCrate                   L80
+// pub struct RustWorkspaceCache                   L89
+// pub enum ImportKind                             L94
+// pub struct ResolvedImport                      L102
+// pub struct WorkspaceImportIndex                L111
+// pub fn build_workspace_import_index()          L118
+// pub fn resolve_imports_for_language()          L169
+// const IGNORED_DIRS                             L188
+// const TSJS_EXTS                                L202
+// fn build_ignore_globset()                      L206
+// fn discover_code_files()                       L219
+// fn discover_workspace_packages()               L274
+// struct WorkspacePatternSet                     L349
+// fn workspace_patterns()                        L354
+// fn read_pnpm_workspace_patterns()              L378
+// fn read_package_json_workspace_patterns()      L424
+// fn compile_globset()                           L461
+// fn workspace_path_allowed()                    L477
+// fn globset_matches_path()                      L495
+// fn package_name_from_manifest()                L507
+// pub(super) fn classify_local_kind()            L519
+// pub(super) fn sanitize_specifier()             L534
+// pub(super) fn normalize_identifier()           L551
+// pub(super) fn resolve_with_exts()              L579
+// pub(super) fn resolve_file()                   L605
+// pub(super) fn list_go_package_files()          L614
+// pub(super) fn build_line_starts()              L648
+// pub(super) fn line_number_for_offset()         L658
+// pub(super) fn normalize_rel_path()             L667
+// pub(super) fn slash_path()                     L686
+// pub(super) fn to_root_relative()               L690
+// fn rel_path_from_root()                        L695
+// fn path_is_ignored()                           L700
+// pub(super) struct WorkspaceMatch               L718
+// pub(super) fn workspace_match()                L723
+// fn split_package_specifier()                   L735
+// pub(super) fn resolve_workspace_specifier()    L765
+// fn resolve_workspace_entry()                   L778
+// fn resolve_package_target()                    L830
+// fn export_target()                             L841
+// fn first_export_string()                       L869
+// fn read_json_value()                           L885
 // ---------------------------------------------------
 
 pub type WorkspacePackages = HashMap<String, PathBuf>;
+
+#[derive(Debug, Clone, Default)]
+pub struct GoWorkspaceCache {
+    pub modules_by_path: HashMap<String, PathBuf>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RustWorkspaceCrate {
+    pub name: String,
+    pub src_root: PathBuf,
+    pub crate_root_files: Vec<PathBuf>,
+    pub dependency_src_roots: HashMap<String, PathBuf>,
+    pub dependency_entry_files: HashMap<String, Vec<PathBuf>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RustWorkspaceCache {
+    pub crates_by_root: HashMap<PathBuf, RustWorkspaceCrate>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ImportKind {
@@ -88,6 +110,8 @@ pub struct ResolvedImport {
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceImportIndex {
     pub workspace_packages: WorkspacePackages,
+    pub go_workspace: GoWorkspaceCache,
+    pub rust_workspace: RustWorkspaceCache,
     pub file_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
 }
 
@@ -97,6 +121,8 @@ pub fn build_workspace_import_index(
 ) -> Result<WorkspaceImportIndex> {
     let ignore_set = build_ignore_globset(ignore_patterns)?;
     let workspace_packages = discover_workspace_packages(root, &ignore_set);
+    let go_workspace = go::build_workspace_cache(root);
+    let rust_workspace = rust::build_workspace_cache(root, &ignore_set);
     let mut file_imports = BTreeMap::new();
 
     for rel_path in discover_code_files(root, &ignore_set)? {
@@ -114,8 +140,15 @@ pub fn build_workspace_import_index(
             }
         };
 
-        let mut imports =
-            resolve_imports_for_language(root, &rel_path, &source, language, &workspace_packages);
+        let mut imports = resolve_imports_for_language(
+            root,
+            &rel_path,
+            &source,
+            language,
+            &workspace_packages,
+            &go_workspace,
+            &rust_workspace,
+        );
         imports.sort_by(|left, right| {
             left.line
                 .cmp(&right.line)
@@ -127,6 +160,8 @@ pub fn build_workspace_import_index(
 
     Ok(WorkspaceImportIndex {
         workspace_packages,
+        go_workspace,
+        rust_workspace,
         file_imports,
     })
 }
@@ -137,13 +172,15 @@ pub fn resolve_imports_for_language(
     source: &str,
     language: CodeLanguage,
     workspace_packages: &WorkspacePackages,
+    go_workspace: &GoWorkspaceCache,
+    rust_workspace: &RustWorkspaceCache,
 ) -> Vec<ResolvedImport> {
     match language {
         CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
             tsjs::resolve(root, source_file, source, workspace_packages)
         }
-        CodeLanguage::Rust => rust::resolve(root, source_file, source),
-        CodeLanguage::Go => go::resolve(root, source_file, source),
+        CodeLanguage::Rust => rust::resolve(root, source_file, source, rust_workspace),
+        CodeLanguage::Go => go::resolve(root, source_file, source, go_workspace),
         CodeLanguage::Python => python::resolve(root, source_file, source),
     }
 }

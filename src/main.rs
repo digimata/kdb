@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 // -----------------------
-// kdb/src/main.rs
+// src/main.rs
 //
 // struct Cli          L14
 // enum Command        L20
@@ -28,7 +28,7 @@ enum Command {
         /// Print each orphan file path.
         #[arg(long)]
         orphans: bool,
-        /// Optional starting path to discover kdb root from.
+        /// Optional file or directory path to scope check output to.
         path: Option<PathBuf>,
     },
     /// Print the heading outline for a markdown file.

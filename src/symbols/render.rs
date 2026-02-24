@@ -2,18 +2,21 @@
 
 use serde::Serialize;
 
-use super::{Symbol, format_symbol_display, kind_label};
+use crate::index::Heading;
 
-// -------------------------------------
+use super::{format_symbol_display, kind_label, Symbol};
+
+// -----------------------------------------
 // src/symbols/render.rs
 //
-// pub struct SymbolRow              L20
-// pub struct SymbolBodyRow          L49
-// pub fn code_symbol_row()          L73
-// pub fn code_symbol_body_row()     L90
-// pub fn print_text()              L105
-// pub fn print_bodies_text()       L118
-// -------------------------------------
+// pub struct SymbolRow                  L23
+// pub struct SymbolBodyRow              L52
+// pub fn code_symbol_row()              L76
+// pub fn code_symbol_body_row()         L93
+// pub fn markdown_symbol_body_row()    L108
+// pub fn print_text()                  L128
+// pub fn print_bodies_text()           L141
+// -----------------------------------------
 
 /// A formatted symbol row ready for display.
 #[derive(Debug, Clone, Serialize)]
@@ -97,6 +100,26 @@ pub fn code_symbol_body_row(file: &str, symbol: Symbol, body: String) -> SymbolB
         end_line: symbol.end_line,
         parent: symbol.parent,
         is_public: symbol.is_public,
+        body,
+    }
+}
+
+/// Convert a markdown heading and section body into a body output row.
+pub fn markdown_symbol_body_row(
+    file: &str,
+    heading: &Heading,
+    end_line: usize,
+    body: String,
+) -> SymbolBodyRow {
+    SymbolBodyRow {
+        file: file.to_string(),
+        kind: "heading".to_string(),
+        display_kind: "#".repeat(usize::from(heading.level)),
+        name: heading.title.clone(),
+        line: heading.line,
+        end_line,
+        parent: None,
+        is_public: true,
         body,
     }
 }

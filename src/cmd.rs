@@ -21,13 +21,13 @@ use crate::tree;
 //
 // pub fn init()        L34
 // pub fn check()       L79
-// pub fn outline()     L97
-// pub fn tree()       L150
-// pub fn symbols()    L202
-// pub fn refs()       L270
-// pub fn deps()       L296
-// pub fn graph()      L333
-// pub fn fmt()        L347
+// pub fn outline()    L124
+// pub fn tree()       L177
+// pub fn symbols()    L229
+// pub fn refs()       L297
+// pub fn deps()       L323
+// pub fn graph()      L360
+// pub fn fmt()        L374
 // ------------------------
 
 /// Initialize a kdb project by creating `.kdb/config.toml`.
@@ -77,15 +77,42 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
 /// Returns `Ok(true)` if any issues were found (caller should exit with code 1),
 /// or `Ok(false)` if the vault is clean.
 pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
-    let start = match path {
-        Some(path) => root::make_absolute(&path)?,
+    let explicit_start = match path.as_ref() {
+        Some(path) => root::make_absolute(path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
 
-    let root = root::find_root(&start)?;
+    let root = root::find_root(&explicit_start)?;
     let ignore_patterns = config::load_index_ignores(&root)?;
     let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
-    let report = index.check();
+    let mut report = index.check();
+
+    if path.is_some() {
+        let scope_abs = explicit_start
+            .canonicalize()
+            .with_context(|| format!("failed to canonicalize {}", explicit_start.display()))?;
+        let scope_rel = scope_abs
+            .strip_prefix(&root)
+            .with_context(|| {
+                format!(
+                    "scope path {} is not inside kdb root {}",
+                    scope_abs.display(),
+                    root.display()
+                )
+            })
+            .and_then(|path| {
+                index::normalize_rel_path(path).with_context(|| {
+                    format!(
+                        "scope path {} resolves outside kdb root {}",
+                        scope_abs.display(),
+                        root.display()
+                    )
+                })
+            })?;
+        let scope_is_dir = scope_abs.is_dir();
+        report = report.scoped_to(&scope_rel, scope_is_dir);
+    }
+
     report.print(list_orphans);
     Ok(report.has_errors())
 }

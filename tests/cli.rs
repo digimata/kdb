@@ -7,50 +7,65 @@ use tempfile::tempdir;
 // -----------------------------------------------------------------------
 // tests/cli.rs
 //
-// fn write_file()                                                     L56
-// fn bin()                                                            L64
-// fn write_root_config()                                              L68
-// fn check_exits_zero_for_clean_vault()                               L73
-// fn check_exits_one_for_broken_links()                               L91
-// fn check_respects_index_ignore_patterns_from_config()              L109
-// fn check_orphan_only_shows_orphan_count_hint_without_listing()     L136
-// fn check_orphans_flag_lists_orphan_files()                         L158
-// fn check_errors_when_root_marker_missing()                         L180
-// fn outline_prints_heading_tree()                                   L196
-// fn outline_reports_no_headings_for_plain_markdown()                L219
-// fn outline_errors_for_nonexistent_file()                           L240
-// fn fmt_generates_code_index_headers_for_supported_files()          L256
-// fn fmt_warns_when_nonstandard_index_rows_are_removed()             L278
-// fn fmt_scopes_to_explicit_file_path()                              L301
-// fn tree_prints_filtered_directory_structure()                      L325
-// fn tree_level_option_matches_tree_l_flag()                         L355
-// fn tree_json_dirs_only_and_all_flags_are_supported()               L375
-// fn tree_full_path_flag_prints_full_relative_paths()                L401
-// fn tree_ignore_pattern_flag_excludes_matches()                     L419
-// fn tree_pattern_flag_includes_only_matching_subtrees()             L440
-// fn symbols_prints_markdown_heading_symbols()                       L464
-// fn symbols_supports_public_filter_for_code_files()                 L490
-// fn symbols_json_outputs_structured_rows()                          L522
-// fn symbols_selector_prints_multiple_matching_bodies()              L550
-// fn symbols_selector_supports_qualified_names()                     L588
-// fn symbols_selector_json_outputs_body_and_metadata()               L622
-// fn symbols_selector_respects_public_filter()                       L667
-// fn symbols_selector_rejects_markdown_targets()                     L708
-// fn refs_lists_inbound_references_for_file_target()                 L727
-// fn refs_lists_inbound_references_for_heading_target()              L754
-// fn refs_count_prints_number_of_inbound_references()                L785
-// fn refs_json_outputs_structured_rows()                             L806
-// fn deps_lists_outbound_dependencies_for_file_target()              L833
-// fn deps_json_outputs_structured_rows()                             L866
-// fn deps_supports_rust_code_file_targets()                          L903
-// fn deps_supports_typescript_code_file_targets()                    L930
-// fn deps_supports_typescript_tsconfig_path_aliases()                L958
-// fn deps_supports_typescript_workspace_package_imports()            L986
-// fn deps_supports_python_code_file_targets()                       L1034
-// fn deps_supports_go_code_file_targets()                           L1070
-// fn graph_is_stubbed_with_clear_message()                          L1099
-// fn init_creates_kdb_directory_and_default_config()                L1112
-// fn init_errors_if_kdb_directory_already_exists()                  L1134
+// fn write_file()                                                     L71
+// fn bin()                                                            L79
+// fn write_root_config()                                              L83
+// fn check_exits_zero_for_clean_vault()                               L88
+// fn check_exits_one_for_broken_links()                              L106
+// fn check_respects_index_ignore_patterns_from_config()              L124
+// fn check_respects_gitignore_rules()                                L151
+// fn check_orphan_only_shows_orphan_count_hint_without_listing()     L175
+// fn check_orphans_flag_lists_orphan_files()                         L197
+// fn check_scopes_output_to_explicit_subtree_path()                  L219
+// fn check_scoped_subtree_still_validates_cross_subtree_links()      L244
+// fn check_errors_when_root_marker_missing()                         L272
+// fn outline_prints_heading_tree()                                   L288
+// fn outline_reports_no_headings_for_plain_markdown()                L311
+// fn outline_errors_for_nonexistent_file()                           L332
+// fn fmt_generates_code_index_headers_for_supported_files()          L348
+// fn fmt_warns_when_nonstandard_index_rows_are_removed()             L370
+// fn fmt_scopes_to_explicit_file_path()                              L393
+// fn fmt_respects_gitignore_rules()                                  L417
+// fn fmt_explicit_path_can_format_gitignored_file()                  L439
+// fn tree_prints_filtered_directory_structure()                      L460
+// fn tree_level_option_matches_tree_l_flag()                         L490
+// fn tree_json_dirs_only_and_all_flags_are_supported()               L510
+// fn tree_full_path_flag_prints_full_relative_paths()                L536
+// fn tree_ignore_pattern_flag_excludes_matches()                     L554
+// fn tree_pattern_flag_includes_only_matching_subtrees()             L575
+// fn symbols_prints_markdown_heading_symbols()                       L599
+// fn symbols_supports_public_filter_for_code_files()                 L625
+// fn symbols_json_outputs_structured_rows()                          L657
+// fn symbols_selector_prints_multiple_matching_bodies()              L685
+// fn symbols_selector_supports_qualified_names()                     L723
+// fn symbols_selector_json_outputs_body_and_metadata()               L757
+// fn symbols_selector_respects_public_filter()                       L800
+// fn symbols_selector_extracts_markdown_sections_by_slug()           L841
+// fn symbols_selector_markdown_json_outputs_body_and_metadata()      L875
+// fn symbols_selector_markdown_slug_not_found_errors()               L918
+// fn refs_lists_inbound_references_for_file_target()                 L942
+// fn refs_lists_inbound_references_for_heading_target()              L969
+// fn refs_count_prints_number_of_inbound_references()               L1000
+// fn refs_json_outputs_structured_rows()                            L1021
+// fn deps_lists_outbound_dependencies_for_file_target()             L1048
+// fn deps_json_outputs_structured_rows()                            L1081
+// fn deps_supports_rust_code_file_targets()                         L1118
+// fn deps_supports_rust_nested_crate_roots_in_monorepos()           L1145
+// fn deps_supports_rust_workspace_sibling_crate_imports()           L1186
+// fn deps_supports_rust_workspace_renamed_path_dependencies()       L1232
+// fn deps_supports_rust_custom_lib_path_mod_declarations()          L1278
+// fn deps_supports_rust_custom_bin_path_mod_declarations()          L1302
+// fn deps_supports_rust_custom_lib_path_cross_crate_fallback()      L1326
+// fn deps_supports_typescript_code_file_targets()                   L1367
+// fn deps_supports_typescript_tsconfig_path_aliases()               L1395
+// fn deps_supports_typescript_workspace_package_imports()           L1423
+// fn deps_supports_python_code_file_targets()                       L1471
+// fn deps_supports_go_code_file_targets()                           L1507
+// fn deps_supports_go_workspace_use_cross_module_imports()          L1536
+// fn deps_supports_go_workspace_replace_local_path_overrides()      L1566
+// fn graph_is_stubbed_with_clear_message()                          L1605
+// fn init_creates_kdb_directory_and_default_config()                L1618
+// fn init_errors_if_kdb_directory_already_exists()                  L1640
 // -----------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -133,6 +148,30 @@ fn check_respects_index_ignore_patterns_from_config() {
 }
 
 #[test]
+fn check_respects_gitignore_rules() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), ".gitignore", "archive/\n");
+    write_file(temp.path(), "a.md", "# A\n\n[B](b.md)\n");
+    write_file(temp.path(), "b.md", "# B\n\n[A](a.md)\n");
+    write_file(
+        temp.path(),
+        "archive/bad.md",
+        "# Bad\n\n[Missing](missing.md)\n",
+    );
+
+    let output = Command::new(bin())
+        .arg("check")
+        .arg(temp.path())
+        .output()
+        .expect("run kdb check");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("kdb check: no issues found"));
+}
+
+#[test]
 fn check_orphan_only_shows_orphan_count_hint_without_listing() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());
@@ -174,6 +213,59 @@ fn check_orphans_flag_lists_orphan_files() {
     assert!(stdout.contains("b.md orphan file (0 inbound links)"));
     assert!(stdout.contains("2 warnings"));
     assert!(!stdout.contains("run `kdb check --orphans` to list"));
+}
+
+#[test]
+fn check_scopes_output_to_explicit_subtree_path() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "crates/agent/guide.md", "# Guide\n");
+    write_file(
+        temp.path(),
+        "docs/broken.md",
+        "# Broken\n\n[Missing](missing.md)\n",
+    );
+
+    let output = Command::new(bin())
+        .arg("check")
+        .arg("--orphans")
+        .arg(temp.path().join("crates/agent"))
+        .output()
+        .expect("run scoped kdb check");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("crates/agent/guide.md orphan file (0 inbound links)"));
+    assert!(!stdout.contains("docs/broken.md"));
+    assert!(!stdout.contains("missing.md"));
+}
+
+#[test]
+fn check_scoped_subtree_still_validates_cross_subtree_links() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "crates/agent/guide.md",
+        "# Guide\n\n[Missing Docs](../../docs/missing.md)\n",
+    );
+    write_file(
+        temp.path(),
+        "docs/unrelated.md",
+        "# Unrelated\n\n[Missing](missing.md)\n",
+    );
+
+    let output = Command::new(bin())
+        .arg("check")
+        .arg(temp.path().join("crates/agent"))
+        .output()
+        .expect("run scoped kdb check with cross-subtree link");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("crates/agent/guide.md"));
+    assert!(stdout.contains("docs/missing.md"));
+    assert!(!stdout.contains("docs/unrelated.md"));
 }
 
 #[test]
@@ -319,6 +411,49 @@ fn fmt_scopes_to_explicit_file_path() {
     assert!(one.contains("// src/one.rs"));
     assert!(one.contains("// fn one()"));
     assert!(!two.contains("## Index"));
+}
+
+#[test]
+fn fmt_respects_gitignore_rules() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), ".gitignore", "vendor/\n");
+    write_file(temp.path(), "src/main.rs", "fn run() {}\n");
+    write_file(temp.path(), "vendor/hidden.rs", "fn hidden() {}\n");
+
+    let output = Command::new(bin())
+        .arg("fmt")
+        .arg(temp.path())
+        .output()
+        .expect("run kdb fmt");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("kdb fmt: updated 1 of 1 files"));
+
+    let hidden = fs::read_to_string(temp.path().join("vendor/hidden.rs")).expect("read hidden.rs");
+    assert!(!hidden.contains("// vendor/hidden.rs"));
+}
+
+#[test]
+fn fmt_explicit_path_can_format_gitignored_file() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), ".gitignore", "src/ignored.rs\n");
+    write_file(temp.path(), "src/ignored.rs", "fn ignored() {}\n");
+
+    let output = Command::new(bin())
+        .arg("fmt")
+        .arg(temp.path().join("src/ignored.rs"))
+        .output()
+        .expect("run kdb fmt src/ignored.rs");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("kdb fmt: updated 1 of 1 files"));
+
+    let ignored = fs::read_to_string(temp.path().join("src/ignored.rs")).expect("read ignored.rs");
+    assert!(ignored.contains("// src/ignored.rs"));
 }
 
 #[test]
@@ -656,11 +791,9 @@ fn symbols_selector_json_outputs_body_and_metadata() {
     assert_eq!(rows[0]["public"], true);
     assert!(rows[0]["line"].as_u64().is_some());
     assert!(rows[0]["end_line"].as_u64().is_some());
-    assert!(
-        rows[0]["body"]
-            .as_str()
-            .is_some_and(|body| body.contains("pub fn open(&self)"))
-    );
+    assert!(rows[0]["body"]
+        .as_str()
+        .is_some_and(|body| body.contains("pub fn open(&self)")));
 }
 
 #[test]
@@ -705,22 +838,104 @@ fn symbols_selector_respects_public_filter() {
 }
 
 #[test]
-fn symbols_selector_rejects_markdown_targets() {
+fn symbols_selector_extracts_markdown_sections_by_slug() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());
-    write_file(temp.path(), "docs/page.md", "# Top\n");
+    write_file(
+        temp.path(),
+        "docs/page.md",
+        concat!(
+            "# Top\n\n",
+            "## SOP-3 Refactor Cleanup\n\n",
+            "Cleanup details.\n\n",
+            "### Nested Step\n\n",
+            "- remove dead code\n\n",
+            "## SOP-4 Bugfix\n\n",
+            "Bugfix details.\n",
+        ),
+    );
 
     let output = Command::new(bin())
         .arg("symbols")
         .arg(temp.path().join("docs/page.md"))
         .arg("-s")
-        .arg("Top")
+        .arg("#SOP-3-REFACTOR-CLEANUP")
         .output()
         .expect("run kdb symbols markdown -s");
 
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("## SOP-3 Refactor Cleanup"));
+    assert!(stdout.contains("### Nested Step"));
+    assert!(stdout.contains("- remove dead code"));
+    assert!(!stdout.contains("## SOP-4 Bugfix"));
+}
+
+#[test]
+fn symbols_selector_markdown_json_outputs_body_and_metadata() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "docs/page.md",
+        concat!(
+            "# Top\n\n",
+            "## SOP-3 Refactor Cleanup\n\n",
+            "Cleanup details.\n\n",
+            "### Nested Step\n\n",
+            "- remove dead code\n\n",
+            "## SOP-4 Bugfix\n\n",
+            "Bugfix details.\n",
+        ),
+    );
+
+    let output = Command::new(bin())
+        .arg("symbols")
+        .arg(temp.path().join("docs/page.md"))
+        .arg("-s")
+        .arg("sop-3-refactor-cleanup")
+        .arg("--json")
+        .output()
+        .expect("run kdb symbols markdown -s --json");
+
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("parse symbols body json");
+    let rows = json.as_array().expect("symbols body json array");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["file"], "docs/page.md");
+    assert_eq!(rows[0]["kind"], "heading");
+    assert_eq!(rows[0]["display_kind"], "##");
+    assert_eq!(rows[0]["name"], "SOP-3 Refactor Cleanup");
+    assert_eq!(rows[0]["public"], true);
+    assert_eq!(rows[0]["line"], 3);
+    assert_eq!(rows[0]["end_line"], 10);
+    assert!(rows[0]["body"]
+        .as_str()
+        .is_some_and(|body| body.contains("### Nested Step") && !body.contains("## SOP-4 Bugfix")));
+}
+
+#[test]
+fn symbols_selector_markdown_slug_not_found_errors() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "docs/page.md",
+        "# Top\n\n## SOP-3 Refactor Cleanup\n\nCleanup details.\n",
+    );
+
+    let output = Command::new(bin())
+        .arg("symbols")
+        .arg(temp.path().join("docs/page.md"))
+        .arg("-s")
+        .arg("SOP-3 Refactor Cleanup")
+        .output()
+        .expect("run kdb symbols markdown slug not found");
+
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("only supported for code files"));
+    assert!(stderr.contains("symbol not found"));
+    assert!(stderr.contains("SOP-3 Refactor Cleanup"));
 }
 
 #[test]
@@ -968,6 +1183,187 @@ fn deps_supports_rust_nested_crate_roots_in_monorepos() {
 }
 
 #[test]
+fn deps_supports_rust_workspace_sibling_crate_imports() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"crates/app\", \"crates/shared\"]\n",
+    );
+    write_file(
+        temp.path(),
+        "crates/app/Cargo.toml",
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nshared = { path = \"../shared\" }\nserde = \"1\"\n",
+    );
+    write_file(
+        temp.path(),
+        "crates/shared/Cargo.toml",
+        "[package]\nname = \"shared\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write_file(
+        temp.path(),
+        "crates/app/src/lib.rs",
+        "use serde::Serialize;\nuse shared::util::Runner;\n",
+    );
+    write_file(temp.path(), "crates/shared/src/lib.rs", "pub mod util;\n");
+    write_file(
+        temp.path(),
+        "crates/shared/src/util.rs",
+        "pub struct Runner;\n",
+    );
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("crates/app/src/lib.rs")
+        .output()
+        .expect("run kdb deps for rust workspace sibling crate import");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["crates/shared/src/util.rs"]
+    );
+}
+
+#[test]
+fn deps_supports_rust_workspace_renamed_path_dependencies() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"crates/app\", \"crates/shared\"]\n",
+    );
+    write_file(
+        temp.path(),
+        "crates/app/Cargo.toml",
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nrenamed = { package = \"shared_core\", path = \"../shared\" }\n",
+    );
+    write_file(
+        temp.path(),
+        "crates/shared/Cargo.toml",
+        "[package]\nname = \"shared_core\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write_file(
+        temp.path(),
+        "crates/app/src/lib.rs",
+        "use renamed::net::Client;\n",
+    );
+    write_file(temp.path(), "crates/shared/src/lib.rs", "pub mod net;\n");
+    write_file(
+        temp.path(),
+        "crates/shared/src/net.rs",
+        "pub struct Client;\n",
+    );
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("crates/app/src/lib.rs")
+        .output()
+        .expect("run kdb deps for rust renamed path dependency");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["crates/shared/src/net.rs"]
+    );
+}
+
+#[test]
+fn deps_supports_rust_custom_lib_path_mod_declarations() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "Cargo.toml",
+        "[package]\nname = \"agent\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/agent.rs\"\n",
+    );
+    write_file(temp.path(), "src/agent.rs", "mod db;\n");
+    write_file(temp.path(), "src/db.rs", "pub struct Db;\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("src/agent.rs")
+        .output()
+        .expect("run kdb deps for rust custom lib path mod");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.lines().collect::<Vec<_>>(), vec!["src/db.rs"]);
+}
+
+#[test]
+fn deps_supports_rust_custom_bin_path_mod_declarations() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "Cargo.toml",
+        "[package]\nname = \"agent\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[[bin]]\nname = \"worker\"\npath = \"src/worker.rs\"\n",
+    );
+    write_file(temp.path(), "src/worker.rs", "mod jobs;\n");
+    write_file(temp.path(), "src/jobs.rs", "pub struct Jobs;\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("src/worker.rs")
+        .output()
+        .expect("run kdb deps for rust custom bin path mod");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.lines().collect::<Vec<_>>(), vec!["src/jobs.rs"]);
+}
+
+#[test]
+fn deps_supports_rust_custom_lib_path_cross_crate_fallback() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"crates/app\", \"crates/agent\"]\n",
+    );
+    write_file(
+        temp.path(),
+        "crates/app/Cargo.toml",
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nagent = { path = \"../agent\" }\n",
+    );
+    write_file(
+        temp.path(),
+        "crates/agent/Cargo.toml",
+        "[package]\nname = \"agent\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/agent.rs\"\n",
+    );
+    write_file(temp.path(), "crates/app/src/lib.rs", "use agent::Agent;\n");
+    write_file(
+        temp.path(),
+        "crates/agent/src/agent.rs",
+        "pub struct Agent;\n",
+    );
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("crates/app/src/lib.rs")
+        .output()
+        .expect("run kdb deps for rust custom lib cross-crate fallback");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["crates/agent/src/agent.rs"]
+    );
+}
+
+#[test]
 fn deps_supports_typescript_code_file_targets() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());
@@ -1133,6 +1529,75 @@ fn deps_supports_go_code_file_targets() {
     assert_eq!(
         stdout.lines().collect::<Vec<_>>(),
         vec!["cmd/local/x.go", "internal/pkg/a.go", "internal/pkg/b.go"]
+    );
+}
+
+#[test]
+fn deps_supports_go_workspace_use_cross_module_imports() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "go.work",
+        "go 1.22\n\nuse (\n\t./moda\n\t./modb\n)\n",
+    );
+    write_file(temp.path(), "moda/go.mod", "module example.com/moda\n");
+    write_file(temp.path(), "modb/go.mod", "module example.com/modb\n");
+    write_file(
+        temp.path(),
+        "moda/cmd/main.go",
+        "package main\nimport (\n\t\"example.com/modb/pkg\"\n\t\"fmt\"\n)\n",
+    );
+    write_file(temp.path(), "modb/pkg/lib.go", "package pkg\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("moda/cmd/main.go")
+        .output()
+        .expect("run kdb deps for go workspace use");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.lines().collect::<Vec<_>>(), vec!["modb/pkg/lib.go"]);
+}
+
+#[test]
+fn deps_supports_go_workspace_replace_local_path_overrides() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "go.work",
+        "go 1.22\n\nuse (\n\t./moda\n\t./vendor/modb\n)\n\nreplace example.com/modb => ./fork/modb\n",
+    );
+    write_file(temp.path(), "moda/go.mod", "module example.com/moda\n");
+    write_file(
+        temp.path(),
+        "vendor/modb/go.mod",
+        "module example.com/modb\n",
+    );
+    write_file(temp.path(), "fork/modb/go.mod", "module example.com/modb\n");
+    write_file(
+        temp.path(),
+        "moda/cmd/main.go",
+        "package main\nimport \"example.com/modb/pkg\"\n",
+    );
+    write_file(temp.path(), "vendor/modb/pkg/original.go", "package pkg\n");
+    write_file(temp.path(), "fork/modb/pkg/replaced.go", "package pkg\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("moda/cmd/main.go")
+        .output()
+        .expect("run kdb deps for go workspace replace");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["fork/modb/pkg/replaced.go"]
     );
 }
 

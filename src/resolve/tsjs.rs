@@ -5,9 +5,9 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use super::{
-    ImportKind, ResolvedImport, WorkspacePackages, build_line_starts, classify_local_kind,
-    line_number_for_offset, normalize_identifier, resolve_workspace_specifier, sanitize_specifier,
-    to_root_relative,
+    build_line_starts, classify_local_kind, line_number_for_offset, normalize_identifier,
+    resolve_workspace_specifier, sanitize_specifier, to_root_relative, ImportKind, ResolvedImport,
+    WorkspacePackages,
 };
 
 // ----------------------------------------

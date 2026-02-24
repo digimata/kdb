@@ -1,6 +1,6 @@
 use kdb::index::{
-    HeadingKey, LinkKind, LinkTarget, VaultIndex, normalize_rel_path, parse_markdown,
-    parse_markdown_target, parse_wikilink_target, resolve_target_path, slug_anchor,
+    normalize_rel_path, parse_markdown, parse_markdown_target, parse_wikilink_target,
+    resolve_target_path, slug_anchor, HeadingKey, LinkKind, LinkTarget, VaultIndex,
 };
 use kdb::resolve::ImportKind;
 use std::fs;
@@ -10,51 +10,53 @@ use tempfile::tempdir;
 // ----------------------------------------------------------------------------------
 // tests/index.rs
 //
-// fn write_file()                                                                L60
-// fn write_root_config()                                                         L68
-// fn parse_markdown_extracts_headings_and_internal_links()                       L73
-// fn parse_markdown_multiple_links_on_one_line_have_distinct_columns()          L106
-// fn parse_markdown_target_keeps_url_encoded_paths()                            L116
-// fn parse_markdown_deduplicates_heading_anchors()                              L128
-// fn parse_markdown_target_filters_external_and_non_markdown_links()            L139
-// fn parse_wikilink_target_supports_aliases_and_anchors()                       L170
-// fn parse_wikilink_target_supports_alias_and_anchor_together()                 L197
-// fn normalize_rel_path_rejects_escape_attempts()                               L209
-// fn resolve_target_path_handles_markdown_and_wikilink_rules()                  L219
-// fn vault_index_check_reports_broken_links_orphans_and_inbound_maps()          L260
+// fn write_file()                                                                L62
+// fn write_root_config()                                                         L70
+// fn parse_markdown_extracts_headings_and_internal_links()                       L75
+// fn parse_markdown_multiple_links_on_one_line_have_distinct_columns()          L108
+// fn parse_markdown_target_keeps_url_encoded_paths()                            L118
+// fn parse_markdown_deduplicates_heading_anchors()                              L130
+// fn parse_markdown_target_filters_external_and_non_markdown_links()            L141
+// fn parse_wikilink_target_supports_aliases_and_anchors()                       L172
+// fn parse_wikilink_target_supports_alias_and_anchor_together()                 L199
+// fn normalize_rel_path_rejects_escape_attempts()                               L211
+// fn resolve_target_path_handles_markdown_and_wikilink_rules()                  L221
+// fn vault_index_check_reports_broken_links_orphans_and_inbound_maps()          L262
 // fn vault_index_multiple_sources_to_same_target_have_inbound_count_gt_one()    L299
 // fn vault_index_single_file_is_reported_as_orphan()                            L315
 // fn vault_index_ignores_non_markdown_files()                                   L326
 // fn vault_index_build_with_ignores_skips_matching_paths()                      L339
-// fn vault_index_incremental_upsert_respects_ignore_patterns()                  L359
-// fn vault_index_build_populates_code_import_maps_for_typescript()              L378
-// fn vault_index_build_populates_workspace_package_map_and_imports()            L415
-// fn slug_anchor_normalizes_heading_text()                                      L467
-// fn parse_markdown_heading_with_inline_code()                                  L478
-// fn parse_markdown_link_inside_heading()                                       L486
-// fn parse_markdown_ignores_wikilinks_in_code_blocks()                          L495
-// fn parse_markdown_ignores_wikilinks_in_inline_code()                          L509
-// fn parse_markdown_frontmatter_does_not_create_headings()                      L527
-// fn parse_markdown_empty_file()                                                L535
-// fn parse_markdown_file_with_no_headings()                                     L542
-// fn parse_markdown_heading_with_special_chars()                                L549
-// fn parse_markdown_all_six_heading_levels()                                    L558
-// fn slug_anchor_all_special_characters()                                       L572
-// fn slug_anchor_unicode_characters()                                           L579
-// fn slug_anchor_mixed_separators()                                             L587
-// fn slug_anchor_trailing_separators()                                          L593
-// fn vault_index_file_linked_to_is_not_orphan()                                 L603
-// fn vault_index_circular_references_are_not_broken()                           L618
-// fn vault_index_self_referencing_links_do_not_count_as_inbound()               L633
-// fn vault_index_broken_heading_anchor()                                        L646
-// fn vault_index_wikilink_resolution()                                          L660
-// fn vault_index_deeply_nested_files()                                          L673
-// fn vault_index_empty_file_is_indexed()                                        L691
-// fn normalize_rel_path_current_dir_only()                                      L709
-// fn normalize_rel_path_deep_parent_traversal()                                 L717
-// fn resolve_target_path_absolute_path_rejected()                               L732
-// fn resolve_target_path_wikilink_with_explicit_md_extension()                  L745
-// fn resolve_target_path_source_at_root_level()                                 L759
+// fn vault_index_respects_root_gitignore_rules()                                L357
+// fn vault_index_respects_nested_gitignore_negation_rules()                     L370
+// fn vault_index_incremental_upsert_respects_ignore_patterns()                  L383
+// fn vault_index_build_populates_code_import_maps_for_typescript()              L402
+// fn vault_index_build_populates_workspace_package_map_and_imports()            L439
+// fn slug_anchor_normalizes_heading_text()                                      L491
+// fn parse_markdown_heading_with_inline_code()                                  L502
+// fn parse_markdown_link_inside_heading()                                       L510
+// fn parse_markdown_ignores_wikilinks_in_code_blocks()                          L519
+// fn parse_markdown_ignores_wikilinks_in_inline_code()                          L533
+// fn parse_markdown_frontmatter_does_not_create_headings()                      L549
+// fn parse_markdown_empty_file()                                                L557
+// fn parse_markdown_file_with_no_headings()                                     L564
+// fn parse_markdown_heading_with_special_chars()                                L571
+// fn parse_markdown_all_six_heading_levels()                                    L580
+// fn slug_anchor_all_special_characters()                                       L594
+// fn slug_anchor_unicode_characters()                                           L601
+// fn slug_anchor_mixed_separators()                                             L609
+// fn slug_anchor_trailing_separators()                                          L615
+// fn vault_index_file_linked_to_is_not_orphan()                                 L625
+// fn vault_index_circular_references_are_not_broken()                           L640
+// fn vault_index_self_referencing_links_do_not_count_as_inbound()               L655
+// fn vault_index_broken_heading_anchor()                                        L668
+// fn vault_index_wikilink_resolution()                                          L682
+// fn vault_index_deeply_nested_files()                                          L695
+// fn vault_index_empty_file_is_indexed()                                        L713
+// fn normalize_rel_path_current_dir_only()                                      L731
+// fn normalize_rel_path_deep_parent_traversal()                                 L739
+// fn resolve_target_path_absolute_path_rejected()                               L754
+// fn resolve_target_path_wikilink_with_explicit_md_extension()                  L767
+// fn resolve_target_path_source_at_root_level()                                 L781
 // ----------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -272,11 +274,9 @@ fn vault_index_check_reports_broken_links_orphans_and_inbound_maps() {
     let report = index.check();
 
     assert_eq!(report.broken_links.len(), 1);
-    assert!(
-        report.broken_links[0]
-            .reason
-            .contains("target file not found: missing.md")
-    );
+    assert!(report.broken_links[0]
+        .reason
+        .contains("target file not found: missing.md"));
 
     assert_eq!(
         report.orphans,
@@ -348,11 +348,35 @@ fn vault_index_build_with_ignores_skips_matching_paths() {
 
     assert!(index.files.contains_key(Path::new("keep.md")));
     assert!(!index.files.contains_key(Path::new("archive/hidden.md")));
-    assert!(
-        !index
-            .files
-            .contains_key(Path::new("archive/nested/deep.md"))
-    );
+    assert!(!index
+        .files
+        .contains_key(Path::new("archive/nested/deep.md")));
+}
+
+#[test]
+fn vault_index_respects_root_gitignore_rules() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), ".gitignore", "archive/\n");
+    write_file(temp.path(), "keep.md", "# Keep\n");
+    write_file(temp.path(), "archive/hidden.md", "# Hidden\n");
+
+    let index = VaultIndex::build(temp.path()).expect("build index");
+    assert!(index.files.contains_key(Path::new("keep.md")));
+    assert!(!index.files.contains_key(Path::new("archive/hidden.md")));
+}
+
+#[test]
+fn vault_index_respects_nested_gitignore_negation_rules() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "docs/.gitignore", "*.md\n!keep.md\n");
+    write_file(temp.path(), "docs/drop.md", "# Drop\n");
+    write_file(temp.path(), "docs/keep.md", "# Keep\n");
+
+    let index = VaultIndex::build(temp.path()).expect("build index");
+    assert!(index.files.contains_key(Path::new("docs/keep.md")));
+    assert!(!index.files.contains_key(Path::new("docs/drop.md")));
 }
 
 #[test]
@@ -516,11 +540,9 @@ fn parse_markdown_ignores_wikilinks_in_inline_code() {
         .collect();
     // Inline code wikilinks may or may not be filtered — this test documents behavior
     // At minimum the real link must be present
-    assert!(
-        wikilinks
-            .iter()
-            .any(|l| l.target.file.as_deref() == Some("actual/link"))
-    );
+    assert!(wikilinks
+        .iter()
+        .any(|l| l.target.file.as_deref() == Some("actual/link")));
 }
 
 #[test]

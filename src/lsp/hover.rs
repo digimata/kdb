@@ -21,17 +21,17 @@ use super::{
 };
 
 // -----------------------------------
-// kdb/src/lsp/hover.rs
+// src/lsp/hover.rs
 //
-// const HOVER_CHAR_LIMIT          L39
-// static MARKDOWN_LINK_RE         L40
-// static WIKILINK_RE              L43
-// pub(super) async fn hover()     L50
-// fn rewrite_preview_links()     L117
-// fn resolve_target_url()        L171
-// fn is_external_link()          L190
-// fn section_preview()           L197
-// fn truncate_chars()            L217
+// const HOVER_CHAR_LIMIT          L37
+// static MARKDOWN_LINK_RE         L38
+// static WIKILINK_RE              L41
+// pub(super) async fn hover()     L48
+// fn rewrite_preview_links()     L115
+// fn resolve_target_url()        L169
+// fn is_external_link()          L188
+// fn section_preview()           L195
+// fn truncate_chars()            L205
 // -----------------------------------
 
 const HOVER_CHAR_LIMIT: usize = 420;

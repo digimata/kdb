@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use super::{VaultIndex, resolve_target_path};
+use super::{resolve_target_path, VaultIndex};
 
 // -------------------------------------
 // src/index/deps.rs

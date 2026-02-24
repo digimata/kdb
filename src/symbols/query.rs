@@ -1,30 +1,31 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::Path;
 
 use crate::config;
-use crate::index::VaultIndex;
+use crate::index::{parse_markdown, section_byte_bounds, section_line_bounds, VaultIndex};
 
 use super::render::{self, SymbolBodyRow, SymbolRow};
-use super::{Symbol, extract_symbol_body, extract_symbols, language_for_path};
+use super::{extract_symbol_body, extract_symbols, language_for_path, Symbol};
 
-// ------------------------------------
+// ----------------------------------------
 // src/symbols/query.rs
 //
-// pub fn collect_rows()            L23
-// pub fn collect_body_rows()       L75
-// struct SymbolSelector           L146
-//   fn parse()                    L152
-//   fn matches()                  L179
-//   fn display()                  L190
-// fn normalize_selector_name()    L198
-// ------------------------------------
+// pub fn collect_rows()                L27
+// pub fn collect_body_rows()           L76
+// fn collect_code_body_rows()         L108
+// fn collect_markdown_body_rows()     L149
+// fn is_markdown_file()               L195
+// fn normalize_markdown_selector()    L201
+// struct SymbolSelector               L216
+//   fn parse()                        L222
+//   fn matches()                      L249
+//   fn display()                      L260
+// fn normalize_selector_name()        L268
+// ----------------------------------------
 
 pub fn collect_rows(root: &Path, file_abs: &Path, rel_path: &Path) -> Result<Vec<SymbolRow>> {
-    let is_markdown = rel_path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
+    let is_markdown = is_markdown_file(rel_path);
 
     let rows: Vec<SymbolRow> = if is_markdown {
         let ignore_patterns = config::load_index_ignores(root)?;
@@ -78,17 +79,38 @@ pub fn collect_body_rows(
     selector: &str,
     public_only: bool,
 ) -> Result<Vec<SymbolBodyRow>> {
-    if rel_path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
-    {
+    let selector_display = selector.trim();
+    let rows = if is_markdown_file(rel_path) {
+        collect_markdown_body_rows(file_abs, rel_path, selector)?
+    } else {
+        collect_code_body_rows(file_abs, rel_path, selector, public_only)?
+    };
+
+    if rows.is_empty() {
+        if public_only {
+            bail!(
+                "symbol not found: {} in {} (after --public filter)",
+                selector_display,
+                rel_path.display()
+            );
+        }
+
         bail!(
-            "symbol body extraction is only supported for code files: {}",
+            "symbol not found: {} in {}",
+            selector_display,
             rel_path.display()
         );
     }
 
+    Ok(rows)
+}
+
+fn collect_code_body_rows(
+    file_abs: &Path,
+    rel_path: &Path,
+    selector: &str,
+    public_only: bool,
+) -> Result<Vec<SymbolBodyRow>> {
     let Some(language) = language_for_path(rel_path) else {
         bail!("unsupported file type for symbols: {}", rel_path.display());
     };
@@ -108,7 +130,7 @@ pub fn collect_body_rows(
 
     let selector = SymbolSelector::parse(selector)?;
     let file = rel_path.to_string_lossy().replace('\\', "/");
-    let rows = symbols
+    symbols
         .into_iter()
         .filter(|symbol| selector.matches(symbol))
         .map(|symbol| {
@@ -121,25 +143,73 @@ pub fn collect_body_rows(
             })?;
             Ok(render::code_symbol_body_row(&file, symbol, body))
         })
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>>>()
+}
 
-    if rows.is_empty() {
-        if public_only {
-            bail!(
-                "symbol not found: {} in {} (after --public filter)",
-                selector.display(),
+fn collect_markdown_body_rows(
+    file_abs: &Path,
+    rel_path: &Path,
+    selector: &str,
+) -> Result<Vec<SymbolBodyRow>> {
+    let source = fs::read_to_string(file_abs)
+        .with_context(|| format!("failed to read {}", file_abs.display()))?;
+    let parsed = parse_markdown(&source);
+    let selector_anchor = normalize_markdown_selector(selector)?;
+
+    let Some(heading) = parsed
+        .headings
+        .iter()
+        .find(|heading| heading.anchor.eq_ignore_ascii_case(&selector_anchor))
+    else {
+        return Ok(Vec::new());
+    };
+
+    let (start_byte, end_byte) = section_byte_bounds(&source, &parsed, Some(&heading.anchor))
+        .with_context(|| {
+            format!(
+                "failed to extract body for symbol `{}` in {}",
+                selector,
                 rel_path.display()
-            );
-        }
+            )
+        })?;
+    let (_, end_line_start) =
+        section_line_bounds(&parsed, Some(&heading.anchor)).with_context(|| {
+            format!(
+                "failed to resolve line bounds for symbol `{}` in {}",
+                selector,
+                rel_path.display()
+            )
+        })?;
 
-        bail!(
-            "symbol not found: {} in {}",
-            selector.display(),
-            rel_path.display()
-        );
+    let end_line = end_line_start
+        .unwrap_or_else(|| source.lines().count())
+        .max(heading.line);
+    let file = rel_path.to_string_lossy().replace('\\', "/");
+    let body = source[start_byte..end_byte].to_string();
+
+    Ok(vec![render::markdown_symbol_body_row(
+        &file, heading, end_line, body,
+    )])
+}
+
+fn is_markdown_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+}
+
+fn normalize_markdown_selector(value: &str) -> Result<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        bail!("symbol selector cannot be empty");
     }
 
-    Ok(rows)
+    let normalized = trimmed.trim_start_matches('#').trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        bail!("invalid symbol selector: {value}");
+    }
+
+    Ok(normalized)
 }
 
 #[derive(Debug, Clone)]

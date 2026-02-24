@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use super::{ImportKind, ResolvedImport, normalize_identifier, normalize_rel_path, resolve_file};
+use super::{normalize_identifier, normalize_rel_path, resolve_file, ImportKind, ResolvedImport};
 
 // --------------------------------
 // src/resolve/python.rs

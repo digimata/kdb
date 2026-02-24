@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use crate::index::normalize_rel_path;
 
 // -------------------------------------
-// kdb/src/discovery.rs
+// src/discovery.rs
 //
 // pub fn build_ignore_globset()     L22
 // pub fn path_is_ignored()          L38

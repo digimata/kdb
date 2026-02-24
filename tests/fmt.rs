@@ -6,15 +6,16 @@ use tempfile::tempdir;
 // ----------------------------------------------------------------------------------
 // tests/fmt.rs
 //
-// fn write_file()                                                                L20
-// fn write_root_config()                                                         L28
-// fn format_workspace_formats_supported_languages_with_readable_rows()           L33
-// fn format_workspace_places_block_after_language_preamble()                     L89
-// fn format_workspace_is_idempotent()                                           L135
-// fn format_workspace_replaces_existing_index_block_in_preamble()               L157
-// fn format_workspace_replaces_path_like_header_block_after_file_move()         L175
-// fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L194
-// fn assert_index_between()                                                     L219
+// fn write_file()                                                                L21
+// fn write_root_config()                                                         L29
+// fn format_workspace_formats_supported_languages_with_readable_rows()           L34
+// fn format_workspace_places_block_after_language_preamble()                     L90
+// fn format_workspace_is_idempotent()                                           L136
+// fn format_workspace_replaces_existing_index_block_in_preamble()               L158
+// fn format_workspace_replaces_path_like_header_block_after_file_move()         L176
+// fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L195
+// fn format_workspace_respects_gitignore_rules()                                L221
+// fn assert_index_between()                                                     L241
 // ----------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -214,6 +215,27 @@ fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files() {
     let ignored =
         fs::read_to_string(temp.path().join("vendor/tool.py")).expect("read ignored file");
     assert!(!ignored.contains("## Index"));
+}
+
+#[test]
+fn format_workspace_respects_gitignore_rules() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), ".gitignore", "vendor/\n");
+
+    write_file(temp.path(), "src/main.rs", "fn live() {}\n");
+    write_file(temp.path(), "vendor/hidden.rs", "fn hidden() {}\n");
+
+    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    assert_eq!(report.scanned_files, 1);
+    assert_eq!(report.updated_files, 1);
+
+    let live = fs::read_to_string(temp.path().join("src/main.rs")).expect("read live file");
+    assert!(live.contains("// src/main.rs"));
+
+    let hidden =
+        fs::read_to_string(temp.path().join("vendor/hidden.rs")).expect("read hidden file");
+    assert!(!hidden.contains("// vendor/hidden.rs"));
 }
 
 fn assert_index_between(content: &str, before: &str, after: &str, header: &str) {

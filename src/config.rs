@@ -11,7 +11,7 @@ use std::path::Path;
 use crate::root;
 
 // ----------------------------------
-// kdb/src/config.rs
+// src/config.rs
 //
 // pub fn load_index_ignores()    L24
 // fn parse_index_ignores()       L40

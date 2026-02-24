@@ -30,7 +30,7 @@ pub mod symbols;
 pub mod tree;
 
 // ------------------------
-// kdb/src/lib.rs
+// src/lib.rs
 //
 // pub mod cmd          L20
 // pub mod config       L21

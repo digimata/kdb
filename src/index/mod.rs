@@ -25,7 +25,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Component, Path, PathBuf};
 
 use crate::discovery::{build_ignore_globset, discover_files, path_is_ignored};
-use crate::resolve::{ResolvedImport, RustWorkspaceCache, build_workspace_import_index};
+use crate::resolve::{
+    build_workspace_import_index, GoWorkspaceCache, ResolvedImport, RustWorkspaceCache,
+};
 
 pub use markdown::{
     parse_markdown, parse_markdown_target, parse_wikilink_target, section_byte_bounds,
@@ -42,37 +44,37 @@ pub use markdown::{
 // pub mod deps                      L17
 // mod markdown                      L18
 // pub mod refs                      L19
-// pub struct VaultIndex             L83
-// pub struct FileEntry             L104
-// pub struct Heading               L117
-// pub enum LinkKind                L133
-// pub struct LinkTarget            L142
-// pub struct Link                  L151
-// pub struct HeadingKey            L166
-// pub struct LinkRef               L175
-// pub struct ParsedDocument        L190
-// pub struct BrokenLink            L199
-// pub struct CheckReport           L214
-//   pub fn has_errors()            L223
-//   pub fn print()                 L228
-//   pub fn scoped_to()             L285
-// fn path_is_in_check_scope()      L294
-//   pub fn build()                 L315
-//   pub fn build_with_ignores()    L323
-//   pub fn upsert_file()           L366
-//   pub fn reload_file()           L389
-//   pub fn remove_file()           L418
-//   pub fn check()                 L426
-//   fn populate_inbound()          L465
-//   fn resolve_link()              L518
-// enum ResolveError                L551
-//   fn message()                   L558
-// const IGNORED_DIRS               L581
-// fn discover_markdown_files()     L594
-// fn resolve_target_file()         L612
-// pub fn resolve_target_path()     L625
-// pub fn resolve_file_target()     L653
-// pub fn normalize_rel_path()      L677
+// pub struct VaultIndex             L85
+// pub struct FileEntry             L108
+// pub struct Heading               L121
+// pub enum LinkKind                L137
+// pub struct LinkTarget            L146
+// pub struct Link                  L155
+// pub struct HeadingKey            L170
+// pub struct LinkRef               L179
+// pub struct ParsedDocument        L194
+// pub struct BrokenLink            L203
+// pub struct CheckReport           L218
+//   pub fn has_errors()            L227
+//   pub fn print()                 L232
+//   pub fn scoped_to()             L289
+// fn path_is_in_check_scope()      L298
+//   pub fn build()                 L319
+//   pub fn build_with_ignores()    L327
+//   pub fn upsert_file()           L371
+//   pub fn reload_file()           L394
+//   pub fn remove_file()           L423
+//   pub fn check()                 L431
+//   fn populate_inbound()          L470
+//   fn resolve_link()              L523
+// enum ResolveError                L556
+//   fn message()                   L563
+// const IGNORED_DIRS               L586
+// fn discover_markdown_files()     L599
+// fn resolve_target_file()         L617
+// pub fn resolve_target_path()     L630
+// pub fn resolve_file_target()     L658
+// pub fn normalize_rel_path()      L682
 // -------------------------------------
 
 /// Complete index of a markdown vault.
@@ -93,6 +95,8 @@ pub struct VaultIndex {
     pub heading_inbound: HashMap<HeadingKey, Vec<LinkRef>>,
     /// Workspace package map (`package.json` name -> local relative directory).
     pub workspace_packages: HashMap<String, PathBuf>,
+    /// Go workspace module cache used during import resolution.
+    pub go_workspace: GoWorkspaceCache,
     /// Rust workspace crate/dependency cache used during import resolution.
     pub rust_workspace: RustWorkspaceCache,
     /// Per-code-file resolved imports used by `kdb deps` and code refs.
@@ -353,6 +357,7 @@ impl VaultIndex {
             file_inbound: HashMap::new(),
             heading_inbound: HashMap::new(),
             workspace_packages: import_index.workspace_packages,
+            go_workspace: import_index.go_workspace,
             rust_workspace: import_index.rust_workspace,
             code_imports: import_index.file_imports,
         };

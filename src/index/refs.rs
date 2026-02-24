@@ -1,8 +1,8 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use std::path::Path;
 
 use super::{
-    HeadingKey, LinkRef, VaultIndex, parse_markdown_target, resolve_file_target, slug_anchor,
+    parse_markdown_target, resolve_file_target, slug_anchor, HeadingKey, LinkRef, VaultIndex,
 };
 
 // -------------------------------
