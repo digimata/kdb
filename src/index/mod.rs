@@ -18,68 +18,65 @@ pub mod deps;
 pub mod refs;
 
 use anyhow::{Context, Result};
-use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+use globset::GlobSet;
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use regex::Regex;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Component, Path, PathBuf};
 use std::sync::LazyLock;
-use walkdir::WalkDir;
 
+use crate::discovery::{build_ignore_globset, discover_files, path_is_ignored};
 use crate::resolve::{ResolvedImport, build_workspace_import_index};
 
-// -----------------------------------------
-// src/index/mod.rs
+// ----------------------------------------
+// kdb/src/index/mod.rs
 //
-// pub mod deps                          L17
-// pub mod refs                          L18
-// static WIKILINK_RE                    L85
-// pub struct VaultIndex                 L97
-// pub struct FileEntry                 L116
-// pub struct Heading                   L129
-// pub enum LinkKind                    L145
-// pub struct LinkTarget                L154
-// pub struct Link                      L163
-// pub struct HeadingKey                L178
-// pub struct LinkRef                   L187
-// pub struct ParsedDocument            L202
-// pub struct BrokenLink                L211
-// pub struct CheckReport               L226
-//   pub fn has_errors()                L235
-//   pub fn print()                     L240
-//   pub fn build()                     L303
-//   pub fn build_with_ignores()        L311
-//   pub fn upsert_file()               L353
-//   pub fn reload_file()               L376
-//   pub fn remove_file()               L405
-//   pub fn check()                     L413
-//   fn populate_inbound()              L452
-//   fn resolve_link()                  L505
-// enum ResolveError                    L538
-//   fn message()                       L545
-// pub fn parse_markdown()              L566
-// const IGNORED_DIRS                   L693
-// fn build_ignore_globset()            L706
-// fn discover_markdown_files()         L719
-// fn rel_path_from_root()              L786
-// fn path_is_ignored()                 L791
-// fn resolve_target_file()             L814
-// pub fn resolve_target_path()         L827
-// pub fn resolve_file_target()         L855
-// pub fn normalize_rel_path()          L879
-// pub fn parse_markdown_target()       L906
-// pub fn parse_wikilink_target()       L954
-// pub fn slug_anchor()                 L991
-// fn is_external()                    L1000
-// fn slug()                           L1012
-// fn build_line_starts()              L1044
-// fn line_col()                       L1055
-// fn normalize_inline_whitespace()    L1066
-// fn heading_level_number()           L1071
-// fn range_contains_offset()          L1082
-// struct ActiveHeading                L1089
-// -----------------------------------------
+// pub mod deps                         L17
+// pub mod refs                         L18
+// static WIKILINK_RE                   L82
+// pub struct VaultIndex                L94
+// pub struct FileEntry                L113
+// pub struct Heading                  L126
+// pub enum LinkKind                   L142
+// pub struct LinkTarget               L151
+// pub struct Link                     L160
+// pub struct HeadingKey               L175
+// pub struct LinkRef                  L184
+// pub struct ParsedDocument           L199
+// pub struct BrokenLink               L208
+// pub struct CheckReport              L223
+//   pub fn has_errors()               L232
+//   pub fn print()                    L237
+//   pub fn build()                    L300
+//   pub fn build_with_ignores()       L308
+//   pub fn upsert_file()              L350
+//   pub fn reload_file()              L373
+//   pub fn remove_file()              L402
+//   pub fn check()                    L410
+//   fn populate_inbound()             L449
+//   fn resolve_link()                 L502
+// enum ResolveError                   L535
+//   fn message()                      L542
+// pub fn parse_markdown()             L563
+// const IGNORED_DIRS                  L690
+// fn discover_markdown_files()        L703
+// fn resolve_target_file()            L721
+// pub fn resolve_target_path()        L734
+// pub fn resolve_file_target()        L762
+// pub fn normalize_rel_path()         L786
+// pub fn parse_markdown_target()      L813
+// pub fn parse_wikilink_target()      L861
+// pub fn slug_anchor()                L898
+// fn is_external()                    L907
+// fn slug()                           L919
+// fn build_line_starts()              L951
+// fn line_col()                       L962
+// fn normalize_inline_whitespace()    L973
+// fn heading_level_number()           L978
+// fn range_contains_offset()          L989
+// struct ActiveHeading                L996
+// ----------------------------------------
 
 /// Regex for matching `[[wikilink]]` syntax in raw markdown source.
 static WIKILINK_RE: LazyLock<Regex> =
@@ -703,106 +700,16 @@ const IGNORED_DIRS: &[&str] = &[
     ".venv",
 ];
 
-fn build_ignore_globset(ignore_patterns: &[String]) -> Result<GlobSet> {
-    let mut builder = GlobSetBuilder::new();
-    for pattern in ignore_patterns {
-        let glob = GlobBuilder::new(pattern)
-            .literal_separator(true)
-            .build()
-            .with_context(|| format!("invalid ignore pattern `{pattern}`"))?;
-        builder.add(glob);
-    }
-
-    builder.build().context("failed to compile ignore patterns")
-}
-
 fn discover_markdown_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>> {
-    let mut paths = Vec::new();
-
-    for entry in WalkDir::new(root)
-        .follow_links(false)
+    let paths = discover_files(root, root, ignore_set, IGNORED_DIRS)?;
+    Ok(paths
         .into_iter()
-        .filter_entry(|entry| {
-            if !entry.file_type().is_dir() {
-                return true;
-            }
-
-            let Some(rel) = rel_path_from_root(root, entry.path()) else {
-                return false;
-            };
-            if rel.as_os_str().is_empty() {
-                return true;
-            }
-
-            let name = entry.file_name().to_string_lossy();
-            if IGNORED_DIRS.contains(&name.as_ref()) {
-                return false;
-            }
-
-            !path_is_ignored(ignore_set, &rel, true)
+        .filter(|rel| {
+            rel.extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
         })
-        .filter_map(std::result::Result::ok)
-    {
-        if !entry.file_type().is_file() {
-            continue;
-        }
-
-        let is_markdown = entry
-            .path()
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
-        if !is_markdown {
-            continue;
-        }
-
-        let rel = entry.path().strip_prefix(root).with_context(|| {
-            format!(
-                "failed to strip root {} from {}",
-                root.display(),
-                entry.path().display()
-            )
-        })?;
-
-        let rel = normalize_rel_path(rel).with_context(|| {
-            format!(
-                "markdown path {} resolves outside root {}",
-                entry.path().display(),
-                root.display()
-            )
-        })?;
-
-        if path_is_ignored(ignore_set, &rel, false) {
-            continue;
-        }
-
-        paths.push(rel);
-    }
-
-    paths.sort();
-    Ok(paths)
-}
-
-fn rel_path_from_root(root: &Path, path: &Path) -> Option<PathBuf> {
-    let rel = path.strip_prefix(root).ok()?;
-    normalize_rel_path(rel)
-}
-
-fn path_is_ignored(ignore_set: &GlobSet, rel_path: &Path, is_dir: bool) -> bool {
-    let slash = rel_path.to_string_lossy().replace('\\', "/");
-    if slash.is_empty() {
-        return false;
-    }
-
-    if ignore_set.is_match(&slash) {
-        return true;
-    }
-
-    if is_dir {
-        return ignore_set.is_match(format!("{slash}/"));
-    }
-
-    false
+        .collect())
 }
 
 // ---------------------------------------------------------------------------

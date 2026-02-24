@@ -1,13 +1,12 @@
 //! Code index formatter for supported source files.
 
 use anyhow::{Context, Result, bail};
-use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+use globset::GlobSet;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
-use crate::index::normalize_rel_path;
+use crate::discovery::{build_ignore_globset, discover_files};
 use crate::symbols::{
     CodeLanguage, Symbol, extract_symbols, format_symbol_display, language_for_path,
 };
@@ -17,32 +16,29 @@ pub mod preamble;
 use self::preamble::{comment_prefix, preamble_end_index};
 
 // -------------------------------------------
-// src/fmt/mod.rs
+// kdb/src/fmt/mod.rs
 //
-// pub mod preamble                        L15
-// const LEGACY_INDEX_HEADER               L48
-// const LINE_GAP                          L49
-// const IGNORED_DIRS                      L52
-// pub struct FormatReport                 L67
-// pub struct FormatWarning                L75
-// struct RewriteResult                    L81
-// pub fn format_workspace()               L89
-// pub fn format_path()                   L103
-// pub fn format_source()                 L126
-// fn format_files()                      L135
-// fn rewrite_code_index()                L184
-// fn removal_warning_message()           L294
-// fn find_managed_block()                L314
-// fn is_header_candidate()               L345
-// fn looks_like_path_header()            L358
-// fn is_index_body_line()                L378
-// fn is_canonical_index_body_line()      L390
-// fn is_separator_only_comment_line()    L418
-// fn render_block()                      L432
-// fn build_ignore_globset()              L463
-// fn discover_code_files_in_scope()      L478
-// fn rel_path_from_root()                L565
-// fn path_is_ignored()                   L572
+// pub mod preamble                        L14
+// const LEGACY_INDEX_HEADER               L44
+// const LINE_GAP                          L45
+// const IGNORED_DIRS                      L48
+// pub struct FormatReport                 L63
+// pub struct FormatWarning                L71
+// struct RewriteResult                    L77
+// pub fn format_workspace()               L85
+// pub fn format_path()                    L99
+// pub fn format_source()                 L122
+// fn format_files()                      L131
+// fn rewrite_code_index()                L180
+// fn removal_warning_message()           L290
+// fn find_managed_block()                L310
+// fn is_header_candidate()               L341
+// fn looks_like_path_header()            L354
+// fn is_index_body_line()                L374
+// fn is_canonical_index_body_line()      L386
+// fn is_separator_only_comment_line()    L414
+// fn render_block()                      L428
+// fn discover_code_files_in_scope()      L460
 // -------------------------------------------
 
 const LEGACY_INDEX_HEADER: &str = "## Index";
@@ -459,20 +455,6 @@ fn render_block(prefix: &str, header: &str, symbols: &[Symbol]) -> Vec<String> {
     lines
 }
 
-/// Compile user-supplied ignore glob patterns into a `GlobSet`.
-fn build_ignore_globset(ignore_patterns: &[String]) -> Result<GlobSet> {
-    let mut builder = GlobSetBuilder::new();
-    for pattern in ignore_patterns {
-        let glob = GlobBuilder::new(pattern)
-            .literal_separator(true)
-            .build()
-            .with_context(|| format!("invalid ignore pattern `{pattern}`"))?;
-        builder.add(glob);
-    }
-
-    builder.build().context("failed to compile ignore patterns")
-}
-
 /// Recursively walk `root`, returning sorted relative paths for every
 /// source file whose extension maps to a supported language.
 fn discover_code_files_in_scope(
@@ -480,108 +462,9 @@ fn discover_code_files_in_scope(
     scope: &Path,
     ignore_set: &GlobSet,
 ) -> Result<Vec<PathBuf>> {
-    let mut paths = Vec::new();
-
-    if scope.is_file() {
-        let rel = scope.strip_prefix(root).with_context(|| {
-            format!(
-                "failed to strip root {} from {}",
-                root.display(),
-                scope.display()
-            )
-        })?;
-        let rel = normalize_rel_path(rel).with_context(|| {
-            format!(
-                "code path {} resolves outside root {}",
-                scope.display(),
-                root.display()
-            )
-        })?;
-
-        if !path_is_ignored(ignore_set, &rel, false) && language_for_path(&rel).is_some() {
-            paths.push(rel);
-        }
-
-        return Ok(paths);
-    }
-
-    for entry in WalkDir::new(scope)
-        .follow_links(false)
+    let paths = discover_files(root, scope, ignore_set, IGNORED_DIRS)?;
+    Ok(paths
         .into_iter()
-        .filter_entry(|entry| {
-            if !entry.file_type().is_dir() {
-                return true;
-            }
-
-            let Some(rel) = rel_path_from_root(root, entry.path()) else {
-                return false;
-            };
-            if rel.as_os_str().is_empty() {
-                return true;
-            }
-
-            let name = entry.file_name().to_string_lossy();
-            if IGNORED_DIRS.contains(&name.as_ref()) {
-                return false;
-            }
-
-            !path_is_ignored(ignore_set, &rel, true)
-        })
-        .filter_map(std::result::Result::ok)
-    {
-        if !entry.file_type().is_file() {
-            continue;
-        }
-
-        let rel = entry.path().strip_prefix(root).with_context(|| {
-            format!(
-                "failed to strip root {} from {}",
-                root.display(),
-                entry.path().display()
-            )
-        })?;
-        let rel = normalize_rel_path(rel).with_context(|| {
-            format!(
-                "code path {} resolves outside root {}",
-                entry.path().display(),
-                root.display()
-            )
-        })?;
-
-        if path_is_ignored(ignore_set, &rel, false) {
-            continue;
-        }
-
-        if language_for_path(&rel).is_some() {
-            paths.push(rel);
-        }
-    }
-
-    paths.sort();
-    Ok(paths)
-}
-
-/// Strip `root` from `path` and normalize the result.
-fn rel_path_from_root(root: &Path, path: &Path) -> Option<PathBuf> {
-    let rel = path.strip_prefix(root).ok()?;
-    normalize_rel_path(rel)
-}
-
-/// Check whether `rel_path` matches any pattern in the ignore set.
-/// For directories, also tests the path with a trailing slash.
-fn path_is_ignored(ignore_set: &GlobSet, rel_path: &Path, is_dir: bool) -> bool {
-    let slash = rel_path.to_string_lossy().replace('\\', "/");
-    if slash.is_empty() {
-        return false;
-    }
-
-    if ignore_set.is_match(&slash) {
-        return true;
-    }
-
-    if is_dir {
-        return ignore_set.is_match(format!("{slash}/"));
-    }
-
-    false
+        .filter(|rel| language_for_path(rel).is_some())
+        .collect())
 }

@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 // -----------------------
-// src/main.rs
+// kdb/src/main.rs
 //
 // struct Cli          L14
 // enum Command        L20

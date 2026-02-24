@@ -29,18 +29,19 @@ pub mod root;
 pub mod symbols;
 pub mod tree;
 
-// ----------------------
-// src/lib.rs
+// ------------------------
+// kdb/src/lib.rs
 //
-// pub mod cmd        L19
-// pub mod config     L20
-// pub mod deps       L21
-// pub mod discovery  L22
-// pub mod fmt        L23
-// pub mod index      L24
-// pub mod lsp        L25
-// pub mod resolve    L26
-// pub mod root       L27
-// pub mod symbols    L28
-// pub mod tree       L29
-// ----------------------
+// pub mod cmd          L20
+// pub mod config       L21
+// pub mod deps         L22
+// pub mod discovery    L23
+// pub mod fmt          L24
+// pub mod index        L25
+// pub mod lsp          L26
+// pub mod resolve      L27
+// pub mod root         L28
+// pub mod symbols      L29
+// pub mod tree         L30
+// ------------------------
+
