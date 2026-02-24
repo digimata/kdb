@@ -113,7 +113,96 @@ Generate navigable index headers at the top of code files for jumping to methods
   3. confirm second run produces no file changes.
 - Manual accuracy check for each supported language: verify listed `Line` entries open expected declarations.
 
+## Phase B: LSP semantic token highlighting for index blocks
+
+Make the index comment blocks visually match real code by highlighting keywords, symbol names, and line numbers with the editor's theme colors — instead of rendering everything in flat comment gray.
+
+### Approach
+
+**Option A: LSP semantic tokens (preferred)**
+
+The kdb LSP already runs in the editor. Add a `textDocument/semanticTokens` handler that detects index block lines and emits token spans:
+
+| Token | Semantic type | Example |
+|---|---|---|
+| `fn`, `struct`, `enum`, `trait`, `type`, `class`, `interface` | `keyword` | `fn` in `fn init()` |
+| Symbol names | `function` or `type` (depending on kind) | `init()`, `Backend::new()`, `CodeLanguage` |
+| Line numbers | `number` | `L28` |
+
+The editor theme handles the rest — keywords get keyword color, functions get function color, etc. Works in any editor supporting LSP semantic tokens (Zed, VSCode, Neovim).
+
+**Option B: Tree-sitter injection queries (Zed/Neovim only)**
+
+Ship custom tree-sitter queries in the kdb Zed extension that recognize index blocks and inject syntax highlighting. Zero runtime cost but editor-specific and more fragile.
+
+**Recommendation:** Start with Option A. It's portable, we already own the LSP, and semantic tokens are well-supported.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/lsp/mod.rs` | Register semantic tokens capability |
+| `src/lsp/semantic_tokens.rs` | Detect index blocks, emit token spans |
+| `src/lsp/backend.rs` | Wire up `textDocument/semanticTokens/full` handler |
+
+### Open questions
+
+- Should the `//` comment prefix retain comment coloring, with only the content portion highlighted?
+- Should the file path header line get heading/section coloring?
+
+## Phase C: Keep formatting; rely on formatter chains
+
+### Problem
+
+We want index generation to coexist with language-native formatters (rustfmt,
+prettier, black, gofmt) without introducing custom save hooks.
+
+### Approach: keep `textDocument/formatting`
+
+Zed now supports running multiple formatters in sequence, so we keep kdb's LSP
+formatter and configure it as the second formatter in the chain.
+
+**How it works:**
+
+1. Language formatter runs first (e.g. rust-analyzer/rustfmt)
+2. kdb formatter runs second and updates the index block
+3. Save completes with both style + index updates applied
+
+**Editor config (Zed):**
+
+```json
+{
+  "languages": {
+    "Rust": {
+      "formatter": [
+        { "language_server": { "name": "rust-analyzer" } },
+        { "language_server": { "name": "kdb" } }
+      ],
+      "format_on_save": "on"
+    }
+  }
+}
+```
+
+This runs rustfmt/prettier/black/gofmt first, then kdb updates the index block.
+
+### What changes
+
+- Keep `textDocument/formatting` handler (`src/lsp/formatting.rs`)
+- Keep `documentFormattingProvider` in LSP capabilities
+- Update README setup instructions with formatter-chain examples
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/lsp/backend.rs` | Keep `documentFormattingProvider`; keep formatting handler wiring |
+| `src/lsp/formatting.rs` | Keep/update formatter implementation for supported code files |
+| `README.md` | Update editor setup instructions |
+
+---
+
 ## Open Questions
 
 - How deep should v2 symbol coverage go (e.g. constants, modules, macros, nested declarations) vs keeping the index focused on navigation-critical symbols?
-- Should on-save integration live in LSP formatting hooks first, or via a standalone file watcher mode?
+- ~~Should on-save integration live in LSP formatting hooks first, or via a standalone file watcher mode?~~ **Resolved: LSP formatting with formatter chains (Phase C).**

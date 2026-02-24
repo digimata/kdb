@@ -2,7 +2,7 @@
 id: 11
 title: Install Script and Prebuilt Binaries
 status: proposed
-priority: critical
+priority: high
 labels:
   - feat
   - release

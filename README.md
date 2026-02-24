@@ -39,11 +39,11 @@ cargo install --path .
 3. Init a kdb in your project:
 
 ```
-cd my-notes
+cd my-project
 kdb init
 ```
 
-This creates a `.kdb/` directory. You now get go-to-definition, autocomplete, hover previews, diagnostics, and document symbols in your editor.
+This creates a `.kdb/` directory at the root of your project. **All kdb commands require this directory** — it marks the vault boundary and is where kdb stores its configuration and index cache. You now get go-to-definition, autocomplete, hover previews, diagnostics, and document symbols in your editor.
 
 ## Link Syntax
 
@@ -57,19 +57,35 @@ Both standard markdown links and wikilinks are supported:
 ## Commands
 
 ```
-kdb check [--orphans]  # compile — report all errors/warnings (orphans listed with --orphans)
-kdb outline <file>     # print heading tree
-kdb tree [path]        # print filtered directory tree (`-L`, `-a`, `-d`, `-I`, `-P`, `-J`, `-f`)
-kdb symbols <path>     # print markdown/code symbols for one file
-kdb refs <target>      # find inbound refs to a file or heading (`--json`, `--count`)
-kdb deps <file>        # list outbound deps for a markdown/code file (`--json`)
-kdb orphans            # list orphan files
-kdb stubs              # list empty stubs
-kdb graph              # output dependency graph (dot format)
-kdb graph --cluster    # detect clusters of related knowledge
 kdb init               # initialize a kdb project (creates .kdb/config.toml)
-kdb fmt                # generate/update code index headers (Rust, TS/JS, Python, Go)
+kdb fmt [path]         # generate/update code index headers (Rust, TS/JS, Python, Go)
+kdb check [--orphans]  # report broken links and warnings (orphans with --orphans)
+kdb tree [path]        # print filtered directory tree
+kdb symbols <path>     # print markdown/code symbols for a file
+kdb refs <target>      # find inbound refs to a file or heading (--json, --count)
+kdb deps <file>        # list outbound deps for a markdown/code file (--json)
+kdb graph              # output dependency graph (dot format)
 kdb lsp                # start the language server (stdio)
+```
+
+With the LSP running, `kdb` advertises document formatting for supported code
+files. In Zed, you can chain multiple formatters on save so language-native
+formatters (rustfmt/prettier/black/gofmt) run first and `kdb` runs second.
+
+Zed (example for Rust):
+
+```json
+{
+  "languages": {
+    "Rust": {
+      "formatter": [
+        { "language_server": { "name": "rust-analyzer" } },
+        { "language_server": { "name": "kdb" } }
+      ],
+      "format_on_save": "on"
+    }
+  }
+}
 ```
 
 ## License
