@@ -1,0 +1,212 @@
+use kdb::fmt::format_workspace;
+use std::fs;
+use std::path::Path;
+use tempfile::tempdir;
+
+// ----------------------------------------------------------------------------------
+// ## Index
+//
+// fn write_file()                                                                L19
+// fn write_root_config()                                                         L27
+// fn format_workspace_formats_supported_languages_with_readable_rows()           L32
+// fn format_workspace_places_block_after_language_preamble()                     L88
+// fn format_workspace_is_idempotent()                                           L134
+// fn format_workspace_replaces_existing_index_block_in_preamble()               L156
+// fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L174
+// fn assert_index_between()                                                     L199
+// ----------------------------------------------------------------------------------
+
+fn write_file(root: &Path, rel_path: &str, content: &str) {
+    let path = root.join(rel_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create parent dirs");
+    }
+    fs::write(path, content).expect("write fixture file");
+}
+
+fn write_root_config(root: &Path) {
+    write_file(root, ".kdb/config.toml", "[project]\nname = \"fixture\"\n");
+}
+
+#[test]
+fn format_workspace_formats_supported_languages_with_readable_rows() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+
+    write_file(
+        temp.path(),
+        "src/lib.rs",
+        "pub struct User {}\nimpl User {\n    pub fn name(&self) -> &'static str {\n        \"user\"\n    }\n}\npub fn build() {}\n",
+    );
+    write_file(
+        temp.path(),
+        "web/app.ts",
+        "export class Service {\n  run() {}\n}\nexport function helper() {}\nconst make = () => 1;\n",
+    );
+    write_file(
+        temp.path(),
+        "scripts/tool.py",
+        "class Greeter:\n    def hi(self):\n        return \"hi\"\ndef util():\n    return 1\n",
+    );
+    write_file(
+        temp.path(),
+        "cmd/main.go",
+        "package main\n\ntype Server struct{}\nfunc Start() {}\nfunc (s *Server) Run() {}\n",
+    );
+
+    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    assert_eq!(report.scanned_files, 4);
+    assert_eq!(report.updated_files, 4);
+
+    let rust = fs::read_to_string(temp.path().join("src/lib.rs")).expect("read rust file");
+    assert!(rust.contains("// ## Index"));
+    assert!(rust.contains("// struct User"));
+    assert!(rust.contains("//   fn User::name()"));
+    assert!(rust.contains("// fn build()"));
+
+    let ts = fs::read_to_string(temp.path().join("web/app.ts")).expect("read ts file");
+    assert!(ts.contains("// ## Index"));
+    assert!(ts.contains("// class Service"));
+    assert!(ts.contains("//   fn Service::run()"));
+    assert!(ts.contains("// fn helper()"));
+    assert!(ts.contains("// fn make()"));
+
+    let py = fs::read_to_string(temp.path().join("scripts/tool.py")).expect("read python file");
+    assert!(py.contains("# ## Index"));
+    assert!(py.contains("# class Greeter"));
+    assert!(py.contains("#   fn Greeter::hi()"));
+    assert!(py.contains("# fn util()"));
+
+    let go = fs::read_to_string(temp.path().join("cmd/main.go")).expect("read go file");
+    assert!(go.contains("// ## Index"));
+    assert!(go.contains("// struct Server"));
+    assert!(go.contains("// fn Start()"));
+    assert!(go.contains("//   fn Server::Run()"));
+}
+
+#[test]
+fn format_workspace_places_block_after_language_preamble() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+
+    write_file(
+        temp.path(),
+        "src/lib.rs",
+        "#![allow(dead_code)]\n//! crate docs\nuse std::fmt;\n\npub fn run() {}\n",
+    );
+    write_file(
+        temp.path(),
+        "web/app.ts",
+        "// top comment\nimport fs from \"fs\";\n\nexport function run() {}\n",
+    );
+    write_file(
+        temp.path(),
+        "scripts/tool.py",
+        "#!/usr/bin/env python3\n\"\"\"tool docs\"\"\"\nimport os\n\ndef run():\n    return os.getcwd()\n",
+    );
+    write_file(
+        temp.path(),
+        "cmd/main.go",
+        "// top comment\npackage main\n\nimport \"fmt\"\n\nfunc run() {}\n",
+    );
+
+    format_workspace(temp.path(), &[]).expect("format workspace");
+
+    let rust = fs::read_to_string(temp.path().join("src/lib.rs")).expect("read rust file");
+    assert_index_between(&rust, "use std::fmt;", "pub fn run() {}", "// ## Index");
+
+    let ts = fs::read_to_string(temp.path().join("web/app.ts")).expect("read ts file");
+    assert_index_between(
+        &ts,
+        "import fs from \"fs\";",
+        "export function run() {}",
+        "// ## Index",
+    );
+
+    let py = fs::read_to_string(temp.path().join("scripts/tool.py")).expect("read python file");
+    assert_index_between(&py, "import os", "def run():", "# ## Index");
+
+    let go = fs::read_to_string(temp.path().join("cmd/main.go")).expect("read go file");
+    assert_index_between(&go, "import \"fmt\"", "func run() {}", "// ## Index");
+}
+
+#[test]
+fn format_workspace_is_idempotent() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "main.rs", "fn one() {}\nfn two() {}\n");
+
+    let first = format_workspace(temp.path(), &[]).expect("first format");
+    assert_eq!(first.scanned_files, 1);
+    assert_eq!(first.updated_files, 1);
+
+    let once = fs::read_to_string(temp.path().join("main.rs")).expect("read once");
+    assert!(once.contains("// fn one()"));
+    assert!(once.contains("// fn two()"));
+
+    let second = format_workspace(temp.path(), &[]).expect("second format");
+    assert_eq!(second.scanned_files, 1);
+    assert_eq!(second.updated_files, 0);
+
+    let twice = fs::read_to_string(temp.path().join("main.rs")).expect("read twice");
+    assert_eq!(once, twice);
+}
+
+#[test]
+fn format_workspace_replaces_existing_index_block_in_preamble() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "lib.rs",
+        "use std::fmt;\n\n// ## Index\n//\n// fn stale()  L1\n\nfn fresh() {}\n",
+    );
+
+    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    assert_eq!(report.updated_files, 1);
+
+    let rust = fs::read_to_string(temp.path().join("lib.rs")).expect("read rust file");
+    assert!(!rust.contains("stale"));
+    assert!(rust.contains("// fn fresh()"));
+}
+
+#[test]
+fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+
+    write_file(temp.path(), "src/main.rs", "fn live() {}\n");
+    write_file(temp.path(), "notes.txt", "plain text\n");
+    write_file(
+        temp.path(),
+        "vendor/tool.py",
+        "def hidden():\n    return 1\n",
+    );
+
+    let report =
+        format_workspace(temp.path(), &["vendor/**".to_string()]).expect("format workspace");
+    assert_eq!(report.scanned_files, 1);
+    assert_eq!(report.updated_files, 1);
+
+    let txt = fs::read_to_string(temp.path().join("notes.txt")).expect("read txt file");
+    assert_eq!(txt, "plain text\n");
+
+    let ignored =
+        fs::read_to_string(temp.path().join("vendor/tool.py")).expect("read ignored file");
+    assert!(!ignored.contains("## Index"));
+}
+
+fn assert_index_between(content: &str, before: &str, after: &str, header: &str) {
+    let before_pos = content.find(before).expect("before marker missing");
+    let header_pos = content.find(header).expect("index header missing");
+    let after_pos = content.find(after).expect("after marker missing");
+
+    assert!(
+        header_pos > before_pos,
+        "index header should follow preamble"
+    );
+    assert!(
+        header_pos < after_pos,
+        "index header should precede declarations"
+    );
+}

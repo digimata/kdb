@@ -3,6 +3,16 @@ use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
 
+// -----------------------------------------------------------------------
+// ## Index
+//
+// fn write_file()                                                     L16
+// fn load_index_ignores_returns_empty_when_config_missing()           L25
+// fn load_index_ignores_returns_empty_when_index_section_missing()    L32
+// fn load_index_ignores_reads_patterns()                              L45
+// fn load_index_ignores_rejects_invalid_ignore_shape()                L58
+// -----------------------------------------------------------------------
+
 fn write_file(root: &Path, rel_path: &str, content: &str) {
     let path = root.join(rel_path);
     if let Some(parent) = path.parent() {

@@ -1,13 +1,46 @@
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use tempfile::{TempDir, tempdir};
+use tempfile::{tempdir, TempDir};
 use tower_lsp::lsp_types::Url;
+
+// ---------------------------------------------------------------------
+// ## Index
+//
+// fn write_file()                                                   L45
+// fn bin()                                                          L53
+// struct VaultFixture                                               L57
+//   fn VaultFixture::new()                                          L66
+// struct LspSession                                                L102
+//   fn LspSession::start()                                         L111
+//   fn LspSession::initialize_with_capabilities()                  L146
+//   fn LspSession::initialize()                                    L169
+//   fn LspSession::send()                                          L173
+//   fn LspSession::wait_for_id()                                   L180
+//   fn LspSession::wait_for()                                      L187
+//   fn LspSession::shutdown()                                      L225
+//   fn LspSession::stderr_snapshot()                               L256
+//   fn LspSession::drop()                                          L262
+// fn read_stdout_loop()                                            L270
+// fn read_message()                                                L285
+// fn diagnostics_for_uri()                                         L324
+// fn initialize_advertises_expected_capabilities()                 L334
+// fn initialize_registers_markdown_watcher_when_supported()        L357
+// fn symbols_definition_completion_and_hover_work()                L406
+// fn diagnostics_publish_on_open_change_and_close()                L535
+// fn watched_file_events_refresh_cached_index_and_diagnostics()    L604
+// fn goto_definition_resolves_wikilink_targets()                   L691
+// fn completion_uses_unsaved_document_buffer_state()               L714
+// fn completion_includes_unsaved_open_file_from_cached_index()     L760
+// fn heading_completion_reverts_to_disk_after_target_close()       L804
+// fn hover_on_nonexistent_target_returns_none()                    L891
+// fn diagnostics_include_missing_heading_anchor_errors()           L926
+// ---------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
     let path = root.join(rel_path);
@@ -524,12 +557,10 @@ fn diagnostics_publish_on_open_change_and_close() {
         .as_array()
         .expect("diagnostics array on open");
     assert!(!open_diags.is_empty());
-    assert!(
-        open_diags[0]["message"]
-            .as_str()
-            .expect("diagnostic message")
-            .contains("target file not found")
-    );
+    assert!(open_diags[0]["message"]
+        .as_str()
+        .expect("diagnostic message")
+        .contains("target file not found"));
 
     session.send(json!({
         "jsonrpc": "2.0",
@@ -627,12 +658,10 @@ fn watched_file_events_refresh_cached_index_and_diagnostics() {
         .as_array()
         .expect("diagnostics array after move");
     assert!(!stale_diags.is_empty());
-    assert!(
-        stale_diags[0]["message"]
-            .as_str()
-            .expect("stale diagnostic message")
-            .contains("target file not found: b.md")
-    );
+    assert!(stale_diags[0]["message"]
+        .as_str()
+        .expect("stale diagnostic message")
+        .contains("target file not found: b.md"));
 
     session.send(json!({
         "jsonrpc": "2.0",
@@ -919,12 +948,10 @@ fn diagnostics_include_missing_heading_anchor_errors() {
         .as_array()
         .expect("diagnostics array");
     assert!(!diagnostics.is_empty());
-    assert!(
-        diagnostics[0]["message"]
-            .as_str()
-            .expect("diagnostic message")
-            .contains("target heading not found")
-    );
+    assert!(diagnostics[0]["message"]
+        .as_str()
+        .expect("diagnostic message")
+        .contains("target heading not found"));
 
     session.shutdown();
 }

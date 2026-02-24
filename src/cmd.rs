@@ -1,22 +1,43 @@
 //! CLI command implementations.
 //!
 //! Each public function corresponds to a subcommand of the `kdb` binary:
-//! `init`, `check`, `outline`, `fmt`, and `lsp`.
+//! `init`, `check`, `outline`, `symbols`, `refs`, `deps`, `graph`, `fmt`, and `lsp`.
 
 use anyhow::{Context, Result, bail};
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::config;
 use crate::fmt;
-use crate::index::{VaultIndex, normalize_rel_path};
+use crate::index::{self, VaultIndex};
+use crate::lsp;
 use crate::root;
+use crate::symbols;
+
+// --------------------
+// ## Index
+//
+// fn lsp()         L33
+// fn init()        L38
+// fn check()       L83
+// fn outline()    L101
+// fn symbols()    L154
+// fn refs()       L199
+// fn deps()       L223
+// fn graph()      L230
+// fn fmt()        L245
+// --------------------
+
+/// Start the language server over stdio.
+pub async fn lsp(path: Option<PathBuf>) -> Result<()> {
+    lsp::serve(path).await
+}
 
 /// Initialize a kdb project by creating `.kdb/config.toml`.
 pub fn init(path: Option<PathBuf>) -> Result<()> {
     let start = match path {
-        Some(path) => make_absolute(&path)?,
+        Some(path) => root::make_absolute(&path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
 
@@ -61,7 +82,7 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
 /// or `Ok(false)` if the vault is clean.
 pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
     let start = match path {
-        Some(path) => make_absolute(&path)?,
+        Some(path) => root::make_absolute(&path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
 
@@ -78,7 +99,7 @@ pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
 /// Displays an indented outline of all headings, useful for quickly seeing the
 /// structure of a document from the terminal.
 pub fn outline(file: PathBuf) -> Result<()> {
-    let file_abs = make_absolute(&file)?;
+    let file_abs = root::make_absolute(&file)?;
     if !file_abs.is_file() {
         bail!("file not found: {}", file_abs.display());
     }
@@ -98,7 +119,7 @@ pub fn outline(file: PathBuf) -> Result<()> {
             )
         })
         .and_then(|path| {
-            normalize_rel_path(path).with_context(|| {
+            index::normalize_rel_path(path).with_context(|| {
                 format!(
                     "file path {} resolves outside kdb root {}",
                     file_abs.display(),
@@ -129,13 +150,101 @@ pub fn outline(file: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Print symbols for a single markdown or supported code file.
+pub fn symbols(path: PathBuf, as_json: bool, public_only: bool) -> Result<()> {
+    let file_abs = root::make_absolute(&path)?;
+    if !file_abs.is_file() {
+        bail!("file not found: {}", file_abs.display());
+    }
+
+    let root = root::find_root(&file_abs)?;
+    let file_abs = file_abs
+        .canonicalize()
+        .with_context(|| format!("failed to canonicalize {}", path.display()))?;
+
+    let rel_path = file_abs
+        .strip_prefix(&root)
+        .with_context(|| {
+            format!(
+                "file {} is not inside kdb root {}",
+                file_abs.display(),
+                root.display()
+            )
+        })
+        .and_then(|path| {
+            index::normalize_rel_path(path).with_context(|| {
+                format!(
+                    "file path {} resolves outside kdb root {}",
+                    file_abs.display(),
+                    root.display()
+                )
+            })
+        })?;
+
+    let mut rows = symbols::query::collect_rows(&root, &file_abs, &rel_path)?;
+    if public_only {
+        rows.retain(|row| row.is_public);
+    }
+
+    if as_json {
+        symbols::render::print_json(&rows)?;
+    } else {
+        symbols::render::print_text(&rows);
+    }
+
+    Ok(())
+}
+
+/// Find inbound markdown references to a file or specific heading.
+pub fn refs(target: String, as_json: bool, count_only: bool) -> Result<()> {
+    let target = index::refs::parse_target(&target)?;
+
+    let start = env::current_dir().context("failed to read current directory")?;
+    let root = root::find_root(&start)?;
+    let ignore_patterns = config::load_index_ignores(&root)?;
+    let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
+    let inbound = crate::index::refs::collect_inbound(&index, &root, target)?;
+
+    if count_only {
+        println!("{}", inbound.len());
+        return Ok(());
+    }
+
+    if as_json {
+        crate::index::refs::print_json(&inbound)?;
+    } else {
+        crate::index::refs::print_text(&inbound);
+    }
+
+    Ok(())
+}
+
+/// Stub for `kdb deps` until dependency edge extraction lands.
+pub fn deps(target: String) -> Result<()> {
+    bail!(
+        "`kdb deps` is not implemented yet (target: {target}). See .issues/iss-0020-deps-command.md"
+    )
+}
+
+/// Stub for `kdb graph` until graph rendering lands.
+pub fn graph(path: Option<PathBuf>, cluster: bool) -> Result<()> {
+    let requested = path
+        .as_ref()
+        .map(|value| value.display().to_string())
+        .unwrap_or_else(|| "<root>".to_string());
+    let mode = if cluster { "cluster" } else { "plain" };
+    bail!(
+        "`kdb graph` is not implemented yet (path: {requested}, mode: {mode}). See .issues/iss-0021-graph-command.md"
+    )
+}
+
 /// Generate or update code index headers for supported code files.
 ///
 /// Walks the project root and rewrites Rust, TypeScript/JavaScript, Python,
 /// and Go files with a managed index block at the top of each file.
 pub fn fmt(path: Option<PathBuf>) -> Result<()> {
     let start = match path {
-        Some(path) => make_absolute(&path)?,
+        Some(path) => root::make_absolute(&path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
 
@@ -146,24 +255,17 @@ pub fn fmt(path: Option<PathBuf>) -> Result<()> {
         "kdb fmt: updated {} of {} files",
         report.updated_files, report.scanned_files
     );
-    Ok(())
-}
 
-/// Start the language server over stdio.
-///
-/// The LSP is the primary way editors like Zed interact with kdb, providing
-/// go-to-definition, autocomplete, diagnostics, and document symbols.
-pub async fn lsp(path: Option<PathBuf>) -> Result<()> {
-    crate::lsp::serve(path).await
-}
-
-/// Convert a potentially relative path to absolute using the current working directory.
-fn make_absolute(path: &Path) -> Result<PathBuf> {
-    if path.is_absolute() {
-        Ok(path.to_path_buf())
-    } else {
-        Ok(env::current_dir()
-            .context("failed to read current directory")?
-            .join(path))
+    if !report.warnings.is_empty() {
+        eprintln!("kdb fmt: {} warning(s)", report.warnings.len());
+        for warning in &report.warnings {
+            eprintln!(
+                "warning: {} ({})",
+                warning.message,
+                warning.rel_path.display()
+            );
+        }
     }
+
+    Ok(())
 }

@@ -1,5 +1,13 @@
 use zed_extension_api as zed;
 
+// ------------------------------------------------------
+// ## Index
+//
+// struct KdbZedExtension                             L11
+//   fn KdbZedExtension::new()                        L14
+//   fn KdbZedExtension::language_server_command()    L18
+// ------------------------------------------------------
+
 struct KdbZedExtension;
 
 impl zed::Extension for KdbZedExtension {

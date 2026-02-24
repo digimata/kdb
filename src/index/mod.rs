@@ -14,6 +14,8 @@
 //! 4. **Resolution** — [`resolve_target_path`] resolves a link target relative to
 //!    its source file, handling both markdown and wikilink syntax.
 
+pub mod refs;
+
 use anyhow::{Context, Result};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
@@ -22,6 +24,53 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Component, Path, PathBuf};
 use std::sync::LazyLock;
 use walkdir::WalkDir;
+
+// ----------------------------------------------
+// ## Index
+//
+// struct VaultIndex                          L88
+// struct FileEntry                          L103
+// struct Heading                            L116
+// enum LinkKind                             L132
+// struct LinkTarget                         L141
+// struct Link                               L150
+// struct HeadingKey                         L165
+// struct LinkRef                            L174
+// struct ParsedDocument                     L187
+// struct BrokenLink                         L196
+// struct CheckReport                        L211
+//   fn CheckReport::has_errors()            L220
+//   fn CheckReport::print()                 L225
+//   fn VaultIndex::build()                  L288
+//   fn VaultIndex::build_with_ignores()     L296
+//   fn VaultIndex::upsert_file()            L335
+//   fn VaultIndex::reload_file()            L358
+//   fn VaultIndex::remove_file()            L387
+//   fn VaultIndex::check()                  L395
+//   fn VaultIndex::populate_inbound()       L434
+//   fn VaultIndex::resolve_link()           L487
+// enum ResolveError                         L520
+//   fn ResolveError::message()              L527
+// fn parse_markdown()                       L548
+// fn build_ignore_globset()                 L688
+// fn discover_markdown_files()              L701
+// fn rel_path_from_root()                   L768
+// fn path_is_ignored()                      L773
+// fn resolve_target_file()                  L796
+// fn resolve_target_path()                  L809
+// fn normalize_rel_path()                   L838
+// fn parse_markdown_target()                L865
+// fn parse_wikilink_target()                L913
+// fn slug_anchor()                          L950
+// fn is_external()                          L959
+// fn slug()                                 L971
+// fn build_line_starts()                   L1003
+// fn line_col()                            L1014
+// fn normalize_inline_whitespace()         L1025
+// fn heading_level_number()                L1030
+// fn range_contains_offset()               L1041
+// struct ActiveHeading                     L1048
+// ----------------------------------------------
 
 /// Regex for matching `[[wikilink]]` syntax in raw markdown source.
 static WIKILINK_RE: LazyLock<Regex> =

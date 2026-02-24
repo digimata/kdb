@@ -59,7 +59,8 @@ Both standard markdown links and wikilinks are supported:
 ```
 kdb check [--orphans]  # compile — report all errors/warnings (orphans listed with --orphans)
 kdb outline <file>     # print heading tree
-kdb refs <file>#<head> # find all references to a heading
+kdb symbols <path>     # print markdown/code symbols for one file
+kdb refs <target>      # find inbound refs to a file or heading (`--json`, `--count`)
 kdb orphans            # list orphan files
 kdb stubs              # list empty stubs
 kdb graph              # output dependency graph (dot format)

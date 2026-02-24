@@ -13,6 +13,10 @@ mod completion;
 mod definition;
 mod diagnostics;
 mod hover;
+mod semantic_tokens;
 mod symbols;
 
 pub use backend::serve;
+// ## Index
+//
+

@@ -17,6 +17,13 @@ use crate::index::{
 
 use super::backend::{Backend, position_to_byte_offset};
 
+// --------------------------------
+// ## Index
+//
+// fn goto_definition()         L40
+// fn link_under_position()    L113
+// --------------------------------
+
 /// Regex matching `[text](target)` markdown links.
 static MARKDOWN_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\[[^\]\r\n]*\]\(([^)\r\n]+)\)").expect("valid markdown link regex")

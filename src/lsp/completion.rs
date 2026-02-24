@@ -20,6 +20,19 @@ use super::backend::{
     Backend, is_markdown_path, path_to_slash, position_to_byte_offset, relative_path,
 };
 
+// --------------------------------------
+// ## Index
+//
+// fn completion()                    L38
+// enum CompletionContext             L80
+// fn completion_context()            L95
+// fn parse_markdown_completion()    L115
+// fn parse_wikilink_completion()    L136
+// fn optional_string()              L157
+// fn complete_files()               L167
+// fn complete_headings()            L201
+// --------------------------------------
+
 /// Handle a completion request by detecting the link context at the cursor
 /// and returning matching file or heading suggestions.
 pub(super) async fn completion(

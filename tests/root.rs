@@ -3,6 +3,18 @@ use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
 
+// -------------------------------------------------------
+// ## Index
+//
+// fn write_file()                                     L18
+// fn find_root_from_nested_file_path()                L27
+// fn find_root_when_starting_at_root_directory()      L43
+// fn find_root_from_nested_directory_path()           L56
+// fn find_root_errors_when_marker_missing()           L72
+// fn find_root_errors_for_nonexistent_start_path()    L80
+// fn config_path_points_to_dot_kdb_config_toml()      L89
+// -------------------------------------------------------
+
 fn write_file(root: &Path, rel_path: &str, content: &str) {
     let path = root.join(rel_path);
     if let Some(parent) = path.parent() {

@@ -10,6 +10,13 @@ use std::path::Path;
 
 use crate::root;
 
+// -------------------------------
+// ## Index
+//
+// fn load_index_ignores()     L24
+// fn parse_index_ignores()    L40
+// -------------------------------
+
 /// Load user-configured index ignore patterns from `.kdb/config.toml`.
 ///
 /// Reads `[index].ignore` as an array of strings. Missing config files or

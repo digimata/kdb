@@ -20,6 +20,19 @@ use super::{
     definition::link_under_position,
 };
 
+// ----------------------------------
+// ## Index
+//
+// fn hover()                     L47
+// fn rewrite_preview_links()    L114
+// fn resolve_target_url()       L168
+// fn is_external_link()         L187
+// fn section_preview()          L194
+// fn section_line_bounds()      L214
+// fn line_start_offsets()       L242
+// fn truncate_chars()           L252
+// ----------------------------------
+
 const HOVER_CHAR_LIMIT: usize = 420;
 static MARKDOWN_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\[([^\]\r\n]*)\]\(([^)\r\n]+)\)").expect("valid markdown link regex")

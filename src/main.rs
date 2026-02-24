@@ -1,6 +1,14 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+// -------------------
+// ## Index
+//
+// struct Cli      L14
+// enum Command    L20
+// fn main()       L87
+// -------------------
+
 #[derive(Debug, Parser)]
 #[command(name = "kdb", version, about = "Markdown knowledge base CLI and LSP")]
 struct Cli {
@@ -27,6 +35,41 @@ enum Command {
     Outline {
         /// File path to outline.
         file: PathBuf,
+    },
+    /// Print symbols for a markdown or supported code file.
+    Symbols {
+        /// File path to inspect.
+        path: PathBuf,
+        /// Emit structured JSON output.
+        #[arg(long)]
+        json: bool,
+        /// Only include public/exported symbols.
+        #[arg(long = "public")]
+        public_only: bool,
+    },
+    /// Find inbound references to a markdown file or heading.
+    Refs {
+        /// Symbol target expression (e.g. `notes.md#getting-started`).
+        target: String,
+        /// Emit structured JSON output.
+        #[arg(long)]
+        json: bool,
+        /// Print only the number of inbound references.
+        #[arg(long)]
+        count: bool,
+    },
+    /// Print direct dependencies for a file/symbol target.
+    Deps {
+        /// File or symbol target expression.
+        target: String,
+    },
+    /// Render a dependency graph for markdown and code symbols.
+    Graph {
+        /// Optional starting path to discover kdb root from.
+        path: Option<PathBuf>,
+        /// Group nodes into clusters (placeholder flag).
+        #[arg(long)]
+        cluster: bool,
     },
     /// Generate or update code index headers in supported code files.
     Fmt {
@@ -56,6 +99,18 @@ async fn main() {
             Err(error) => Err(error),
         },
         Command::Outline { file } => kdb::cmd::outline(file),
+        Command::Symbols {
+            path,
+            json,
+            public_only,
+        } => kdb::cmd::symbols(path, json, public_only),
+        Command::Refs {
+            target,
+            json,
+            count,
+        } => kdb::cmd::refs(target, json, count),
+        Command::Deps { target } => kdb::cmd::deps(target),
+        Command::Graph { path, cluster } => kdb::cmd::graph(path, cluster),
         Command::Fmt { path } => kdb::cmd::fmt(path),
         Command::Lsp { path } => kdb::cmd::lsp(path).await,
     };

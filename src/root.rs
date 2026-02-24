@@ -5,7 +5,16 @@
 //! similar to how cargo finds `Cargo.toml`.
 
 use anyhow::{Context, Result, bail};
+use std::env;
 use std::path::{Path, PathBuf};
+
+// -------------------------
+// ## Index
+//
+// fn config_path()      L26
+// fn find_root()        L34
+// fn make_absolute()    L69
+// -------------------------
 
 /// Marker directory that identifies the root of a kdb project.
 pub const ROOT_MARKER: &str = ".kdb";
@@ -54,4 +63,15 @@ pub fn find_root(start: &Path) -> Result<PathBuf> {
         ROOT_MARKER,
         start.display()
     )
+}
+
+/// Convert a potentially relative path to absolute using the current working directory.
+pub fn make_absolute(path: &Path) -> Result<PathBuf> {
+    if path.is_absolute() {
+        Ok(path.to_path_buf())
+    } else {
+        Ok(env::current_dir()
+            .context("failed to read current directory")?
+            .join(path))
+    }
 }

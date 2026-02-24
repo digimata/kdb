@@ -28,6 +28,43 @@ use crate::root;
 
 use super::{completion, definition, diagnostics, hover, symbols};
 
+// -----------------------------------------------------
+// ## Index
+//
+// fn serve()                                        L72
+// struct Backend                                    L94
+//   fn Backend::new()                              L111
+//   fn Backend::set_watched_files_support()        L121
+//   fn Backend::build_index()                      L126
+//   fn Backend::ensure_index_loaded()              L134
+//   fn Backend::ensure_index()                     L148
+//   fn Backend::with_index()                       L163
+//   fn Backend::markdown_rel_path()                L175
+//   fn Backend::document_text()                    L191
+//   fn Backend::set_document_text()                L199
+//   fn Backend::clear_document_text()              L204
+//   fn Backend::open_document_uris()               L209
+//   fn Backend::sync_document_into_index()         L222
+//   fn Backend::sync_document_from_disk()          L237
+//   fn Backend::register_markdown_watcher()        L251
+//   fn Backend::sync_watched_files_into_index()    L291
+//   fn Backend::initialize()                       L340
+//   fn Backend::initialized()                      L378
+//   fn Backend::shutdown()                         L389
+//   fn Backend::did_open()                         L393
+//   fn Backend::did_change()                       L404
+//   fn Backend::did_close()                        L414
+//   fn Backend::did_change_watched_files()         L421
+//   fn Backend::document_symbol()                  L427
+//   fn Backend::goto_definition()                  L434
+//   fn Backend::completion()                       L441
+//   fn Backend::hover()                            L445
+// fn is_markdown_path()                            L451
+// fn relative_path()                               L461
+// fn path_to_slash()                               L492
+// fn position_to_byte_offset()                     L500
+// -----------------------------------------------------
+
 /// Start the LSP server on stdin/stdout.
 ///
 /// Discovers the vault root from `path` (or cwd), then enters the tower-lsp
