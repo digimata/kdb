@@ -10,13 +10,13 @@ use std::path::PathBuf;
 
 use crate::config;
 use crate::fmt;
-use crate::index::{self, VaultIndex};
+use crate::index::{self, VaultIndex, deps, refs};
 use crate::lsp;
 use crate::root;
 use crate::symbols;
 
 // --------------------
-// ## Index
+// src/cmd.rs
 //
 // fn lsp()         L33
 // fn init()        L38
@@ -25,8 +25,8 @@ use crate::symbols;
 // fn symbols()    L154
 // fn refs()       L199
 // fn deps()       L223
-// fn graph()      L230
-// fn fmt()        L245
+// fn graph()      L240
+// fn fmt()        L255
 // --------------------
 
 /// Start the language server over stdio.
@@ -203,7 +203,7 @@ pub fn refs(target: String, as_json: bool, count_only: bool) -> Result<()> {
     let root = root::find_root(&start)?;
     let ignore_patterns = config::load_index_ignores(&root)?;
     let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
-    let inbound = crate::index::refs::collect_inbound(&index, &root, target)?;
+    let inbound = refs::collect_inbound(&index, &root, target)?;
 
     if count_only {
         println!("{}", inbound.len());
@@ -211,19 +211,29 @@ pub fn refs(target: String, as_json: bool, count_only: bool) -> Result<()> {
     }
 
     if as_json {
-        crate::index::refs::print_json(&inbound)?;
+        refs::print_json(&inbound)?;
     } else {
-        crate::index::refs::print_text(&inbound);
+        refs::print_text(&inbound);
     }
 
     Ok(())
 }
 
-/// Stub for `kdb deps` until dependency edge extraction lands.
-pub fn deps(target: String) -> Result<()> {
-    bail!(
-        "`kdb deps` is not implemented yet (target: {target}). See .issues/iss-0020-deps-command.md"
-    )
+/// List outbound markdown dependencies for a file.
+pub fn deps(target: String, as_json: bool) -> Result<()> {
+    let start = env::current_dir().context("failed to read current directory")?;
+    let root = root::find_root(&start)?;
+    let ignore_patterns = config::load_index_ignores(&root)?;
+    let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
+    let outbound = deps::collect_outbound(&index, &root, &target)?;
+
+    if as_json {
+        deps::print_json(&outbound)?;
+    } else {
+        deps::print_text(&outbound);
+    }
+
+    Ok(())
 }
 
 /// Stub for `kdb graph` until graph rendering lands.

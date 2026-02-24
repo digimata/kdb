@@ -7,7 +7,7 @@ Local issue tracker for this kdb repo.
 | [0012](iss-0012-cli-commands.md) | CLI Commands (tracking) | in_progress | high |
 | [0018](iss-0018-symbols-command.md) | kdb symbols Command | proposed | high |
 | [0016](iss-0016-codemap.md) | Codemap | proposed | high |
-| [0023](iss-0023-index-header-filepath.md) | Use File Path as Index Block Header | proposed | medium |
+| [0023](iss-0023-index-header-filepath.md) | Use File Path as Index Block Header | done | medium |
 | [0014](iss-0014-code-file-indexes.md) | Code File Index Headers | in_progress | medium |
 | [0019](iss-0019-refs-command.md) | kdb refs Command | proposed | high |
 | [0020](iss-0020-deps-command.md) | kdb deps Command | proposed | high |

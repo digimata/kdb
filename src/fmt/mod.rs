@@ -17,26 +17,28 @@ pub mod preamble;
 use self::preamble::{comment_prefix, preamble_end_index};
 
 // -------------------------------------------
-// ## Index
+// src/fmt/mod.rs
 //
-// struct FormatReport                     L67
-// struct FormatWarning                    L75
-// struct RewriteResult                    L81
-// fn format_workspace()                   L89
-// fn rewrite_code_index()                L144
-// fn removal_warning_message()           L241
-// fn find_managed_block()                L261
-// fn is_index_body_line()                L291
-// fn is_canonical_index_body_line()      L303
-// fn is_separator_only_comment_line()    L329
-// fn render_block()                      L343
-// fn build_ignore_globset()              L393
-// fn discover_code_files()               L408
-// fn rel_path_from_root()                L468
-// fn path_is_ignored()                   L475
+// struct FormatReport                     L69
+// struct FormatWarning                    L77
+// struct RewriteResult                    L83
+// fn format_workspace()                   L91
+// fn rewrite_code_index()                L146
+// fn removal_warning_message()           L250
+// fn find_managed_block()                L270
+// fn is_header_candidate()               L301
+// fn looks_like_path_header()            L314
+// fn is_index_body_line()                L334
+// fn is_canonical_index_body_line()      L346
+// fn is_separator_only_comment_line()    L372
+// fn render_block()                      L386
+// fn build_ignore_globset()              L436
+// fn discover_code_files()               L451
+// fn rel_path_from_root()                L511
+// fn path_is_ignored()                   L518
 // -------------------------------------------
 
-const INDEX_HEADER: &str = "## Index";
+const LEGACY_INDEX_HEADER: &str = "## Index";
 const LINE_GAP: usize = 4;
 const CANONICAL_KEYWORDS: &[&str] = &[
     "fn",
@@ -113,7 +115,7 @@ pub fn format_workspace(root: &Path, ignore_patterns: &[String]) -> Result<Forma
             }
         };
 
-        let rewrite = rewrite_code_index(language, &source).with_context(|| {
+        let rewrite = rewrite_code_index(language, &source, &rel_path).with_context(|| {
             format!(
                 "failed to rewrite code index for {}",
                 rel_path.to_string_lossy()
@@ -141,7 +143,11 @@ pub fn format_workspace(root: &Path, ignore_patterns: &[String]) -> Result<Forma
 
 /// Parse `source` for symbols, strip any existing index block, and return the
 /// file contents with a freshly generated index inserted after the preamble.
-fn rewrite_code_index(language: CodeLanguage, source: &str) -> Result<RewriteResult> {
+fn rewrite_code_index(
+    language: CodeLanguage,
+    source: &str,
+    rel_path: &Path,
+) -> Result<RewriteResult> {
     let newline = if source.contains("\r\n") {
         "\r\n"
     } else {
@@ -162,13 +168,16 @@ fn rewrite_code_index(language: CodeLanguage, source: &str) -> Result<RewriteRes
     }
 
     let prefix = comment_prefix(language);
+    let header = rel_path.to_string_lossy().replace('\\', "/");
     let mut removed_blocks = 0usize;
     let mut removed_noncanonical_rows = 0usize;
     loop {
         let search_limit = preamble_end_index(language, &lines)
             .max(256)
             .min(lines.len());
-        let Some((start, end_exclusive)) = find_managed_block(&lines, prefix, search_limit) else {
+        let Some((start, end_exclusive)) =
+            find_managed_block(&lines, prefix, &header, search_limit)
+        else {
             break;
         };
 
@@ -223,7 +232,7 @@ fn rewrite_code_index(language: CodeLanguage, source: &str) -> Result<RewriteRes
 
     let mut output_lines = Vec::new();
     output_lines.extend_from_slice(&lines[..insertion_index]);
-    output_lines.extend(render_block(prefix, &shifted_symbols));
+    output_lines.extend(render_block(prefix, &header, &shifted_symbols));
     output_lines.extend_from_slice(&lines[insertion_index..]);
 
     let mut output = output_lines.join(newline);
@@ -256,21 +265,24 @@ fn removal_warning_message(rewrite: &RewriteResult) -> Option<String> {
     None
 }
 
-/// Locate a managed `## Index` comment block within the first `search_limit`
-/// lines. Returns inclusive start and exclusive end indices, or `None`.
+/// Locate a managed index comment block within the first `search_limit` lines.
+/// Returns inclusive start and exclusive end indices, or `None`.
 fn find_managed_block(
     lines: &[String],
     prefix: &str,
+    expected_header: &str,
     search_limit: usize,
 ) -> Option<(usize, usize)> {
-    let header = format!("{prefix} {INDEX_HEADER}");
     let region_end = search_limit.min(lines.len());
 
-    if let Some(start) = lines
-        .iter()
-        .take(region_end)
-        .position(|line| line.trim() == header)
-    {
+    for start in 0..region_end {
+        if !is_header_candidate(&lines[start], prefix, expected_header) {
+            continue;
+        }
+        if start + 1 >= region_end || !is_index_body_line(&lines[start + 1], prefix) {
+            continue;
+        }
+
         let mut end = start + 1;
         while end < region_end && is_index_body_line(&lines[end], prefix) {
             end += 1;
@@ -284,6 +296,37 @@ fn find_managed_block(
     }
 
     None
+}
+
+fn is_header_candidate(line: &str, prefix: &str, expected_header: &str) -> bool {
+    let trimmed = line.trim();
+    let Some(rest) = trimmed
+        .strip_prefix(prefix)
+        .and_then(|value| value.strip_prefix(' '))
+    else {
+        return false;
+    };
+
+    let value = rest.trim();
+    value == expected_header || value == LEGACY_INDEX_HEADER || looks_like_path_header(value)
+}
+
+fn looks_like_path_header(value: &str) -> bool {
+    if value.is_empty() || value.contains(' ') {
+        return false;
+    }
+
+    let normalized = value.replace('\\', "/");
+    if normalized.starts_with('/') {
+        return false;
+    }
+
+    let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+    let Some((_, ext)) = file_name.rsplit_once('.') else {
+        return false;
+    };
+
+    !ext.is_empty() && ext.chars().all(|ch| ch.is_ascii_alphanumeric())
 }
 
 /// Return `true` if `line` looks like a row inside a managed index block
@@ -339,8 +382,8 @@ fn is_separator_only_comment_line(line: &str, prefix: &str) -> bool {
     !text.is_empty() && text.chars().all(|ch| ch == '-')
 }
 
-/// Render the `## Index` header and symbol rows as comment lines.
-fn render_block(prefix: &str, symbols: &[Symbol]) -> Vec<String> {
+/// Render the path header and symbol rows as comment lines.
+fn render_block(prefix: &str, header: &str, symbols: &[Symbol]) -> Vec<String> {
     let mut rows = Vec::new();
     for symbol in symbols {
         let indent = if matches!(symbol.kind, SymbolKind::Method) {
@@ -375,7 +418,7 @@ fn render_block(prefix: &str, symbols: &[Symbol]) -> Vec<String> {
     if has_rows {
         lines.push(format!("{prefix} {separator}"));
     }
-    lines.push(format!("{prefix} {INDEX_HEADER}"));
+    lines.push(format!("{prefix} {header}"));
     lines.push(prefix.to_string());
     for (left, line_label) in rows {
         lines.push(format!(

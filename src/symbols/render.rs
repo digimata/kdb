@@ -6,7 +6,7 @@ use serde_json::{Map, Value};
 use super::{Symbol, SymbolKind, keyword_for_kind};
 
 // ---------------------------
-// ## Index
+// src/symbols/render.rs
 //
 // struct SymbolRow        L20
 // fn code_symbol_row()    L40

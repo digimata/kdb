@@ -8,7 +8,7 @@ labels:
 closed_on: 2026-02-17
 ---
 
-# 0009 :: kdb init and .kdb/ Directory
+# ISS-0009 :: kdb init and .kdb/ Directory
 
 ## Intent
 

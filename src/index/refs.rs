@@ -1,22 +1,21 @@
 use anyhow::{Context, Result, bail};
 use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::{
-    HeadingKey, LinkRef, VaultIndex, normalize_rel_path, parse_markdown_target, slug_anchor,
+    HeadingKey, LinkRef, VaultIndex, parse_markdown_target, resolve_file_target, slug_anchor,
 };
 
-// --------------------------------
-// ## Index
+// ----------------------------
+// src/index/refs.rs
 //
-// struct RefsTarget            L22
-// fn parse_target()            L27
-// fn collect_inbound()         L46
-// fn print_text()             L101
-// fn print_json()             L118
-// fn resolve_target_file()    L125
-// fn json_row()               L145
-// --------------------------------
+// struct RefsTarget        L21
+// fn parse_target()        L26
+// fn collect_inbound()     L45
+// fn print_text()         L100
+// fn print_json()         L117
+// fn json_row()           L124
+// ----------------------------
 
 #[derive(Debug, Clone)]
 pub struct RefsTarget {
@@ -48,7 +47,7 @@ pub fn collect_inbound(
     root: &Path,
     target: RefsTarget,
 ) -> Result<Vec<LinkRef>> {
-    let target_file = resolve_target_file(root, &target.file)?;
+    let target_file = resolve_file_target(root, &target.file)?;
     if !index.files.contains_key(&target_file) {
         bail!(
             "target file is not an indexed markdown file: {}",
@@ -120,26 +119,6 @@ pub fn print_json(inbound: &[LinkRef]) -> Result<()> {
     let output = serde_json::to_string_pretty(&rows).context("failed to serialize refs as JSON")?;
     println!("{output}");
     Ok(())
-}
-
-fn resolve_target_file(root: &Path, file: &str) -> Result<PathBuf> {
-    let path = Path::new(file);
-    if path.is_absolute() {
-        let canonical = path
-            .canonicalize()
-            .with_context(|| format!("failed to canonicalize {}", path.display()))?;
-        let rel = canonical.strip_prefix(root).with_context(|| {
-            format!(
-                "target file {} is not inside kdb root {}",
-                canonical.display(),
-                root.display()
-            )
-        })?;
-        return normalize_rel_path(rel)
-            .with_context(|| format!("target path resolves outside root: {}", file));
-    }
-
-    normalize_rel_path(path).with_context(|| format!("target path resolves outside root: {file}"))
 }
 
 fn json_row(link_ref: &LinkRef) -> Value {

@@ -29,7 +29,7 @@ use crate::root;
 use super::{completion, definition, diagnostics, hover, symbols};
 
 // -----------------------------------------------------
-// ## Index
+// src/lsp/backend.rs
 //
 // fn serve()                                        L72
 // struct Backend                                    L94

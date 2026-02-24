@@ -18,7 +18,7 @@ use crate::index::{
 use super::backend::{Backend, position_to_byte_offset};
 
 // --------------------------------
-// ## Index
+// src/lsp/definition.rs
 //
 // fn goto_definition()         L40
 // fn link_under_position()    L113

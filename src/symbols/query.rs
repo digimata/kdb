@@ -9,7 +9,7 @@ use super::render::{self, SymbolRow};
 use super::{extract_symbols, language_for_path};
 
 // ------------------------
-// ## Index
+// src/symbols/query.rs
 //
 // fn collect_rows()    L17
 // ------------------------

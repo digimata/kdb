@@ -7,7 +7,7 @@ use super::{
 };
 
 // --------------------------
-// ## Index
+// src/symbols/python.rs
 //
 // fn extract()           L17
 // fn is_public_name()    L68

@@ -7,7 +7,7 @@ labels:
   - feat
 ---
 
-# 0020 :: kdb deps Command
+# ISS-0020 :: kdb deps Command
 
 ## Intent
 

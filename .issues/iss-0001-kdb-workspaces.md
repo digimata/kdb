@@ -7,7 +7,7 @@ labels:
   - roadmap
 ---
 
-# 0001 :: KDB Workspaces
+# ISS-0001 :: KDB Workspaces
 
 Support kdb workspaces with monorepo-style structure for multiple knowledge bases in one repo.
 

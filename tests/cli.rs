@@ -5,33 +5,34 @@ use std::process::Command;
 use tempfile::tempdir;
 
 // ----------------------------------------------------------------------
-// ## Index
+// tests/cli.rs
 //
-// fn write_file()                                                    L37
-// fn bin()                                                           L45
-// fn write_root_config()                                             L49
-// fn check_exits_zero_for_clean_vault()                              L54
-// fn check_exits_one_for_broken_links()                              L72
-// fn check_respects_index_ignore_patterns_from_config()              L90
-// fn check_orphan_only_shows_orphan_count_hint_without_listing()    L117
-// fn check_orphans_flag_lists_orphan_files()                        L139
-// fn check_errors_when_root_marker_missing()                        L161
-// fn outline_prints_heading_tree()                                  L177
-// fn outline_reports_no_headings_for_plain_markdown()               L200
-// fn outline_errors_for_nonexistent_file()                          L221
-// fn fmt_generates_code_index_headers_for_supported_files()         L237
-// fn fmt_warns_when_nonstandard_index_rows_are_removed()            L259
-// fn symbols_prints_markdown_heading_symbols()                      L282
-// fn symbols_supports_public_filter_for_code_files()                L308
-// fn symbols_json_outputs_structured_rows()                         L340
-// fn refs_lists_inbound_references_for_file_target()                L367
-// fn refs_lists_inbound_references_for_heading_target()             L394
-// fn refs_count_prints_number_of_inbound_references()               L425
-// fn refs_json_outputs_structured_rows()                            L446
-// fn deps_is_stubbed_with_clear_message()                           L473
-// fn graph_is_stubbed_with_clear_message()                          L487
-// fn init_creates_kdb_directory_and_default_config()                L501
-// fn init_errors_if_kdb_directory_already_exists()                  L523
+// fn write_file()                                                    L38
+// fn bin()                                                           L46
+// fn write_root_config()                                             L50
+// fn check_exits_zero_for_clean_vault()                              L55
+// fn check_exits_one_for_broken_links()                              L73
+// fn check_respects_index_ignore_patterns_from_config()              L91
+// fn check_orphan_only_shows_orphan_count_hint_without_listing()    L118
+// fn check_orphans_flag_lists_orphan_files()                        L140
+// fn check_errors_when_root_marker_missing()                        L162
+// fn outline_prints_heading_tree()                                  L178
+// fn outline_reports_no_headings_for_plain_markdown()               L201
+// fn outline_errors_for_nonexistent_file()                          L222
+// fn fmt_generates_code_index_headers_for_supported_files()         L238
+// fn fmt_warns_when_nonstandard_index_rows_are_removed()            L260
+// fn symbols_prints_markdown_heading_symbols()                      L283
+// fn symbols_supports_public_filter_for_code_files()                L309
+// fn symbols_json_outputs_structured_rows()                         L341
+// fn refs_lists_inbound_references_for_file_target()                L368
+// fn refs_lists_inbound_references_for_heading_target()             L395
+// fn refs_count_prints_number_of_inbound_references()               L426
+// fn refs_json_outputs_structured_rows()                            L447
+// fn deps_lists_outbound_dependencies_for_file_target()             L474
+// fn deps_json_outputs_structured_rows()                            L507
+// fn graph_is_stubbed_with_clear_message()                          L544
+// fn init_creates_kdb_directory_and_default_config()                L558
+// fn init_errors_if_kdb_directory_already_exists()                  L580
 // ----------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -251,7 +252,7 @@ fn fmt_generates_code_index_headers_for_supported_files() {
 
     let formatted =
         fs::read_to_string(temp.path().join("src/main.rs")).expect("read formatted rust file");
-    assert!(formatted.contains("// ## Index"));
+    assert!(formatted.contains("// src/main.rs"));
     assert!(formatted.contains("// fn run()"));
 }
 
@@ -262,7 +263,7 @@ fn fmt_warns_when_nonstandard_index_rows_are_removed() {
     write_file(
         temp.path(),
         "src/main.rs",
-        "// ## Index\n//\n// totally custom row\nfn run() {}\n",
+        "// src/main.rs\n//\n// totally custom row\nfn run() {}\n",
     );
 
     let output = Command::new(bin())
@@ -470,17 +471,73 @@ fn refs_json_outputs_structured_rows() {
 }
 
 #[test]
-fn deps_is_stubbed_with_clear_message() {
+fn deps_lists_outbound_dependencies_for_file_target() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "docs/tutorial.md",
+        "# Tutorial\n\n[State](state.md)\n[Hooks](hooks.md)\n[[components#Props]]\n[Hooks Again](./hooks.md)\n",
+    );
+    write_file(temp.path(), "docs/hooks.md", "# Hooks\n");
+    write_file(
+        temp.path(),
+        "docs/components.md",
+        "# Components\n\n## Props\n",
+    );
+    write_file(temp.path(), "docs/state.md", "# State\n");
+
     let output = Command::new(bin())
         .arg("deps")
-        .arg("src/lib.rs")
+        .current_dir(temp.path())
+        .arg("docs/tutorial.md")
         .output()
         .expect("run kdb deps");
 
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("`kdb deps` is not implemented yet"));
-    assert!(stderr.contains("iss-0020-deps-command.md"));
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines = stdout.lines().collect::<Vec<_>>();
+    assert_eq!(
+        lines,
+        vec!["docs/components.md#Props", "docs/hooks.md", "docs/state.md"]
+    );
+}
+
+#[test]
+fn deps_json_outputs_structured_rows() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "docs/tutorial.md",
+        "# Tutorial\n\n[Hooks](hooks.md)\n[[components#Props]]\n[State](state.md)\n",
+    );
+    write_file(temp.path(), "docs/hooks.md", "# Hooks\n");
+    write_file(
+        temp.path(),
+        "docs/components.md",
+        "# Components\n\n## Props\n",
+    );
+    write_file(temp.path(), "docs/state.md", "# State\n");
+
+    let output = Command::new(bin())
+        .arg("deps")
+        .current_dir(temp.path())
+        .arg("docs/tutorial.md")
+        .arg("--json")
+        .output()
+        .expect("run kdb deps --json");
+
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("parse deps json");
+    let rows = json.as_array().expect("deps json array");
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[0]["file"], "docs/components.md");
+    assert_eq!(rows[0]["anchor"], "Props");
+    assert_eq!(rows[1]["file"], "docs/hooks.md");
+    assert!(rows[1]["anchor"].is_null());
+    assert_eq!(rows[2]["file"], "docs/state.md");
+    assert!(rows[2]["anchor"].is_null());
 }
 
 #[test]

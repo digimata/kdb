@@ -2,11 +2,11 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 // -------------------
-// ## Index
+// src/main.rs
 //
 // struct Cli      L14
 // enum Command    L20
-// fn main()       L87
+// fn main()       L90
 // -------------------
 
 #[derive(Debug, Parser)]
@@ -62,6 +62,9 @@ enum Command {
     Deps {
         /// File or symbol target expression.
         target: String,
+        /// Emit structured JSON output.
+        #[arg(long)]
+        json: bool,
     },
     /// Render a dependency graph for markdown and code symbols.
     Graph {
@@ -109,7 +112,7 @@ async fn main() {
             json,
             count,
         } => kdb::cmd::refs(target, json, count),
-        Command::Deps { target } => kdb::cmd::deps(target),
+        Command::Deps { target, json } => kdb::cmd::deps(target, json),
         Command::Graph { path, cluster } => kdb::cmd::graph(path, cluster),
         Command::Fmt { path } => kdb::cmd::fmt(path),
         Command::Lsp { path } => kdb::cmd::lsp(path).await,

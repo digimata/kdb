@@ -16,7 +16,7 @@ use crate::index::{
 use super::backend::Backend;
 
 // -------------------------------------
-// ## Index
+// src/lsp/diagnostics.rs
 //
 // fn did_open()                     L32
 // fn did_change()                   L37

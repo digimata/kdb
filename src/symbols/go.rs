@@ -6,7 +6,7 @@ use super::{
 };
 
 // ----------------------------
-// ## Index
+// src/symbols/go.rs
 //
 // fn extract()             L17
 // fn receiver_parent()     L73

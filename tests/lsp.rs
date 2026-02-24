@@ -1,16 +1,16 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 use tower_lsp::lsp_types::Url;
 
 // ---------------------------------------------------------------------
-// ## Index
+// tests/lsp.rs
 //
 // fn write_file()                                                   L45
 // fn bin()                                                          L53
@@ -33,13 +33,13 @@ use tower_lsp::lsp_types::Url;
 // fn initialize_registers_markdown_watcher_when_supported()        L357
 // fn symbols_definition_completion_and_hover_work()                L406
 // fn diagnostics_publish_on_open_change_and_close()                L535
-// fn watched_file_events_refresh_cached_index_and_diagnostics()    L604
-// fn goto_definition_resolves_wikilink_targets()                   L691
-// fn completion_uses_unsaved_document_buffer_state()               L714
-// fn completion_includes_unsaved_open_file_from_cached_index()     L760
-// fn heading_completion_reverts_to_disk_after_target_close()       L804
-// fn hover_on_nonexistent_target_returns_none()                    L891
-// fn diagnostics_include_missing_heading_anchor_errors()           L926
+// fn watched_file_events_refresh_cached_index_and_diagnostics()    L606
+// fn goto_definition_resolves_wikilink_targets()                   L695
+// fn completion_uses_unsaved_document_buffer_state()               L718
+// fn completion_includes_unsaved_open_file_from_cached_index()     L764
+// fn heading_completion_reverts_to_disk_after_target_close()       L808
+// fn hover_on_nonexistent_target_returns_none()                    L895
+// fn diagnostics_include_missing_heading_anchor_errors()           L930
 // ---------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -557,10 +557,12 @@ fn diagnostics_publish_on_open_change_and_close() {
         .as_array()
         .expect("diagnostics array on open");
     assert!(!open_diags.is_empty());
-    assert!(open_diags[0]["message"]
-        .as_str()
-        .expect("diagnostic message")
-        .contains("target file not found"));
+    assert!(
+        open_diags[0]["message"]
+            .as_str()
+            .expect("diagnostic message")
+            .contains("target file not found")
+    );
 
     session.send(json!({
         "jsonrpc": "2.0",
@@ -658,10 +660,12 @@ fn watched_file_events_refresh_cached_index_and_diagnostics() {
         .as_array()
         .expect("diagnostics array after move");
     assert!(!stale_diags.is_empty());
-    assert!(stale_diags[0]["message"]
-        .as_str()
-        .expect("stale diagnostic message")
-        .contains("target file not found: b.md"));
+    assert!(
+        stale_diags[0]["message"]
+            .as_str()
+            .expect("stale diagnostic message")
+            .contains("target file not found: b.md")
+    );
 
     session.send(json!({
         "jsonrpc": "2.0",
@@ -948,10 +952,12 @@ fn diagnostics_include_missing_heading_anchor_errors() {
         .as_array()
         .expect("diagnostics array");
     assert!(!diagnostics.is_empty());
-    assert!(diagnostics[0]["message"]
-        .as_str()
-        .expect("diagnostic message")
-        .contains("target heading not found"));
+    assert!(
+        diagnostics[0]["message"]
+            .as_str()
+            .expect("diagnostic message")
+            .contains("target heading not found")
+    );
 
     session.shutdown();
 }

@@ -8,7 +8,7 @@ labels:
   - spec
 ---
 
-# 0006 :: Realtime Multiplayer Workspace
+# ISS-0006 :: Realtime Multiplayer Workspace
 
 Build a realtime-first collaborative workspace for knowledge bases, with shared state for both humans and agents.
 

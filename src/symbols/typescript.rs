@@ -7,7 +7,7 @@ use super::{
 };
 
 // --------------------------------
-// ## Index
+// src/symbols/typescript.rs
 //
 // fn extract()                 L20
 // fn method_parent()          L135

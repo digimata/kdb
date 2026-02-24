@@ -4,16 +4,17 @@ use std::path::Path;
 use tempfile::tempdir;
 
 // ----------------------------------------------------------------------------------
-// ## Index
+// tests/fmt.rs
 //
-// fn write_file()                                                                L19
-// fn write_root_config()                                                         L27
-// fn format_workspace_formats_supported_languages_with_readable_rows()           L32
-// fn format_workspace_places_block_after_language_preamble()                     L88
-// fn format_workspace_is_idempotent()                                           L134
-// fn format_workspace_replaces_existing_index_block_in_preamble()               L156
-// fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L174
-// fn assert_index_between()                                                     L199
+// fn write_file()                                                                L20
+// fn write_root_config()                                                         L28
+// fn format_workspace_formats_supported_languages_with_readable_rows()           L33
+// fn format_workspace_places_block_after_language_preamble()                     L89
+// fn format_workspace_is_idempotent()                                           L135
+// fn format_workspace_replaces_existing_index_block_in_preamble()               L157
+// fn format_workspace_replaces_path_like_header_block_after_file_move()         L175
+// fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L194
+// fn assert_index_between()                                                     L219
 // ----------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -59,26 +60,26 @@ fn format_workspace_formats_supported_languages_with_readable_rows() {
     assert_eq!(report.updated_files, 4);
 
     let rust = fs::read_to_string(temp.path().join("src/lib.rs")).expect("read rust file");
-    assert!(rust.contains("// ## Index"));
+    assert!(rust.contains("// src/lib.rs"));
     assert!(rust.contains("// struct User"));
     assert!(rust.contains("//   fn User::name()"));
     assert!(rust.contains("// fn build()"));
 
     let ts = fs::read_to_string(temp.path().join("web/app.ts")).expect("read ts file");
-    assert!(ts.contains("// ## Index"));
+    assert!(ts.contains("// web/app.ts"));
     assert!(ts.contains("// class Service"));
     assert!(ts.contains("//   fn Service::run()"));
     assert!(ts.contains("// fn helper()"));
     assert!(ts.contains("// fn make()"));
 
     let py = fs::read_to_string(temp.path().join("scripts/tool.py")).expect("read python file");
-    assert!(py.contains("# ## Index"));
+    assert!(py.contains("# scripts/tool.py"));
     assert!(py.contains("# class Greeter"));
     assert!(py.contains("#   fn Greeter::hi()"));
     assert!(py.contains("# fn util()"));
 
     let go = fs::read_to_string(temp.path().join("cmd/main.go")).expect("read go file");
-    assert!(go.contains("// ## Index"));
+    assert!(go.contains("// cmd/main.go"));
     assert!(go.contains("// struct Server"));
     assert!(go.contains("// fn Start()"));
     assert!(go.contains("//   fn Server::Run()"));
@@ -113,21 +114,21 @@ fn format_workspace_places_block_after_language_preamble() {
     format_workspace(temp.path(), &[]).expect("format workspace");
 
     let rust = fs::read_to_string(temp.path().join("src/lib.rs")).expect("read rust file");
-    assert_index_between(&rust, "use std::fmt;", "pub fn run() {}", "// ## Index");
+    assert_index_between(&rust, "use std::fmt;", "pub fn run() {}", "// src/lib.rs");
 
     let ts = fs::read_to_string(temp.path().join("web/app.ts")).expect("read ts file");
     assert_index_between(
         &ts,
         "import fs from \"fs\";",
         "export function run() {}",
-        "// ## Index",
+        "// web/app.ts",
     );
 
     let py = fs::read_to_string(temp.path().join("scripts/tool.py")).expect("read python file");
-    assert_index_between(&py, "import os", "def run():", "# ## Index");
+    assert_index_between(&py, "import os", "def run():", "# scripts/tool.py");
 
     let go = fs::read_to_string(temp.path().join("cmd/main.go")).expect("read go file");
-    assert_index_between(&go, "import \"fmt\"", "func run() {}", "// ## Index");
+    assert_index_between(&go, "import \"fmt\"", "func run() {}", "// cmd/main.go");
 }
 
 #[test]
@@ -168,6 +169,25 @@ fn format_workspace_replaces_existing_index_block_in_preamble() {
     let rust = fs::read_to_string(temp.path().join("lib.rs")).expect("read rust file");
     assert!(!rust.contains("stale"));
     assert!(rust.contains("// fn fresh()"));
+}
+
+#[test]
+fn format_workspace_replaces_path_like_header_block_after_file_move() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "src/new_name.rs",
+        "// old/path.rs\n//\n// fn stale()  L1\n\nfn fresh() {}\n",
+    );
+
+    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    assert_eq!(report.updated_files, 1);
+
+    let rust = fs::read_to_string(temp.path().join("src/new_name.rs")).expect("read rust file");
+    assert!(rust.contains("// src/new_name.rs"));
+    assert!(!rust.contains("old/path.rs"));
+    assert!(!rust.contains("stale"));
 }
 
 #[test]

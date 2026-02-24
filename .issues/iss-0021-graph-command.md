@@ -7,7 +7,7 @@ labels:
   - feat
 ---
 
-# 0021 :: kdb graph Command
+# ISS-0021 :: kdb graph Command
 
 ## Intent
 

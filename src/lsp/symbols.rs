@@ -15,7 +15,7 @@ use crate::index::{Heading, parse_markdown};
 use super::backend::Backend;
 
 // ----------------------------------
-// ## Index
+// src/lsp/symbols.rs
 //
 // struct SymbolNode              L28
 // fn document_symbol()           L36

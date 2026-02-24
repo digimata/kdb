@@ -1,7 +1,7 @@
 use zed_extension_api as zed;
 
 // ------------------------------------------------------
-// ## Index
+// extensions/zed/src/lib.rs
 //
 // struct KdbZedExtension                             L11
 //   fn KdbZedExtension::new()                        L14

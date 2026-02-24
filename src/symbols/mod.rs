@@ -8,7 +8,7 @@ use tree_sitter::{Language, Node, Parser};
 mod go;
 mod python;
 // -------------------------------------
-// ## Index
+// src/symbols/mod.rs
 //
 // enum CodeLanguage                 L41
 // enum SymbolKind                   L52

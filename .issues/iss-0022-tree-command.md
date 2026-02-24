@@ -8,7 +8,7 @@ labels:
   - cli
 ---
 
-# 0022 :: kdb tree Command
+# ISS-0022 :: kdb tree Command
 
 ## Intent
 

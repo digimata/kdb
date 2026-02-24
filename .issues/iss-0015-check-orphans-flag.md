@@ -7,7 +7,7 @@ labels:
   - quality
 ---
 
-# 0015 :: Gate Orphan Listing Behind Flag
+# ISS-0015 :: Gate Orphan Listing Behind Flag
 
 ## Intent
 

@@ -21,7 +21,7 @@ use super::{
 };
 
 // ----------------------------------
-// ## Index
+// src/lsp/hover.rs
 //
 // fn hover()                     L47
 // fn rewrite_preview_links()    L114

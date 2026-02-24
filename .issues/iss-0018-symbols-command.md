@@ -7,7 +7,7 @@ labels:
   - feat
 ---
 
-# 0018 :: kdb symbols Command
+# ISS-0018 :: kdb symbols Command
 
 ## Intent
 

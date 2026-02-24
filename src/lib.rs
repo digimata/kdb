@@ -20,6 +20,6 @@ pub mod index;
 pub mod lsp;
 pub mod root;
 pub mod symbols;
-// ## Index
+// src/lib.rs
 //
 

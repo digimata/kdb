@@ -7,7 +7,7 @@ labels:
   - roadmap
 ---
 
-# 0002 :: Templates
+# ISS-0002 :: Templates
 
 Add reusable templates for creating notes with consistent structure and metadata.
 

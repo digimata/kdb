@@ -8,7 +8,7 @@ labels:
   - release
 ---
 
-# 0011 :: Install Script and Prebuilt Binaries
+# ISS-0011 :: Install Script and Prebuilt Binaries
 
 Provide a one-liner install for people who don't have Rust/cargo:
 

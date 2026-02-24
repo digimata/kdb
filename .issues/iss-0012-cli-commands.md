@@ -7,7 +7,7 @@ labels:
   - tracking
 ---
 
-# 0012 :: CLI Commands
+# ISS-0012 :: CLI Commands
 
 ## Intent
 

@@ -8,7 +8,7 @@ labels:
   - spec
 ---
 
-# 0003 :: Databases and Bases
+# ISS-0003 :: Databases and Bases
 
 Use SQLite to power Bases-style views over markdown notes while keeping markdown as the source of truth.
 

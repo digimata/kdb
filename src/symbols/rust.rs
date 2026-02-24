@@ -7,7 +7,7 @@ use super::{
 };
 
 // -------------------------------
-// ## Index
+// src/symbols/rust.rs
 //
 // fn extract()                L19
 // fn method_parent()         L100

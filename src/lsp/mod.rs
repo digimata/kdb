@@ -17,6 +17,6 @@ mod semantic_tokens;
 mod symbols;
 
 pub use backend::serve;
-// ## Index
+// src/lsp/mod.rs
 //
 

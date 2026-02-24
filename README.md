@@ -61,6 +61,7 @@ kdb check [--orphans]  # compile — report all errors/warnings (orphans listed 
 kdb outline <file>     # print heading tree
 kdb symbols <path>     # print markdown/code symbols for one file
 kdb refs <target>      # find inbound refs to a file or heading (`--json`, `--count`)
+kdb deps <file>        # list outbound deps for a markdown file (`--json`)
 kdb orphans            # list orphan files
 kdb stubs              # list empty stubs
 kdb graph              # output dependency graph (dot format)

@@ -8,7 +8,7 @@ labels:
   - lsp
 ---
 
-# 0017 :: Syntax Highlighting for Code Index Headers
+# ISS-0017 :: Syntax Highlighting for Code Index Headers
 
 ## Intent
 

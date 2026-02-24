@@ -9,7 +9,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 // -------------------------
-// ## Index
+// src/root.rs
 //
 // fn config_path()      L26
 // fn find_root()        L34

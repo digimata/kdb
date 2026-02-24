@@ -7,7 +7,7 @@ labels:
   - feat
 ---
 
-# 0008 :: Installable KDB Packages
+# ISS-0008 :: Installable KDB Packages
 
 ## Intent
 

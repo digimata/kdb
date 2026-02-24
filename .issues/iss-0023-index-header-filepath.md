@@ -1,14 +1,14 @@
 ---
 id: 23
 title: Use file path as index block header
-status: proposed
+status: done
 priority: medium
 labels:
   - enhancement
   - fmt
 ---
 
-# 0023 :: Use file path as index block header
+# ISS-0023 :: Use file path as index block header
 
 ## Intent
 

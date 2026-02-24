@@ -1,7 +1,7 @@
 use kdb::symbols::{CodeLanguage, Symbol, SymbolKind, extract_symbols};
 
 // ---------------------------------------------------------
-// ## Index
+// tests/symbols.rs
 //
 // fn extract_symbols_rust_tracks_visibility()           L14
 // fn extract_symbols_typescript_tracks_visibility()     L37

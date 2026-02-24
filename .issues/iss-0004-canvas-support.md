@@ -7,7 +7,7 @@ labels:
   - roadmap
 ---
 
-# 0004 :: Canvas Support
+# ISS-0004 :: Canvas Support
 
 Add support for `.canvas` artifacts so visual maps can participate in kdb indexing and navigation workflows.
 

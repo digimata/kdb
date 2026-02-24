@@ -21,7 +21,7 @@ use super::backend::{
 };
 
 // --------------------------------------
-// ## Index
+// src/lsp/completion.rs
 //
 // fn completion()                    L38
 // enum CompletionContext             L80
