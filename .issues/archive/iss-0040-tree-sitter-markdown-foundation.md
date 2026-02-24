@@ -1,7 +1,7 @@
 ---
 id: 40
 title: Replace Markdown Engine with Tree-Sitter
-status: proposed
+status: done
 priority: high
 labels:
   - feat

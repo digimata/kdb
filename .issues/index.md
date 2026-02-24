@@ -2,43 +2,33 @@
 
 Local issue tracker for this kdb repo. Sorted by (status, priority).
 
-| ID | Title | Status | Priority |
+| Issue | Label | Status | Priority |
 | --- | --- | --- | --- |
-| [0012](iss-0012-cli-commands.md) | CLI Commands (tracking) | in_progress | high |
-| [0019](iss-0019-refs-command.md) | kdb refs Command | in_progress | high |
-| [0026](iss-0026-workspace-module-resolution.md) | Workspace Module Resolution | in_progress | high |
-| [0014](iss-0014-code-file-indexes.md) | Code File Index Headers | in_progress | medium |
-| [0011](iss-0011-install-script.md) | Install Script and Prebuilt Binaries | proposed | high |
-| [0028](iss-0028-code-symbol-refs.md) | Code Symbol References (`refs -s`) | proposed | high |
-| [0036](iss-0036-rust-workspace-module-resolution.md) | Rust Workspace Module Resolution | proposed | high |
-| [0038](iss-0038-python-package-discovery-resolution.md) | Python Package Discovery Resolution | proposed | high |
-| [0016](iss-0016-codemap.md) | Codemap | proposed | high |
-| [0013](iss-0013-code-file-links.md) | Code File Links | proposed | high |
-| [0007](iss-0007-production-readiness.md) | Production Readiness | proposed | high |
-| [0005](iss-0005-code-comment-links.md) | Code Comment Links Into KDB Docs | proposed | high |
-| [0006](iss-0006-realtime-workspace.md) | Realtime Multiplayer Workspace | proposed | high |
-| [0030](iss-0030-ignore-crate-file-walking.md) | Use `ignore` Crate for File Walking | done | high |
-| [0031](iss-0031-parallel-file-parsing.md) | Parallel Tree-Sitter File Parsing | proposed | high |
-| [0003](iss-0003-databases-bases.md) | Databases and Bases | proposed | high |
-| [0037](iss-0037-go-workspace-module-resolution.md) | Go Workspace Module Resolution (`go.work`) | proposed | medium |
-| [0035](iss-0035-root-relative-paths.md) | Root-Relative Path Support | proposed | medium |
-| [0034](iss-0034-performance-profiling.md) | Performance Profiling and Benchmarks | proposed | medium |
-| [0032](iss-0032-consolidate-check-flags.md) | Consolidate Stubs/Orphans into Check Flags | proposed | medium |
-| [0033](iss-0033-remove-outline-command.md) | Remove Outline Command (redundant with symbols) | proposed | medium |
-| [0029](iss-0029-persistent-index.md) | Persistent Disk-Backed Index | proposed | medium |
-| [0021](iss-0021-graph-command.md) | kdb graph Command | proposed | medium |
-| [0001](iss-0001-kdb-workspaces.md) | KDB Workspaces | proposed | medium |
-| [0002](iss-0002-templates.md) | Templates | proposed | medium |
-| [0008](iss-0008-installable-packages.md) | Installable KDB Packages | proposed | medium |
-| [0004](iss-0004-canvas-support.md) | Canvas Support | proposed | low |
-| [0024](iss-0024-native-symbol-display.md) | Language-Native Symbol Display | done | high |
-| [0025](iss-0025-symbol-body-and-code-refs.md) | Symbol Body Extraction (`symbols -s`) | done | high |
-| [0020](iss-0020-deps-command.md) | kdb deps Command | done | high |
-| [0018](iss-0018-symbols-command.md) | kdb symbols Command | done | high |
-| [0015](iss-0015-check-orphans-flag.md) | Gate Orphan Listing Behind Flag | done | medium |
-| [0023](iss-0023-index-header-filepath.md) | Use File Path as Index Block Header | done | medium |
-| [0017](iss-0017-index-syntax-highlighting.md) | ~~Syntax Highlighting for Code Index Headers~~ | merged into 0014 | medium |
+| [0012 — CLI Commands (tracking)](iss-0012-cli-commands.md) | feat | in_progress | high |
+| [0019 — kdb refs Command](iss-0019-refs-command.md) | feat | in_progress | high |
+| [0026 — Workspace Module Resolution](iss-0026-workspace-module-resolution.md) | feat | in_progress | high |
+| [0014 — Code File Index Headers](iss-0014-code-file-indexes.md) | feat | in_progress | medium |
+| [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | chore | proposed | high |
+| [0028 — Code Symbol References (`refs -s`)](iss-0028-code-symbol-refs.md) | feat | proposed | high |
+| [0038 — Python Package Discovery Resolution](iss-0038-python-package-discovery-resolution.md) | feat | proposed | high |
+| [0016 — Codemap](iss-0016-codemap.md) | feat | proposed | high |
+| [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | high |
+| [0007 — Production Readiness](iss-0007-production-readiness.md) | chore | proposed | high |
+| [0005 — Code Comment Links Into KDB Docs](iss-0005-code-comment-links.md) | feat | proposed | high |
+| [0006 — Realtime Multiplayer Workspace](iss-0006-realtime-workspace.md) | feat | proposed | high |
+| [0031 — Parallel Tree-Sitter File Parsing](iss-0031-parallel-file-parsing.md) | feat | proposed | high |
+| [0003 — Databases and Bases](iss-0003-databases-bases.md) | feat | proposed | high |
+| [0035 — Root-Relative Path Support](iss-0035-root-relative-paths.md) | feat | proposed | medium |
+| [0034 — Performance Profiling and Benchmarks](iss-0034-performance-profiling.md) | chore | proposed | medium |
+| [0032 — Consolidate Stubs/Orphans into Check Flags](iss-0032-consolidate-check-flags.md) | refactor | proposed | medium |
+| [0033 — Remove Outline Command](iss-0033-remove-outline-command.md) | refactor | proposed | medium |
+| [0029 — Persistent Disk-Backed Index](iss-0029-persistent-index.md) | feat | proposed | medium |
+| [0021 — kdb graph Command](iss-0021-graph-command.md) | feat | proposed | medium |
+| [0001 — KDB Workspaces](iss-0001-kdb-workspaces.md) | feat | proposed | medium |
+| [0002 — Templates](iss-0002-templates.md) | feat | proposed | medium |
+| [0008 — Installable KDB Packages](iss-0008-installable-packages.md) | feat | proposed | medium |
+| [0004 — Canvas Support](iss-0004-canvas-support.md) | feat | proposed | low |
 
-Lifecycle:
+Labels: `feat` · `bug` · `refactor` · `chore`
 
-`proposed` → `planned` → `in_progress` → `done`
+Lifecycle: `proposed` → `planned` → `in_progress` → `done`

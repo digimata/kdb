@@ -1,7 +1,7 @@
 ---
 id: 39
 title: Markdown Symbol Body Extraction
-status: proposed
+status: done
 priority: high
 labels:
   - feat

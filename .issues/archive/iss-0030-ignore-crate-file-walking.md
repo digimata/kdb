@@ -20,7 +20,7 @@ Replace our hand-rolled file discovery with ripgrep's `ignore` crate. It handles
 
 - File discovery is currently duplicated in `src/index/mod.rs` and `src/fmt/mod.rs` using `walkdir::WalkDir`, local `IGNORED_DIRS`, custom `GlobSet` compilation, and manual `path_is_ignored` checks.
 - This approach misses important ignore semantics that `ignore` already handles correctly (nested `.gitignore`, `.ignore`, negation patterns, and parent traversal).
-- We already have config-based ignores via `[index].ignore` in `.kdb/config.toml` (`src/config.rs`), so this migration must preserve that behavior while adding `.kdbignore` support.
+- We already have config-based ignores via `[index].ignore` in `.kdb/config.toml` (`src/config.rs`), so this migration must preserve that behavior as the project-local ignore mechanism.
 - Existing ignore behavior is covered in `tests/index.rs`, `tests/fmt.rs`, and `tests/cli.rs`; these provide the baseline pattern to extend rather than replacing test style.
 - `iss-0031` still handles parse fan-out; this issue can adopt `WalkParallel` now for traversal while keeping parse semantics unchanged.
 
@@ -46,14 +46,14 @@ Replace our hand-rolled file discovery with ripgrep's `ignore` crate. It handles
    - What it does: replace `discover_code_files_in_scope` walking/filtering logic with the shared discovery helper for workspace and scoped path formatting, backed by `WalkParallel`.
    - Key decisions or trade-offs: keep language filtering in `fmt` (via `language_for_path`) so formatter ownership stays local and behavior parity is clear.
 
-5. Wire `.kdbignore` and config ignores into walker setup
+5. Wire config ignores into walker setup
    - What file: `src/config.rs` (and discovery plumbing call sites)
-   - What it does: expose `.kdbignore` as a custom ignore filename for `WalkBuilder` and keep `[index].ignore` patterns applied so existing projects continue to work unchanged.
-   - Key decisions or trade-offs: support both config and file-based ignores for backward compatibility; no breaking migration from config to file is required in this issue.
+   - What it does: keep `[index].ignore` from `.kdb/config.toml` applied alongside native `ignore` crate behavior (`.gitignore`, `.ignore`).
+   - Key decisions or trade-offs: keep one project-local ignore source (config) to avoid split ownership between config and another ignore file.
 
 6. Extend discovery-focused tests
    - What file: `tests/index.rs`, `tests/fmt.rs`, `tests/cli.rs`
-   - What it does: add coverage for `.gitignore` and `.kdbignore` behavior (including nested ignore files) and confirm existing config ignores still apply.
+   - What it does: add coverage for `.gitignore` behavior (including nested ignore files + negation) and confirm existing config ignores still apply.
    - Key decisions or trade-offs: prefer small tempdir fixtures that isolate one ignore rule each; this keeps failures diagnosable and avoids brittle integration-only assertions.
 
 ## Files touched
@@ -67,8 +67,8 @@ Replace our hand-rolled file discovery with ripgrep's `ignore` crate. It handles
 │ src/discovery.rs     │ Create(shared WalkBuilder + rel-path collection helpers) │
 │ src/index/mod.rs     │ Edit(use shared ignore-based markdown discovery)          │
 │ src/fmt/mod.rs       │ Edit(use shared ignore-based code discovery)              │
-│ src/config.rs        │ Edit(wire `.kdbignore` + config ignore inputs)           │
-│ tests/index.rs       │ Edit(add `.gitignore`/`.kdbignore` index coverage)       │
+│ src/config.rs        │ Edit(keep config as project-local ignore source)          │
+│ tests/index.rs       │ Edit(add `.gitignore` index coverage)                     │
 │ tests/fmt.rs         │ Edit(add formatter discovery ignore coverage)             │
 │ tests/cli.rs         │ Edit(add end-to-end ignore behavior checks)               │
 └──────────────────────┴──────────────────────────────────────────────────────────┘
@@ -83,5 +83,5 @@ Replace our hand-rolled file discovery with ripgrep's `ignore` crate. It handles
 - Repeat `cargo test --test index` and `cargo test --test fmt` at least twice locally to smoke-check deterministic ordering under parallel walk collection.
 - Manual sanity checks in a temp project:
   1. add a root and nested `.gitignore` and confirm ignored files are not indexed/formatted.
-  2. add `.kdbignore` and confirm it applies alongside `[index].ignore` from `.kdb/config.toml`.
+  2. add `[index].ignore` patterns in `.kdb/config.toml` and confirm they apply alongside `.gitignore`.
   3. add a negated `.gitignore` pattern and confirm un-ignored files are discovered.
