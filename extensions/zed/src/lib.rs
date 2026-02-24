@@ -1,12 +1,12 @@
 use zed_extension_api as zed;
 
-// ------------------------------------------------------
+// -------------------------------------
 // extensions/zed/src/lib.rs
 //
-// struct KdbZedExtension                             L11
-//   fn KdbZedExtension::new()                        L14
-//   fn KdbZedExtension::language_server_command()    L18
-// ------------------------------------------------------
+// struct KdbZedExtension            L11
+//   fn new()                        L14
+//   fn language_server_command()    L18
+// -------------------------------------
 
 struct KdbZedExtension;
 
@@ -30,7 +30,7 @@ impl zed::Extension for KdbZedExtension {
         let root = worktree.root_path();
 
         Ok(zed::Command {
-            command: format!("{root}/target/debug/kdb"),
+            command: "kdb".to_string(),
             args: vec!["lsp".to_string(), root],
             env: Vec::new(),
         })

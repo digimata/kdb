@@ -12,7 +12,13 @@ version = "0.7.0"
 
 [language_servers.kdb]
 name = "kdb"
-languages = ["Markdown"]
+languages = ["Markdown", "Rust", "TypeScript", "TSX", "JavaScript", "Python", "Go"]
 
 [language_servers.kdb.language_ids]
 Markdown = "markdown"
+Rust = "rust"
+TypeScript = "typescript"
+TSX = "typescriptreact"
+JavaScript = "javascript"
+Python = "python"
+Go = "go"
