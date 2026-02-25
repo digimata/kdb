@@ -17,45 +17,51 @@ mod tsjs;
 
 pub use go::GoWorkspaceCache;
 pub use python::PythonWorkspaceCache;
-pub use rust::{RustWorkspaceCache, RustWorkspaceCrate};
-
-// ------------------------------------------------
+// ---------------------------------------------
 // src/resolve/mod.rs
 //
-// mod go                                       L13
-// mod python                                   L14
-// mod rust                                     L15
-// mod tsjs                                     L16
-// pub type WorkspacePackages                   L57
-// pub struct WorkspaceCaches                   L60
-//   pub fn build()                             L68
-// pub enum ImportKind                          L80
-// pub struct ResolvedImport                    L88
-// pub struct WorkspaceImportIndex              L97
-// pub fn build_workspace_import_index()       L105
-// pub fn resolve_imports_for_language()       L148
-// pub(crate) fn collect_tsjs_specifiers()     L174
-// pub(crate) fn collect_rust_mod_and_use()    L178
-// const IGNORED_DIRS                          L182
-// fn build_ignore_globset()                   L196
-// fn discover_code_files()                    L209
-// pub(super) fn sanitize_specifier()          L264
-// pub(super) fn normalize_identifier()        L281
-// pub(super) fn resolve_with_exts()           L309
-// pub(super) fn resolve_file()                L335
-// fn canonicalize_existing_rel_path()         L344
-// pub(super) fn list_go_package_files()       L382
-// pub(super) fn build_line_starts()           L416
-// pub(super) fn line_number_for_offset()      L426
-// pub(super) fn normalize_rel_path()          L435
-// pub(super) fn slash_path()                  L454
-// pub(super) fn to_root_relative()            L458
-// fn rel_path_from_root()                     L463
-// fn path_is_ignored()                        L468
-// ------------------------------------------------
+// mod go                                    L13
+// mod python                                L14
+// mod rust                                  L15
+// mod tsjs                                  L16
+// pub type WorkspacePackages                L62
+// pub struct WorkspaceCaches                L66
+//   pub fn build()                          L75
+// pub enum ImportKind                       L88
+// pub struct ResolvedImport                 L98
+// pub(crate) trait LanguageResolver        L111
+// pub struct WorkspaceImportIndex          L117
+// pub fn build_workspace_import_index()    L125
+// pub fn resolve_imports_for_language()    L170
+// const IGNORED_DIRS                       L197
+// fn build_ignore_globset()                L211
+// fn discover_code_files()                 L224
+// pub(super) fn sanitize_specifier()       L279
+// pub(super) fn normalize_identifier()     L296
+// pub(super) fn resolve_with_exts()        L324
+// pub(super) fn resolve_file()             L350
+// fn canonicalize_existing_rel_path()      L359
+// pub(super) fn list_go_package_files()    L397
+// pub(super) fn normalize_rel_path()       L431
+// pub(super) fn slash_path()               L450
+// pub(super) fn to_root_relative()         L454
+// fn rel_path_from_root()                  L459
+// fn path_is_ignored()                     L464
+// ---------------------------------------------
 
+pub(crate) use rust::collect_mod_and_use;
+pub use rust::{RustWorkspaceCache, RustWorkspaceCrate};
+pub(crate) use tsjs::collect_specifiers;
+
+pub(crate) use go::GoResolver;
+pub(crate) use python::PythonResolver;
+pub(crate) use rust::RustResolver;
+pub(crate) use tsjs::TsjsResolver;
+
+/// Map from workspace package name to its root directory (relative to project root).
 pub type WorkspacePackages = HashMap<String, PathBuf>;
 
+/// Pre-built caches for each language's workspace resolution.
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceCaches {
     pub workspace_packages: WorkspacePackages,
@@ -65,6 +71,7 @@ pub struct WorkspaceCaches {
 }
 
 impl WorkspaceCaches {
+    /// Build all language workspace caches for the given project root.
     pub fn build(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
         let ignore_set = build_ignore_globset(ignore_patterns)?;
         Ok(Self {
@@ -76,6 +83,7 @@ impl WorkspaceCaches {
     }
 }
 
+/// Classification of an import's relationship to the project.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ImportKind {
     Relative,
@@ -84,6 +92,8 @@ pub enum ImportKind {
     External,
 }
 
+/// A single resolved import: the raw specifier, its resolved file path (if
+/// local), its kind, the names it introduces, and its source line number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedImport {
     pub raw: String,
@@ -93,6 +103,17 @@ pub struct ResolvedImport {
     pub line: usize,
 }
 
+/// Contract for language-specific import resolution.
+///
+/// Each language resolver takes a source file path and its contents, and
+/// returns the list of resolved imports found in that file. Dispatch remains
+/// static (no `Box<dyn>`); the trait enforces a uniform API across languages.
+pub(crate) trait LanguageResolver {
+    /// Resolve all imports in `source` as seen from `source_file`.
+    fn resolve(&self, source_file: &Path, source: &str) -> Vec<ResolvedImport>;
+}
+
+/// Complete import index for a workspace: caches plus per-file resolved imports.
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceImportIndex {
     pub workspace_packages: WorkspacePackages,
@@ -102,6 +123,8 @@ pub struct WorkspaceImportIndex {
     pub file_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
 }
 
+/// Scan every code file under `root` and resolve all imports, returning the
+/// complete workspace import index.
 pub fn build_workspace_import_index(
     root: &Path,
     ignore_patterns: &[String],
@@ -145,6 +168,8 @@ pub fn build_workspace_import_index(
     })
 }
 
+/// Resolve all imports in a single source file, dispatching to the appropriate
+/// language-specific resolver.
 pub fn resolve_imports_for_language(
     root: &Path,
     source_file: &Path,
@@ -154,29 +179,22 @@ pub fn resolve_imports_for_language(
 ) -> Vec<ResolvedImport> {
     match language {
         CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
-            let resolver = tsjs::TsjsResolver::new(root, &workspace_caches.workspace_packages);
+            let resolver = TsjsResolver::new(root, &workspace_caches.workspace_packages);
             resolver.resolve(source_file, source)
         }
-        CodeLanguage::Rust => workspace_caches
-            .rust_workspace
-            .resolve(root, source_file, source),
-        CodeLanguage::Go => workspace_caches
-            .go_workspace
-            .resolve(root, source_file, source),
+        CodeLanguage::Rust => {
+            let resolver = RustResolver::new(root, &workspace_caches.rust_workspace);
+            resolver.resolve(source_file, source)
+        }
+        CodeLanguage::Go => {
+            let resolver = GoResolver::new(root, &workspace_caches.go_workspace);
+            resolver.resolve(source_file, source)
+        }
         CodeLanguage::Python => {
-            workspace_caches
-                .python_workspace
-                .resolve(root, source_file, source)
+            let resolver = PythonResolver::new(root, &workspace_caches.python_workspace);
+            resolver.resolve(source_file, source)
         }
     }
-}
-
-pub(crate) fn collect_tsjs_specifiers(source_file: &Path, source: &str) -> Vec<String> {
-    tsjs::collect_specifiers(source_file, source)
-}
-
-pub(crate) fn collect_rust_mod_and_use(source: &str) -> (Vec<String>, Vec<String>) {
-    rust::collect_mod_and_use(source)
 }
 
 const IGNORED_DIRS: &[&str] = &[
@@ -261,6 +279,8 @@ fn discover_code_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>
     Ok(paths)
 }
 
+/// Strip query strings and fragment hashes from a specifier, returning `None`
+/// if the result is empty.
 pub(super) fn sanitize_specifier(raw: &str) -> Option<String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -278,6 +298,8 @@ pub(super) fn sanitize_specifier(raw: &str) -> Option<String> {
     }
 }
 
+/// Normalize a raw binding name: strip `type ` prefixes, leading underscores,
+/// trailing punctuation, and return `None` if nothing remains.
 pub(super) fn normalize_identifier(raw: &str) -> Option<String> {
     let value = raw.trim();
     if value.is_empty() {
@@ -306,6 +328,8 @@ pub(super) fn normalize_identifier(raw: &str) -> Option<String> {
     }
 }
 
+/// Try to resolve `base` as a file, appending each extension in `exts` and
+/// also checking for `index.<ext>` directories.
 pub(super) fn resolve_with_exts(root: &Path, base: &Path, exts: &[&str]) -> Option<PathBuf> {
     if base.extension().is_some() {
         return resolve_file(root, base);
@@ -332,6 +356,8 @@ pub(super) fn resolve_with_exts(root: &Path, base: &Path, exts: &[&str]) -> Opti
     None
 }
 
+/// Resolve a candidate relative path to a file, returning the case-corrected
+/// relative path if the file exists.
 pub(super) fn resolve_file(root: &Path, candidate: &Path) -> Option<PathBuf> {
     let rel = normalize_rel_path(candidate)?;
     if !root.join(&rel).is_file() {
@@ -379,6 +405,7 @@ fn canonicalize_existing_rel_path(root: &Path, rel: &Path) -> PathBuf {
     canonical
 }
 
+/// List all `.go` files in a directory, returning sorted relative paths.
 pub(super) fn list_go_package_files(root: &Path, dir: &Path) -> Vec<PathBuf> {
     let Some(rel_dir) = normalize_rel_path(dir) else {
         return Vec::new();
@@ -413,25 +440,8 @@ pub(super) fn list_go_package_files(root: &Path, dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-pub(super) fn build_line_starts(content: &str) -> Vec<usize> {
-    let mut starts = vec![0];
-    for (index, byte) in content.bytes().enumerate() {
-        if byte == b'\n' {
-            starts.push(index + 1);
-        }
-    }
-    starts
-}
-
-pub(super) fn line_number_for_offset(line_starts: &[usize], byte_index: usize) -> usize {
-    let line_idx = match line_starts.binary_search(&byte_index) {
-        Ok(index) => index,
-        Err(0) => 0,
-        Err(index) => index - 1,
-    };
-    line_idx + 1
-}
-
+/// Normalize a relative path by resolving `.` and `..` components, returning
+/// `None` if the path escapes the root.
 pub(super) fn normalize_rel_path(path: &Path) -> Option<PathBuf> {
     let mut normalized = PathBuf::new();
 
@@ -451,10 +461,12 @@ pub(super) fn normalize_rel_path(path: &Path) -> Option<PathBuf> {
     Some(normalized)
 }
 
+/// Convert a path to a forward-slash string for glob matching.
 pub(super) fn slash_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+/// Strip `root` from an absolute path and normalize the remainder.
 pub(super) fn to_root_relative(root: &Path, abs_path: &Path) -> Option<PathBuf> {
     let rel = abs_path.strip_prefix(root).ok()?;
     normalize_rel_path(rel)

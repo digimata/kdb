@@ -1,13 +1,13 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::fs;
 use std::path::Path;
 
 use crate::config;
-use crate::index::{parse_markdown, section_byte_bounds, section_line_bounds, VaultIndex};
+use crate::index::{VaultIndex, parse_markdown, section_byte_bounds, section_line_bounds};
 use crate::lang::CodeLanguage;
 
 use super::render::{self, SymbolBodyRow, SymbolRow};
-use super::{extract_symbol_body, extract_symbols, Symbol};
+use super::{Symbol, extract_symbol_body, extract_symbols};
 
 // ----------------------------------------
 // src/symbols/query.rs
@@ -66,7 +66,7 @@ pub fn collect_rows(root: &Path, file_abs: &Path, rel_path: &Path) -> Result<Vec
                 .cmp(&right.line)
                 .then_with(|| left.name.cmp(&right.name))
         });
-        symbols.into_iter().map(render::code_symbol_row).collect()
+        symbols.into_iter().map(SymbolRow::from).collect()
     } else {
         bail!("unsupported file type for symbols: {}", rel_path.display());
     };

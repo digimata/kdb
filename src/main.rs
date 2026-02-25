@@ -10,7 +10,11 @@ use std::path::PathBuf;
 // -----------------------
 
 #[derive(Debug, Parser)]
-#[command(name = "kdb", version, about = "Code intelligence CLI and LSP for knowledge bases")]
+#[command(
+    name = "kdb",
+    version,
+    about = "Code intelligence CLI and LSP for knowledge bases"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,

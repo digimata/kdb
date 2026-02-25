@@ -1,6 +1,6 @@
 use kdb::index::{
-    normalize_rel_path, parse_markdown, parse_markdown_target, parse_wikilink_target,
-    resolve_target_path, slug_anchor, HeadingKey, LinkKind, LinkTarget, VaultIndex,
+    HeadingKey, LinkKind, LinkTarget, VaultIndex, normalize_rel_path, parse_markdown,
+    parse_markdown_target, parse_wikilink_target, resolve_target_path, slug_anchor,
 };
 use kdb::resolve::ImportKind;
 use std::fs;
@@ -274,9 +274,11 @@ fn vault_index_check_reports_broken_links_orphans_and_inbound_maps() {
     let report = index.check();
 
     assert_eq!(report.broken_links.len(), 1);
-    assert!(report.broken_links[0]
-        .reason
-        .contains("target file not found: missing.md"));
+    assert!(
+        report.broken_links[0]
+            .reason
+            .contains("target file not found: missing.md")
+    );
 
     assert_eq!(
         report.orphans,
@@ -348,9 +350,11 @@ fn vault_index_build_with_ignores_skips_matching_paths() {
 
     assert!(index.files.contains_key(Path::new("keep.md")));
     assert!(!index.files.contains_key(Path::new("archive/hidden.md")));
-    assert!(!index
-        .files
-        .contains_key(Path::new("archive/nested/deep.md")));
+    assert!(
+        !index
+            .files
+            .contains_key(Path::new("archive/nested/deep.md"))
+    );
 }
 
 #[test]
@@ -540,9 +544,11 @@ fn parse_markdown_ignores_wikilinks_in_inline_code() {
         .collect();
     // Inline code wikilinks may or may not be filtered — this test documents behavior
     // At minimum the real link must be present
-    assert!(wikilinks
-        .iter()
-        .any(|l| l.target.file.as_deref() == Some("actual/link")));
+    assert!(
+        wikilinks
+            .iter()
+            .any(|l| l.target.file.as_deref() == Some("actual/link"))
+    );
 }
 
 #[test]

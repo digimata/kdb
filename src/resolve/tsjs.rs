@@ -1,7 +1,7 @@
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use oxc_resolver::{ResolveOptions, Resolver, TsconfigDiscovery};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -11,67 +11,71 @@ use walkdir::WalkDir;
 use crate::lang::CodeLanguage;
 
 use super::{
-    IGNORED_DIRS, ImportKind, ResolvedImport, WorkspacePackages, normalize_identifier,
-    normalize_rel_path, path_is_ignored, resolve_file, resolve_with_exts, sanitize_specifier,
-    slash_path, to_root_relative,
+    IGNORED_DIRS, ImportKind, LanguageResolver, ResolvedImport, WorkspacePackages,
+    normalize_identifier, normalize_rel_path, path_is_ignored, resolve_file, resolve_with_exts,
+    sanitize_specifier, slash_path, to_root_relative,
 };
 
 // ---------------------------------------------------
 // src/resolve/tsjs.rs
 //
-// const TSJS_EXTS                                 L70
-// pub(super) struct TsjsResolver                  L74
-// enum ImportPattern                              L81
-// struct ImportRequest                            L90
-//   pub(super) fn new()                           L97
-//   pub(super) fn resolve()                      L127
-//   fn classify_local_kind()                     L162
-//   fn resolve_workspace_specifier()             L174
-//   fn collect_requests()                        L178
-//   fn parse_tree()                              L200
-//   fn walk_depth_first()                        L220
-//   fn classify()                                L249
-//   fn parse()                                   L284
-//   fn source_field()                            L328
-//   fn require_arg()                             L336
-//   fn bindings_before_source()                  L343
-//   fn declarator_name()                         L363
-//   fn first_named_child_of_kind()               L380
-//   fn node_text()                               L386
-//   fn string_literal_value()                    L395
-// struct ImportBindings                          L422
-//   fn from_import()                             L429
-//   fn from_require()                            L446
-//   fn from_braced()                             L461
-//   fn parse_segment()                           L498
-//   fn dedupe()                                  L522
-// pub(super) fn discover_workspace_packages()    L536
-// struct WorkspacePatternSet                     L614
-//   fn discover()                                L621
-//   fn compile_include()                         L647
-//   fn compile_exclude()                         L651
-//   fn path_allowed()                            L655
-//   fn read_pnpm_patterns()                      L674
-//   fn read_package_json_patterns()              L720
-//   fn compile_globset()                         L757
-//   fn globset_matches()                         L773
-// struct PackageManifest                         L790
-//   fn read_name()                               L793
-//   fn read_json()                               L803
-// struct WorkspaceMatch                          L814
-//   fn find()                                    L821
-//   fn resolve()                                 L831
-//   fn split_specifier()                         L883
-//   fn resolve_target()                          L913
-//   fn export_target()                           L924
-//   fn first_export_string()                     L954
+// const TSJS_EXTS                                 L72
+// pub(crate) struct TsjsResolver                  L78
+// enum ImportPattern                              L85
+// struct ImportRequest                            L94
+//   pub(super) fn new()                          L101
+//   pub(super) fn resolve()                      L131
+//   fn classify_local_kind()                     L166
+//   fn resolve_workspace_specifier()             L178
+//   fn collect_requests()                        L182
+//   fn parse_tree()                              L204
+//   fn walk_depth_first()                        L224
+//   fn resolve()                                 L253
+//   fn classify()                                L260
+//   fn parse()                                   L295
+//   fn source_field()                            L339
+//   fn require_arg()                             L347
+//   fn bindings_before_source()                  L354
+//   fn declarator_name()                         L374
+//   fn first_named_child_of_kind()               L391
+//   fn node_text()                               L397
+//   fn string_literal_value()                    L406
+// struct ImportBindings                          L433
+//   fn from_import()                             L440
+//   fn from_require()                            L457
+//   fn from_braced()                             L472
+//   fn parse_segment()                           L509
+//   fn dedupe()                                  L533
+// pub(crate) fn collect_specifiers()             L545
+// pub(super) fn discover_workspace_packages()    L558
+// struct WorkspacePatternSet                     L636
+//   fn discover()                                L643
+//   fn compile_include()                         L669
+//   fn compile_exclude()                         L673
+//   fn path_allowed()                            L677
+//   fn read_pnpm_patterns()                      L696
+//   fn read_package_json_patterns()              L742
+//   fn compile_globset()                         L779
+//   fn globset_matches()                         L795
+// struct PackageManifest                         L812
+//   fn read_name()                               L815
+//   fn read_json()                               L825
+// struct WorkspaceMatch                          L836
+//   fn find()                                    L843
+//   fn resolve()                                 L853
+//   fn split_specifier()                         L905
+//   fn resolve_target()                          L935
+//   fn export_target()                           L946
+//   fn first_export_string()                     L976
 // ---------------------------------------------------
 
 const TSJS_EXTS: &[&str] = &[
     "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "d.ts", "d.mts", "d.cts",
 ];
 
-pub(super) struct TsjsResolver<'a> {
+/// Resolves TypeScript/JavaScript import and require statements against the
+/// workspace packages and tsconfig paths.
+pub(crate) struct TsjsResolver<'a> {
     root: &'a Path,
     resolver: Resolver,
     workspace_packages: &'a WorkspacePackages,
@@ -241,6 +245,13 @@ impl<'a> TsjsResolver<'a> {
                 }
             }
         }
+    }
+}
+
+impl LanguageResolver for TsjsResolver<'_> {
+    /// Resolve all TypeScript/JavaScript imports in the given source file.
+    fn resolve(&self, source_file: &Path, source: &str) -> Vec<ResolvedImport> {
+        self.resolve(source_file, source)
     }
 }
 
@@ -529,6 +540,17 @@ impl ImportBindings {
         }
         deduped
     }
+}
+
+pub(crate) fn collect_specifiers(source_file: &Path, source: &str) -> Vec<String> {
+    let mut specifiers = BTreeSet::new();
+    for request in TsjsResolver::collect_requests(source_file, source) {
+        if let Some(specifier) = sanitize_specifier(&request.raw) {
+            specifiers.insert(specifier);
+        }
+    }
+
+    specifiers.into_iter().collect()
 }
 
 /// Discover workspace packages by walking the project tree for `package.json` files

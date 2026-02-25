@@ -26,7 +26,7 @@ use std::path::{Component, Path, PathBuf};
 
 use crate::discovery::{build_ignore_globset, discover_files, path_is_ignored};
 use crate::resolve::{
-    build_workspace_import_index, GoWorkspaceCache, ResolvedImport, RustWorkspaceCache,
+    GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, build_workspace_import_index,
 };
 
 pub use markdown::{

@@ -1,72 +1,290 @@
 use globset::GlobSet;
-use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
 use toml::Value as TomlValue;
+use tree_sitter::{Node, Parser};
 use walkdir::WalkDir;
 
-use super::{
-    ImportKind, ResolvedImport, build_line_starts, line_number_for_offset, normalize_identifier,
-    resolve_file,
-};
+use super::{ImportKind, LanguageResolver, ResolvedImport, normalize_identifier, resolve_file};
 
 // ----------------------------------------
 // src/resolve/rust.rs
 //
-// static MOD_RE                        L56
-// static USE_RE                        L61
-// struct ParsedManifest                L66
-// struct LocalDependency               L73
-// pub struct RustWorkspaceCrate        L81
-// pub struct RustWorkspaceCache        L90
-//   pub(super) fn build()              L95
-// fn discover_manifest_paths()        L168
-// fn parse_manifest()                 L219
-// fn parse_crate_root_files()         L258
-// fn push_manifest_entry_path()       L282
-// fn default_crate_root_files()       L291
-// fn normalize_manifest_path()        L299
-// fn manifest_src_root()              L307
-// fn collect_dependency_sections()    L315
-// fn parse_local_dependency()         L347
-// fn resolve_dependency_root()        L401
-// fn crate_root_for_name()            L425
-// fn crate_import_name()              L438
-// struct CrateContext                 L443
-//   pub(super) fn resolve()           L451
-// fn parse_use_prefix()               L512
-// fn resolve_mod_decl()               L524
-// fn resolve_context()                L549
-// fn find_crate_root()                L583
-// fn resolve_use()                    L602
-// fn classify_use_kind()              L681
-// fn rust_module_path()               L703
-// fn rust_crate_entry_path()          L720
-// fn rust_file_candidates()           L736
-// fn looks_like_module_segment()      L744
-// fn source_segments()                L752
-// fn imported_names()                 L774
-// fn split_brace_group()              L811
-// fn last_segment()                   L823
-// fn dedupe_names()                   L839
+// enum SourceImport                    L53
+// struct RustImportCollector           L60
+//   fn new()                           L66
+//   fn collect()                       L73
+//   fn parse_tree()                    L98
+//   fn walk_depth_first()             L105
+//   fn parse_mod_item()               L128
+//   fn parse_use_declaration()        L155
+//   fn use_path_from_text()           L176
+//   fn first_named_child_of_kind()    L191
+// fn collect_source_imports()         L198
+// pub(crate) fn collect_mod_and_use() L203
+// struct ParsedManifest               L219
+//   fn parse()                        L229
+//   fn src_root()                     L282
+// struct LocalDependency              L290
+// pub struct RustWorkspaceCrate       L298
+// pub struct RustWorkspaceCache       L307
+//   pub(super) fn build()             L312
+// pub(crate) struct RustResolver      L393
+//   fn resolve_source()               L404
+//   fn resolve()  [trait]             L451
+// struct CrateContext                 L457
+//   fn from_workspace()               L467
+//   fn resolve_mod_decl()             L502
+//   fn resolve_use()                  L524
+// fn discover_manifest_paths()        L607
+// fn parse_crate_root_files()         L649
+// fn push_manifest_entry_path()       L673
+// fn default_crate_root_files()       L682
+// fn normalize_manifest_path()        L690
+// fn collect_dependency_sections()    L698
+// fn parse_local_dependency()         L730
+// fn resolve_dependency_root()        L783
+// fn crate_root_for_name()            L807
+// fn crate_import_name()              L819
+// fn parse_use_prefix()               L824
+// fn find_crate_root()                L839
+// fn classify_use_kind()              L858
+// fn rust_module_path()               L878
+// fn rust_crate_entry_path()          L895
+// fn rust_file_candidates()           L911
+// fn looks_like_module_segment()      L919
+// fn source_segments()                L927
+// fn imported_names()                 L949
+// fn split_brace_group()              L988
+// fn last_segment()                  L1001
+// fn dedupe_names()                  L1014
 // ----------------------------------------
 
-static MOD_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;")
-        .expect("valid rust mod regex")
-});
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum SourceImport {
+    Mod { name: String, line: usize },
+    Use { path: String, line: usize },
+}
 
-static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([^;]+);").expect("valid rust use regex")
-});
+struct RustImportCollector<'src> {
+    source: &'src str,
+    source_bytes: &'src [u8],
+}
 
+impl<'src> RustImportCollector<'src> {
+    fn new(source: &'src str) -> Self {
+        Self {
+            source,
+            source_bytes: source.as_bytes(),
+        }
+    }
+
+    fn collect(&self) -> Vec<SourceImport> {
+        let Some(tree) = self.parse_tree() else {
+            return Vec::new();
+        };
+
+        let mut imports = Vec::new();
+        Self::walk_depth_first(tree.root_node(), |node| match node.kind() {
+            "mod_item" => {
+                if let Some(item) = self.parse_mod_item(node) {
+                    imports.push(item);
+                }
+            }
+            "use_declaration" => {
+                if let Some(item) = self.parse_use_declaration(node) {
+                    imports.push(item);
+                }
+            }
+            _ => {}
+        });
+
+        let mut seen = HashSet::new();
+        imports.retain(|item| seen.insert(item.clone()));
+        imports
+    }
+
+    fn parse_tree(&self) -> Option<tree_sitter::Tree> {
+        let mut parser = Parser::new();
+        let language: tree_sitter::Language = tree_sitter_rust::LANGUAGE.into();
+        parser.set_language(&language).ok()?;
+        parser.parse(self.source, None)
+    }
+
+    fn walk_depth_first(root: Node<'_>, mut visit: impl FnMut(Node<'_>)) {
+        let mut cursor = root.walk();
+
+        loop {
+            visit(cursor.node());
+
+            if cursor.goto_first_child() {
+                continue;
+            }
+
+            if cursor.goto_next_sibling() {
+                continue;
+            }
+
+            loop {
+                if !cursor.goto_parent() {
+                    return;
+                }
+                if cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn parse_mod_item(&self, node: Node<'_>) -> Option<SourceImport> {
+        if node.child_by_field_name("body").is_some() {
+            return None;
+        }
+
+        if !node
+            .utf8_text(self.source_bytes)
+            .ok()
+            .is_some_and(|text| text.trim_end().ends_with(';'))
+        {
+            return None;
+        }
+
+        let name_node = node
+            .child_by_field_name("name")
+            .or_else(|| Self::first_named_child_of_kind(node, "identifier"))?;
+        let name = name_node.utf8_text(self.source_bytes).ok()?.trim();
+        if name.is_empty() {
+            return None;
+        }
+
+        Some(SourceImport::Mod {
+            name: name.to_string(),
+            line: node.start_position().row as usize + 1,
+        })
+    }
+
+    fn parse_use_declaration(&self, node: Node<'_>) -> Option<SourceImport> {
+        let path = node
+            .child_by_field_name("argument")
+            .and_then(|argument| {
+                argument
+                    .utf8_text(self.source_bytes)
+                    .ok()
+                    .map(str::trim)
+                    .map(ToString::to_string)
+            })
+            .or_else(|| self.use_path_from_text(node))?;
+        if path.is_empty() {
+            return None;
+        }
+
+        Some(SourceImport::Use {
+            path,
+            line: node.start_position().row as usize + 1,
+        })
+    }
+
+    fn use_path_from_text(&self, node: Node<'_>) -> Option<String> {
+        let text = node.utf8_text(self.source_bytes).ok()?.trim();
+        let text = text.trim_end_matches(';').trim();
+        let text = text
+            .strip_prefix("use ")
+            .or_else(|| text.rsplit_once(" use ").map(|(_, rest)| rest))
+            .unwrap_or(text)
+            .trim();
+        if text.is_empty() {
+            None
+        } else {
+            Some(text.to_string())
+        }
+    }
+
+    fn first_named_child_of_kind<'tree>(node: Node<'tree>, kind: &str) -> Option<Node<'tree>> {
+        (0..node.named_child_count())
+            .filter_map(|index| node.named_child(index as u32))
+            .find(|child| child.kind() == kind)
+    }
+}
+
+/// Collect `mod` and `use` items from Rust source using tree-sitter.
+fn collect_source_imports(source: &str) -> Vec<SourceImport> {
+    RustImportCollector::new(source).collect()
+}
+
+/// Return `(mod_names, use_paths)` extracted from Rust source.
+pub(crate) fn collect_mod_and_use(source: &str) -> (Vec<String>, Vec<String>) {
+    let mut mods = Vec::new();
+    let mut uses = Vec::new();
+
+    for item in collect_source_imports(source) {
+        match item {
+            SourceImport::Mod { name, .. } => mods.push(name),
+            SourceImport::Use { path, .. } => uses.push(path),
+        }
+    }
+
+    (mods, uses)
+}
+
+/// Parsed contents of a `Cargo.toml` manifest.
 #[derive(Debug, Clone, Default)]
 struct ParsedManifest {
     package_name: Option<String>,
     crate_root_files: Vec<PathBuf>,
     dependencies: HashMap<String, LocalDependency>,
+}
+
+impl ParsedManifest {
+    /// Parse a `Cargo.toml` at `rel_manifest` within `root`, using `crate_root`
+    /// as the base directory for resolving relative paths in `[lib]`/`[[bin]]`.
+    fn parse(root: &Path, rel_manifest: &Path, crate_root: &Path) -> Option<Self> {
+        let raw = fs::read_to_string(root.join(rel_manifest)).ok()?;
+        let value = toml::from_str::<TomlValue>(&raw).ok()?;
+
+        let package_name = value
+            .get("package")
+            .and_then(TomlValue::as_table)
+            .and_then(|table| table.get("name"))
+            .and_then(TomlValue::as_str)
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(ToString::to_string);
+
+        let mut dependencies = HashMap::new();
+        let Some(root_table) = value.as_table() else {
+            return Some(ParsedManifest {
+                package_name,
+                crate_root_files: default_crate_root_files(crate_root),
+                dependencies,
+            });
+        };
+
+        let crate_root_files = parse_crate_root_files(root_table, crate_root);
+
+        collect_dependency_sections(root_table, crate_root, &mut dependencies);
+
+        if let Some(targets) = root_table.get("target").and_then(TomlValue::as_table) {
+            for target in targets.values().filter_map(TomlValue::as_table) {
+                collect_dependency_sections(target, crate_root, &mut dependencies);
+            }
+        }
+
+        Some(ParsedManifest {
+            package_name,
+            crate_root_files,
+            dependencies,
+        })
+    }
+
+    /// Derive the source root directory from the first crate root file,
+    /// falling back to `<crate_root>/src`.
+    fn src_root(&self, crate_root: &Path) -> PathBuf {
+        self.crate_root_files
+            .first()
+            .and_then(|entry| entry.parent().map(Path::to_path_buf))
+            .unwrap_or_else(|| crate_root.join("src"))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +295,8 @@ struct LocalDependency {
     workspace: bool,
 }
 
+/// A single Rust crate in the workspace: its name, source root, entry files,
+/// and maps from dependency import names to their source roots and entry files.
 #[derive(Debug, Clone, Default)]
 pub struct RustWorkspaceCrate {
     pub name: String,
@@ -86,12 +306,15 @@ pub struct RustWorkspaceCrate {
     pub dependency_entry_files: HashMap<String, Vec<PathBuf>>,
 }
 
+/// Cached Rust workspace data: maps crate roots to their parsed metadata.
 #[derive(Debug, Clone, Default)]
 pub struct RustWorkspaceCache {
     pub crates_by_root: HashMap<PathBuf, RustWorkspaceCrate>,
 }
 
 impl RustWorkspaceCache {
+    /// Build the workspace cache by discovering all `Cargo.toml` manifests,
+    /// parsing them, and resolving inter-crate dependency paths.
     pub(super) fn build(root: &Path, ignore_set: &GlobSet) -> Self {
         let manifests = discover_manifest_paths(root, ignore_set);
         let mut manifests_by_root = HashMap::new();
@@ -99,7 +322,7 @@ impl RustWorkspaceCache {
 
         for rel_manifest in manifests {
             let crate_root = rel_manifest.parent().unwrap_or(Path::new("")).to_path_buf();
-            let Some(manifest) = parse_manifest(root, &rel_manifest, &crate_root) else {
+            let Some(manifest) = ParsedManifest::parse(root, &rel_manifest, &crate_root) else {
                 continue;
             };
 
@@ -142,10 +365,8 @@ impl RustWorkspaceCache {
                     continue;
                 };
 
-                dependency_src_roots.insert(
-                    alias.clone(),
-                    manifest_src_root(&target_root, target_manifest),
-                );
+                dependency_src_roots
+                    .insert(alias.clone(), target_manifest.src_root(&target_root));
                 dependency_entry_files.insert(alias, target_manifest.crate_root_files.clone());
             }
 
@@ -153,7 +374,7 @@ impl RustWorkspaceCache {
                 crate_root.clone(),
                 RustWorkspaceCrate {
                     name,
-                    src_root: manifest_src_root(crate_root, manifest),
+                    src_root: manifest.src_root(crate_root),
                     crate_root_files: manifest.crate_root_files.clone(),
                     dependency_src_roots,
                     dependency_entry_files,
@@ -165,6 +386,232 @@ impl RustWorkspaceCache {
     }
 }
 
+/// Resolves Rust `mod` and `use` items against the workspace cache.
+pub(crate) struct RustResolver<'a> {
+    root: &'a Path,
+    workspace: &'a RustWorkspaceCache,
+}
+
+impl<'a> RustResolver<'a> {
+    /// Create a new resolver for the given project root and workspace cache.
+    pub(super) fn new(root: &'a Path, workspace: &'a RustWorkspaceCache) -> Self {
+        Self { root, workspace }
+    }
+
+    /// Walk the source for `mod` and `use` items, resolve each against the
+    /// crate context, and return the collected imports.
+    fn resolve_source(&self, source_file: &Path, source: &str) -> Vec<ResolvedImport> {
+        let crate_context = CrateContext::from_workspace(self.root, source_file, self.workspace);
+        let mut imports = Vec::new();
+
+        for item in collect_source_imports(source) {
+            match item {
+                SourceImport::Mod { name, line } => {
+                    let resolved_path =
+                        crate_context.resolve_mod_decl(self.root, source_file, &name);
+                    let kind = if resolved_path.is_some() {
+                        ImportKind::Relative
+                    } else {
+                        ImportKind::External
+                    };
+
+                    imports.push(ResolvedImport {
+                        raw: format!("mod {name}"),
+                        resolved_path,
+                        kind,
+                        names: vec![name],
+                        line,
+                    });
+                }
+                SourceImport::Use { path, line } => {
+                    let prefix = parse_use_prefix(&path);
+                    let resolved_path = prefix.as_deref().and_then(|value| {
+                        crate_context.resolve_use(self.root, source_file, value)
+                    });
+                    let kind = classify_use_kind(prefix.as_deref(), resolved_path.is_some());
+
+                    imports.push(ResolvedImport {
+                        raw: path.clone(),
+                        resolved_path,
+                        kind,
+                        names: imported_names(&path),
+                        line,
+                    });
+                }
+            }
+        }
+
+        imports
+    }
+}
+
+impl LanguageResolver for RustResolver<'_> {
+    /// Resolve all Rust imports in the given source file.
+    fn resolve(&self, source_file: &Path, source: &str) -> Vec<ResolvedImport> {
+        self.resolve_source(source_file, source)
+    }
+}
+
+/// Contextual information about the crate containing a source file: its source
+/// root, entry files, and dependency maps.
+#[derive(Debug, Clone)]
+struct CrateContext {
+    src_root: PathBuf,
+    crate_root_files: Vec<PathBuf>,
+    dependency_src_roots: HashMap<String, PathBuf>,
+    dependency_entry_files: HashMap<String, Vec<PathBuf>>,
+}
+
+impl CrateContext {
+    /// Build crate context for `source_file` by finding its enclosing crate in
+    /// the workspace cache. Falls back to sensible defaults when the file is
+    /// outside any known crate.
+    fn from_workspace(
+        root: &Path,
+        source_file: &Path,
+        rust_workspace: &RustWorkspaceCache,
+    ) -> Self {
+        let crate_root = find_crate_root(root, source_file).unwrap_or_default();
+        let cached = rust_workspace.crates_by_root.get(&crate_root);
+        let src_root = cached
+            .map(|crate_info| crate_info.src_root.clone())
+            .unwrap_or_else(|| {
+                if crate_root.as_os_str().is_empty() {
+                    PathBuf::from("src")
+                } else {
+                    crate_root.join("src")
+                }
+            });
+        let crate_root_files = cached
+            .map(|crate_info| crate_info.crate_root_files.clone())
+            .unwrap_or_else(|| default_crate_root_files(&crate_root));
+        let dependency_src_roots = cached
+            .map(|crate_info| crate_info.dependency_src_roots.clone())
+            .unwrap_or_default();
+        let dependency_entry_files = cached
+            .map(|crate_info| crate_info.dependency_entry_files.clone())
+            .unwrap_or_default();
+
+        Self {
+            src_root,
+            crate_root_files,
+            dependency_src_roots,
+            dependency_entry_files,
+        }
+    }
+
+    /// Resolve a `mod <name>;` declaration to a file path by looking for
+    /// `<name>.rs` or `<name>/mod.rs` relative to the source file's module
+    /// directory.
+    fn resolve_mod_decl(
+        &self,
+        root: &Path,
+        source_file: &Path,
+        name: &str,
+    ) -> Option<PathBuf> {
+        let mut module_dir = source_file.parent().unwrap_or(Path::new("")).to_path_buf();
+        if self
+            .crate_root_files
+            .iter()
+            .all(|crate_root_file| crate_root_file != source_file)
+        {
+            let stem = source_file.file_stem()?.to_str()?;
+            module_dir.push(stem);
+        }
+
+        let base = module_dir.join(name);
+        let file_candidate = base.with_extension("rs");
+        if let Some(path) = resolve_file(root, &file_candidate) {
+            return Some(path);
+        }
+
+        resolve_file(root, &base.join("mod.rs"))
+    }
+
+    /// Resolve a `use` path (after prefix extraction) to a file path, walking
+    /// through `crate`, `self`, `super`, or external crate prefixes.
+    fn resolve_use(
+        &self,
+        root: &Path,
+        source_file: &Path,
+        path: &str,
+    ) -> Option<PathBuf> {
+        let parts = path
+            .split("::")
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>();
+        if parts.is_empty() {
+            return None;
+        }
+
+        let mut cursor = 0usize;
+        let (mut module, src_root, resolve_crate_entry, entry_files) =
+            match parts.first().copied()? {
+                "crate" => {
+                    cursor += 1;
+                    (Vec::new(), self.src_root.as_path(), false, Vec::new())
+                }
+                "self" => {
+                    cursor += 1;
+                    (
+                        source_segments(source_file, &self.src_root)?,
+                        self.src_root.as_path(),
+                        false,
+                        Vec::new(),
+                    )
+                }
+                "super" => {
+                    let mut module = source_segments(source_file, &self.src_root)?;
+                    while cursor < parts.len() && parts[cursor] == "super" {
+                        module.pop()?;
+                        cursor += 1;
+                    }
+                    (module, self.src_root.as_path(), false, Vec::new())
+                }
+                crate_name => {
+                    let dependency_root = self.dependency_src_roots.get(crate_name)?;
+                    let entry_files = self
+                        .dependency_entry_files
+                        .get(crate_name)
+                        .cloned()
+                        .unwrap_or_default();
+                    cursor += 1;
+                    (Vec::new(), dependency_root.as_path(), true, entry_files)
+                }
+            };
+
+        while cursor < parts.len() {
+            let part = parts[cursor];
+            cursor += 1;
+            if part == "self" || part == "*" {
+                continue;
+            }
+
+            if resolve_crate_entry && !looks_like_module_segment(part) {
+                break;
+            }
+            module.push(part.to_string());
+        }
+
+        if module.is_empty() {
+            if resolve_crate_entry {
+                return rust_crate_entry_path(root, &entry_files, src_root);
+            }
+            return None;
+        }
+
+        rust_module_path(root, src_root, &module).or_else(|| {
+            if resolve_crate_entry {
+                rust_crate_entry_path(root, &entry_files, src_root)
+            } else {
+                None
+            }
+        })
+    }
+}
+
+/// Walk the directory tree under `root` to find all `Cargo.toml` files.
 fn discover_manifest_paths(root: &Path, ignore_set: &GlobSet) -> Vec<PathBuf> {
     let mut manifests = Vec::new();
 
@@ -216,45 +663,7 @@ fn discover_manifest_paths(root: &Path, ignore_set: &GlobSet) -> Vec<PathBuf> {
     manifests
 }
 
-fn parse_manifest(root: &Path, rel_manifest: &Path, crate_root: &Path) -> Option<ParsedManifest> {
-    let raw = fs::read_to_string(root.join(rel_manifest)).ok()?;
-    let value = toml::from_str::<TomlValue>(&raw).ok()?;
-
-    let package_name = value
-        .get("package")
-        .and_then(TomlValue::as_table)
-        .and_then(|table| table.get("name"))
-        .and_then(TomlValue::as_str)
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map(ToString::to_string);
-
-    let mut dependencies = HashMap::new();
-    let Some(root_table) = value.as_table() else {
-        return Some(ParsedManifest {
-            package_name,
-            crate_root_files: default_crate_root_files(crate_root),
-            dependencies,
-        });
-    };
-
-    let crate_root_files = parse_crate_root_files(root_table, crate_root);
-
-    collect_dependency_sections(root_table, crate_root, &mut dependencies);
-
-    if let Some(targets) = root_table.get("target").and_then(TomlValue::as_table) {
-        for target in targets.values().filter_map(TomlValue::as_table) {
-            collect_dependency_sections(target, crate_root, &mut dependencies);
-        }
-    }
-
-    Some(ParsedManifest {
-        package_name,
-        crate_root_files,
-        dependencies,
-    })
-}
-
+/// Parse `[lib]` and `[[bin]]` sections to find crate root files.
 fn parse_crate_root_files(table: &toml::value::Table, crate_root: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
@@ -279,6 +688,7 @@ fn parse_crate_root_files(table: &toml::value::Table, crate_root: &Path) -> Vec<
     files
 }
 
+/// Normalize and push a manifest entry path, deduplicating.
 fn push_manifest_entry_path(files: &mut Vec<PathBuf>, crate_root: &Path, raw: &str) {
     let Some(path) = normalize_manifest_path(crate_root, raw) else {
         return;
@@ -288,6 +698,7 @@ fn push_manifest_entry_path(files: &mut Vec<PathBuf>, crate_root: &Path, raw: &s
     }
 }
 
+/// Return the default set of crate root file candidates.
 fn default_crate_root_files(crate_root: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     for candidate in ["src/lib.rs", "src/main.rs", "src/mod.rs"] {
@@ -296,6 +707,7 @@ fn default_crate_root_files(crate_root: &Path) -> Vec<PathBuf> {
     files
 }
 
+/// Join a raw path from the manifest with the crate root and normalize.
 fn normalize_manifest_path(crate_root: &Path, raw: &str) -> Option<PathBuf> {
     let path = raw.trim();
     if path.is_empty() {
@@ -304,14 +716,8 @@ fn normalize_manifest_path(crate_root: &Path, raw: &str) -> Option<PathBuf> {
     super::normalize_rel_path(&crate_root.join(path))
 }
 
-fn manifest_src_root(crate_root: &Path, manifest: &ParsedManifest) -> PathBuf {
-    manifest
-        .crate_root_files
-        .first()
-        .and_then(|entry| entry.parent().map(Path::to_path_buf))
-        .unwrap_or_else(|| crate_root.join("src"))
-}
-
+/// Collect dependencies from `[dependencies]`, `[dev-dependencies]`, and
+/// `[build-dependencies]` sections.
 fn collect_dependency_sections(
     table: &toml::value::Table,
     crate_root: &Path,
@@ -344,6 +750,7 @@ fn collect_dependency_sections(
     }
 }
 
+/// Parse a single dependency entry from a Cargo.toml table section.
 fn parse_local_dependency(
     crate_root: &Path,
     alias: &str,
@@ -398,6 +805,8 @@ fn parse_local_dependency(
     })
 }
 
+/// Resolve a dependency to its crate root directory using its path, then
+/// name lookup, then workspace fallback.
 fn resolve_dependency_root(
     dependency: &LocalDependency,
     target_name: &str,
@@ -422,6 +831,7 @@ fn resolve_dependency_root(
     None
 }
 
+/// Look up a crate root by name, also trying the hyphenated variant.
 fn crate_root_for_name<'a>(
     crate_roots_by_name: &'a HashMap<String, PathBuf>,
     name: &str,
@@ -435,80 +845,12 @@ fn crate_root_for_name<'a>(
     })
 }
 
+/// Normalize a crate name into a valid Rust identifier (hyphens → underscores).
 fn crate_import_name(raw: &str) -> Option<String> {
     normalize_identifier(&raw.replace('-', "_"))
 }
 
-#[derive(Debug, Clone)]
-struct CrateContext {
-    src_root: PathBuf,
-    crate_root_files: Vec<PathBuf>,
-    dependency_src_roots: HashMap<String, PathBuf>,
-    dependency_entry_files: HashMap<String, Vec<PathBuf>>,
-}
-
-impl RustWorkspaceCache {
-    pub(super) fn resolve(
-        &self,
-        root: &Path,
-        source_file: &Path,
-        source: &str,
-    ) -> Vec<ResolvedImport> {
-        let line_starts = build_line_starts(source);
-        let crate_context = resolve_context(root, source_file, self);
-        let mut imports = Vec::new();
-
-        for captures in MOD_RE.captures_iter(source) {
-            let Some(full_match) = captures.get(0) else {
-                continue;
-            };
-            let Some(name) = captures.get(1).map(|value| value.as_str()) else {
-                continue;
-            };
-
-            let resolved_path = resolve_mod_decl(root, source_file, name, &crate_context);
-            let kind = if resolved_path.is_some() {
-                ImportKind::Relative
-            } else {
-                ImportKind::External
-            };
-
-            imports.push(ResolvedImport {
-                raw: format!("mod {name}"),
-                resolved_path,
-                kind,
-                names: vec![name.to_string()],
-                line: line_number_for_offset(&line_starts, full_match.start()),
-            });
-        }
-
-        for captures in USE_RE.captures_iter(source) {
-            let Some(full_match) = captures.get(0) else {
-                continue;
-            };
-            let Some(path) = captures.get(1).map(|value| value.as_str().trim()) else {
-                continue;
-            };
-
-            let prefix = parse_use_prefix(path);
-            let resolved_path = prefix
-                .as_deref()
-                .and_then(|value| resolve_use(root, source_file, value, &crate_context));
-            let kind = classify_use_kind(prefix.as_deref(), resolved_path.is_some());
-
-            imports.push(ResolvedImport {
-                raw: path.to_string(),
-                resolved_path,
-                kind,
-                names: imported_names(path),
-                line: line_number_for_offset(&line_starts, full_match.start()),
-            });
-        }
-
-        imports
-    }
-}
-
+/// Extract the use-path prefix before any brace group, comma, or `as` alias.
 fn parse_use_prefix(path: &str) -> Option<String> {
     let head = path.split('{').next().unwrap_or(path).trim();
     let head = head.split(',').next().unwrap_or(head).trim();
@@ -521,65 +863,8 @@ fn parse_use_prefix(path: &str) -> Option<String> {
     }
 }
 
-fn resolve_mod_decl(
-    root: &Path,
-    source_file: &Path,
-    name: &str,
-    context: &CrateContext,
-) -> Option<PathBuf> {
-    let mut module_dir = source_file.parent().unwrap_or(Path::new("")).to_path_buf();
-    if context
-        .crate_root_files
-        .iter()
-        .all(|crate_root_file| crate_root_file != source_file)
-    {
-        let stem = source_file.file_stem()?.to_str()?;
-        module_dir.push(stem);
-    }
-
-    let base = module_dir.join(name);
-    let file_candidate = base.with_extension("rs");
-    if let Some(path) = resolve_file(root, &file_candidate) {
-        return Some(path);
-    }
-
-    resolve_file(root, &base.join("mod.rs"))
-}
-
-fn resolve_context(
-    root: &Path,
-    source_file: &Path,
-    rust_workspace: &RustWorkspaceCache,
-) -> CrateContext {
-    let crate_root = find_crate_root(root, source_file).unwrap_or_default();
-    let cached = rust_workspace.crates_by_root.get(&crate_root);
-    let src_root = cached
-        .map(|crate_info| crate_info.src_root.clone())
-        .unwrap_or_else(|| {
-            if crate_root.as_os_str().is_empty() {
-                PathBuf::from("src")
-            } else {
-                crate_root.join("src")
-            }
-        });
-    let crate_root_files = cached
-        .map(|crate_info| crate_info.crate_root_files.clone())
-        .unwrap_or_else(|| default_crate_root_files(&crate_root));
-    let dependency_src_roots = cached
-        .map(|crate_info| crate_info.dependency_src_roots.clone())
-        .unwrap_or_default();
-    let dependency_entry_files = cached
-        .map(|crate_info| crate_info.dependency_entry_files.clone())
-        .unwrap_or_default();
-
-    CrateContext {
-        src_root,
-        crate_root_files,
-        dependency_src_roots,
-        dependency_entry_files,
-    }
-}
-
+/// Walk up from `source_file` to find the nearest directory containing a
+/// `Cargo.toml`.
 fn find_crate_root(root: &Path, source_file: &Path) -> Option<PathBuf> {
     let mut dir = source_file.parent().unwrap_or(Path::new("")).to_path_buf();
 
@@ -599,85 +884,7 @@ fn find_crate_root(root: &Path, source_file: &Path) -> Option<PathBuf> {
     }
 }
 
-fn resolve_use(
-    root: &Path,
-    source_file: &Path,
-    path: &str,
-    context: &CrateContext,
-) -> Option<PathBuf> {
-    let parts = path
-        .split("::")
-        .map(str::trim)
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>();
-    if parts.is_empty() {
-        return None;
-    }
-
-    let mut cursor = 0usize;
-    let (mut module, src_root, resolve_crate_entry, entry_files) = match parts.first().copied()? {
-        "crate" => {
-            cursor += 1;
-            (Vec::new(), context.src_root.as_path(), false, Vec::new())
-        }
-        "self" => {
-            cursor += 1;
-            (
-                source_segments(source_file, &context.src_root)?,
-                context.src_root.as_path(),
-                false,
-                Vec::new(),
-            )
-        }
-        "super" => {
-            let mut module = source_segments(source_file, &context.src_root)?;
-            while cursor < parts.len() && parts[cursor] == "super" {
-                module.pop()?;
-                cursor += 1;
-            }
-            (module, context.src_root.as_path(), false, Vec::new())
-        }
-        crate_name => {
-            let dependency_root = context.dependency_src_roots.get(crate_name)?;
-            let entry_files = context
-                .dependency_entry_files
-                .get(crate_name)
-                .cloned()
-                .unwrap_or_default();
-            cursor += 1;
-            (Vec::new(), dependency_root.as_path(), true, entry_files)
-        }
-    };
-
-    while cursor < parts.len() {
-        let part = parts[cursor];
-        cursor += 1;
-        if part == "self" || part == "*" {
-            continue;
-        }
-
-        if resolve_crate_entry && !looks_like_module_segment(part) {
-            break;
-        }
-        module.push(part.to_string());
-    }
-
-    if module.is_empty() {
-        if resolve_crate_entry {
-            return rust_crate_entry_path(root, &entry_files, src_root);
-        }
-        return None;
-    }
-
-    rust_module_path(root, src_root, &module).or_else(|| {
-        if resolve_crate_entry {
-            rust_crate_entry_path(root, &entry_files, src_root)
-        } else {
-            None
-        }
-    })
-}
-
+/// Classify a `use` path as relative, workspace, or external.
 fn classify_use_kind(prefix: Option<&str>, has_resolved_path: bool) -> ImportKind {
     if !has_resolved_path {
         return ImportKind::External;
@@ -700,6 +907,7 @@ fn classify_use_kind(prefix: Option<&str>, has_resolved_path: bool) -> ImportKin
     ImportKind::Workspace
 }
 
+/// Resolve a module path to a `.rs` file or `mod.rs` under `src_root`.
 fn rust_module_path(root: &Path, src_root: &Path, module: &[String]) -> Option<PathBuf> {
     if module.is_empty() {
         return None;
@@ -717,6 +925,7 @@ fn rust_module_path(root: &Path, src_root: &Path, module: &[String]) -> Option<P
     None
 }
 
+/// Try to find a crate entry file (`lib.rs`, `main.rs`, `mod.rs`).
 fn rust_crate_entry_path(root: &Path, entry_files: &[PathBuf], src_root: &Path) -> Option<PathBuf> {
     for candidate in entry_files {
         if let Some(path) = resolve_file(root, candidate) {
@@ -733,6 +942,7 @@ fn rust_crate_entry_path(root: &Path, entry_files: &[PathBuf], src_root: &Path) 
     None
 }
 
+/// Generate the two candidate paths for a module: `<base>.rs` and `<base>/mod.rs`.
 fn rust_file_candidates(src_root: &Path, module: &[String]) -> [PathBuf; 2] {
     let mut base = src_root.to_path_buf();
     for part in module {
@@ -741,6 +951,7 @@ fn rust_file_candidates(src_root: &Path, module: &[String]) -> [PathBuf; 2] {
     [base.with_extension("rs"), base.join("mod.rs")]
 }
 
+/// Return `true` if the value looks like a lowercase module segment.
 fn looks_like_module_segment(value: &str) -> bool {
     let candidate = value.strip_prefix("r#").unwrap_or(value);
     !candidate.is_empty()
@@ -749,6 +960,7 @@ fn looks_like_module_segment(value: &str) -> bool {
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
+/// Derive the module path segments for a source file relative to its `src_root`.
 fn source_segments(source_file: &Path, src_root: &Path) -> Option<Vec<String>> {
     let rel = source_file.strip_prefix(src_root).ok()?;
     let file_name = rel.file_name()?.to_str()?;
@@ -771,6 +983,8 @@ fn source_segments(source_file: &Path, src_root: &Path) -> Option<Vec<String>> {
     Some(segments)
 }
 
+/// Extract the imported names from a Rust `use` path, handling brace groups,
+/// `as` aliases, and `self`/`*`.
 fn imported_names(path: &str) -> Vec<String> {
     let trimmed = path.trim();
     if let Some((prefix, body)) = split_brace_group(trimmed) {
@@ -808,6 +1022,7 @@ fn imported_names(path: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Split a use path at the outermost `{...}` brace group.
 fn split_brace_group(input: &str) -> Option<(&str, &str)> {
     let start = input.find('{')?;
     let end = input.rfind('}')?;
@@ -820,6 +1035,7 @@ fn split_brace_group(input: &str) -> Option<(&str, &str)> {
     ))
 }
 
+/// Extract and normalize the last `::` segment from a use path.
 fn last_segment(raw: &str) -> Option<String> {
     let value = raw
         .split("::")
@@ -836,6 +1052,7 @@ fn last_segment(raw: &str) -> Option<String> {
     normalize_identifier(value)
 }
 
+/// Remove duplicate names while preserving order.
 fn dedupe_names(names: Vec<String>) -> Vec<String> {
     let mut seen = std::collections::HashSet::new();
     let mut deduped = Vec::new();

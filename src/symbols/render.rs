@@ -4,18 +4,18 @@ use serde::Serialize;
 
 use crate::index::Heading;
 
-use super::{format_symbol_display, kind_label, Symbol};
+use super::{Symbol, format_symbol_display, kind_label};
 
 // -----------------------------------------
 // src/symbols/render.rs
 //
 // pub struct SymbolRow                  L23
 // pub struct SymbolBodyRow              L52
-// pub fn code_symbol_row()              L76
-// pub fn code_symbol_body_row()         L93
-// pub fn markdown_symbol_body_row()    L108
-// pub fn print_text()                  L128
-// pub fn print_bodies_text()           L141
+//   fn from()                           L76
+// pub fn code_symbol_body_row()         L94
+// pub fn markdown_symbol_body_row()    L109
+// pub fn print_text()                  L129
+// pub fn print_bodies_text()           L142
 // -----------------------------------------
 
 /// A formatted symbol row ready for display.
@@ -72,20 +72,21 @@ pub struct SymbolBodyRow {
     pub body: String,
 }
 
-/// Convert a code symbol into a display row.
-pub fn code_symbol_row(symbol: Symbol) -> SymbolRow {
-    let display_kind = symbol.display_kind.clone();
+impl From<Symbol> for SymbolRow {
+    fn from(symbol: Symbol) -> Self {
+        let display_kind = symbol.display_kind.clone();
 
-    SymbolRow {
-        display: format_symbol_display(&symbol),
-        kind: kind_label(symbol.kind).to_string(),
-        display_kind: Some(display_kind),
-        name: symbol.name,
-        line: symbol.line,
-        parent: symbol.parent,
-        level: None,
-        anchor: None,
-        is_public: symbol.is_public,
+        Self {
+            display: format_symbol_display(&symbol),
+            kind: kind_label(symbol.kind).to_string(),
+            display_kind: Some(display_kind),
+            name: symbol.name,
+            line: symbol.line,
+            parent: symbol.parent,
+            level: None,
+            anchor: None,
+            is_public: symbol.is_public,
+        }
     }
 }
 

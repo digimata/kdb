@@ -795,9 +795,11 @@ fn symbols_selector_json_outputs_body_and_metadata() {
     assert_eq!(rows[0]["public"], true);
     assert!(rows[0]["line"].as_u64().is_some());
     assert!(rows[0]["end_line"].as_u64().is_some());
-    assert!(rows[0]["body"]
-        .as_str()
-        .is_some_and(|body| body.contains("pub fn open(&self)")));
+    assert!(
+        rows[0]["body"]
+            .as_str()
+            .is_some_and(|body| body.contains("pub fn open(&self)"))
+    );
 }
 
 #[test]
@@ -913,9 +915,11 @@ fn symbols_selector_markdown_json_outputs_body_and_metadata() {
     assert_eq!(rows[0]["public"], true);
     assert_eq!(rows[0]["line"], 3);
     assert_eq!(rows[0]["end_line"], 10);
-    assert!(rows[0]["body"]
-        .as_str()
-        .is_some_and(|body| body.contains("### Nested Step") && !body.contains("## SOP-4 Bugfix")));
+    assert!(
+        rows[0]["body"].as_str().is_some_and(
+            |body| body.contains("### Nested Step") && !body.contains("## SOP-4 Bugfix")
+        )
+    );
 }
 
 #[test]
