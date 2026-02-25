@@ -1,7 +1,7 @@
 ---
 id: 49
 title: Replace code-parsing regexes with tree-sitter
-status: proposed
+status: done
 priority: medium
 labels:
   - refactor
