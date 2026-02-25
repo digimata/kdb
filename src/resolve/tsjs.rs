@@ -9,6 +9,7 @@ use tree_sitter::{Language, Node, Parser};
 use walkdir::WalkDir;
 
 use crate::lang::CodeLanguage;
+use crate::symbols::{raw_node_text, walk_depth_first};
 
 use super::{
     ALWAYS_IGNORED_DIRS, ImportKind, LanguageResolver, ResolvedImport, WorkspacePackages,
@@ -19,54 +20,52 @@ use super::{
 // ---------------------------------------------------
 // src/resolve/tsjs.rs
 //
-// const TSJS_EXTS                                 L72
-// pub(crate) struct TsjsResolver                  L78
-// enum ImportPattern                              L85
-// struct ImportRequest                            L94
-//   pub(super) fn new()                          L101
-//   pub(super) fn resolve()                      L131
-//   fn classify_local_kind()                     L166
-//   fn resolve_workspace_specifier()             L178
-//   fn collect_requests()                        L182
-//   fn parse_tree()                              L204
-//   fn walk_depth_first()                        L224
-//   fn resolve()                                 L253
-//   fn classify()                                L260
-//   fn parse()                                   L295
-//   fn source_field()                            L339
-//   fn require_arg()                             L347
-//   fn bindings_before_source()                  L354
-//   fn declarator_name()                         L374
-//   fn first_named_child_of_kind()               L391
-//   fn node_text()                               L397
-//   fn string_literal_value()                    L406
-// struct ImportBindings                          L433
-//   fn from_import()                             L440
-//   fn from_require()                            L457
-//   fn from_braced()                             L472
-//   fn parse_segment()                           L509
-//   fn dedupe()                                  L533
-// pub(crate) fn collect_specifiers()             L545
-// pub(super) fn discover_workspace_packages()    L558
-// struct WorkspacePatternSet                     L636
-//   fn discover()                                L643
-//   fn compile_include()                         L669
-//   fn compile_exclude()                         L673
-//   fn path_allowed()                            L677
-//   fn read_pnpm_patterns()                      L696
-//   fn read_package_json_patterns()              L742
-//   fn compile_globset()                         L779
-//   fn globset_matches()                         L795
-// struct PackageManifest                         L812
-//   fn read_name()                               L815
-//   fn read_json()                               L825
-// struct WorkspaceMatch                          L836
-//   fn find()                                    L843
-//   fn resolve()                                 L853
-//   fn split_specifier()                         L905
-//   fn resolve_target()                          L935
-//   fn export_target()                           L946
-//   fn first_export_string()                     L976
+// const TSJS_EXTS                                 L71
+// pub(crate) struct TsjsResolver                  L77
+// enum ImportPattern                              L84
+// struct ImportRequest                            L93
+//   pub(super) fn new()                          L100
+//   pub(super) fn resolve()                      L130
+//   fn classify_local_kind()                     L165
+//   fn resolve_workspace_specifier()             L177
+//   fn collect_requests()                        L181
+//   fn parse_tree()                              L203
+//   fn resolve()                                 L226
+//   fn classify()                                L233
+//   fn parse()                                   L268
+//   fn source_field()                            L312
+//   fn require_arg()                             L320
+//   fn bindings_before_source()                  L327
+//   fn declarator_name()                         L347
+//   fn first_named_child_of_kind()               L364
+//   fn string_literal_value()                    L370
+// struct ImportBindings                          L397
+//   fn from_import()                             L404
+//   fn from_require()                            L421
+//   fn from_braced()                             L436
+//   fn parse_segment()                           L473
+//   fn dedupe()                                  L497
+// pub(crate) fn collect_specifiers()             L509
+// pub(super) fn discover_workspace_packages()    L522
+// struct WorkspacePatternSet                     L600
+//   fn discover()                                L607
+//   fn compile_include()                         L633
+//   fn compile_exclude()                         L637
+//   fn path_allowed()                            L641
+//   fn read_pnpm_patterns()                      L660
+//   fn read_package_json_patterns()              L706
+//   fn compile_globset()                         L743
+//   fn globset_matches()                         L759
+// struct PackageManifest                         L776
+//   fn read_name()                               L779
+//   fn read_json()                               L789
+// struct WorkspaceMatch                          L800
+//   fn find()                                    L807
+//   fn resolve()                                 L817
+//   fn split_specifier()                         L869
+//   fn resolve_target()                          L899
+//   fn export_target()                           L910
+//   fn first_export_string()                     L940
 // ---------------------------------------------------
 
 const TSJS_EXTS: &[&str] = &[
@@ -187,7 +186,7 @@ impl<'a> TsjsResolver<'a> {
         let source_bytes = source.as_bytes();
         let mut requests = Vec::new();
 
-        Self::walk_depth_first(tree.root_node(), |node| {
+        walk_depth_first(tree.root_node(), |node| {
             let Some(pattern) = ImportPattern::classify(node, source_bytes) else {
                 return;
             };
@@ -220,32 +219,6 @@ impl<'a> TsjsResolver<'a> {
         parser.set_language(&ts_language).ok()?;
         parser.parse(source, None)
     }
-
-    fn walk_depth_first(root: Node<'_>, mut visit: impl FnMut(Node<'_>)) {
-        let mut cursor = root.walk();
-
-        loop {
-            let node = cursor.node();
-            visit(node);
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-
-            loop {
-                if !cursor.goto_parent() {
-                    return;
-                }
-                if cursor.goto_next_sibling() {
-                    break;
-                }
-            }
-        }
-    }
 }
 
 impl LanguageResolver for TsjsResolver<'_> {
@@ -277,7 +250,7 @@ impl ImportPattern {
                 if function_node.kind() != "identifier" {
                     return None;
                 }
-                if Self::node_text(function_node, source).as_deref() != Some("require") {
+                if raw_node_text(function_node, source) != Some("require") {
                     return None;
                 }
                 Self::require_arg(node, source)?;
@@ -367,7 +340,7 @@ impl ImportPattern {
             binding_node = Some(child);
         }
 
-        binding_node.and_then(|child| Self::node_text(child, source))
+        binding_node.and_then(|child| raw_node_text(child, source).map(str::to_string))
     }
 
     /// Extract the binding name from a `const X = require(...)` variable declarator.
@@ -385,22 +358,13 @@ impl ImportPattern {
         }
 
         let binding_node = parent.child_by_field_name("name")?;
-        Self::node_text(binding_node, source)
+        raw_node_text(binding_node, source).map(str::to_string)
     }
 
     fn first_named_child_of_kind<'tree>(node: Node<'tree>, kind: &str) -> Option<Node<'tree>> {
         (0..node.named_child_count())
             .filter_map(|index| node.named_child(index as u32))
             .find(|child| child.kind() == kind)
-    }
-
-    fn node_text(node: Node<'_>, source: &[u8]) -> Option<String> {
-        let raw = node.utf8_text(source).ok()?.trim();
-        if raw.is_empty() {
-            None
-        } else {
-            Some(raw.to_string())
-        }
     }
 
     fn string_literal_value(node: Node<'_>, source: &[u8]) -> Option<String> {

@@ -6,6 +6,8 @@ use toml::Value as TomlValue;
 use tree_sitter::{Node, Parser};
 use walkdir::WalkDir;
 
+use crate::symbols::walk_depth_first;
+
 use super::{
     ImportKind, LanguageResolver, ResolvedImport, normalize_identifier, normalize_rel_path,
     resolve_file, to_root_relative,
@@ -14,48 +16,47 @@ use super::{
 // ------------------------------------------
 // src/resolve/python.rs
 //
-// pub struct PythonWorkspaceCache        L64
-//   pub(super) fn build()                L72
-// pub(crate) struct PythonResolver       L95
-//   pub(super) fn new()                 L102
-//   fn resolve()                        L109
-// struct PythonImportResolver           L114
-//   fn new()                            L121
-//   fn resolve_source()                 L129
-//   fn push_import_statement()          L153
-//   fn push_from_import_statement()     L177
-//   fn resolve_module()                 L230
-//   fn module_paths()                   L239
-//   fn relative_module_path()           L253
-//   fn absolute_module_paths()          L273
-//   fn resolve_module_path()            L303
-// fn discover_python_project_roots()    L313
-// fn project_package_roots()            L362
-// fn pyproject_package_roots()          L384
-// fn setup_py_package_roots()           L402
-// fn setup_py_root_tokens()             L417
-// struct SetupPyRootCollector           L423
-//   fn new()                            L429
-//   fn collect()                        L440
-//   fn walk_depth_first()               L477
-//   fn call_function_name()             L502
-//   fn keyword_argument_value()         L513
-//   fn call_keyword_string_arg()        L542
-//   fn setup_package_dir_root()         L553
-//   fn dictionary_root_value()          L558
-//   fn python_string_literal()          L594
-// fn collect_setuptools_roots()         L629
-// fn collect_poetry_roots()             L669
-// fn collect_hatch_roots()              L694
-// fn push_project_root()                L723
-// fn index_package_root()               L747
-// fn parse_names()                      L788
-// fn split_alias()                      L819
-// fn module_binding_name()              L825
-// fn classify_kind()                    L835
-// fn has_python_top_level_entries()     L847
-// fn is_python_source()                 L866
-// fn is_python_package_dir()            L874
+// pub struct PythonWorkspaceCache        L65
+//   pub(super) fn build()                L73
+// pub(crate) struct PythonResolver       L96
+//   pub(super) fn new()                 L103
+//   fn resolve()                        L110
+// struct PythonImportResolver           L115
+//   fn new()                            L122
+//   fn resolve_source()                 L130
+//   fn push_import_statement()          L154
+//   fn push_from_import_statement()     L178
+//   fn resolve_module()                 L231
+//   fn module_paths()                   L240
+//   fn relative_module_path()           L254
+//   fn absolute_module_paths()          L274
+//   fn resolve_module_path()            L304
+// fn discover_python_project_roots()    L314
+// fn project_package_roots()            L363
+// fn pyproject_package_roots()          L385
+// fn setup_py_package_roots()           L403
+// fn setup_py_root_tokens()             L418
+// struct SetupPyRootCollector           L424
+//   fn new()                            L430
+//   fn collect()                        L441
+//   fn call_function_name()             L478
+//   fn keyword_argument_value()         L489
+//   fn call_keyword_string_arg()        L518
+//   fn setup_package_dir_root()         L529
+//   fn dictionary_root_value()          L534
+//   fn python_string_literal()          L570
+// fn collect_setuptools_roots()         L605
+// fn collect_poetry_roots()             L645
+// fn collect_hatch_roots()              L670
+// fn push_project_root()                L699
+// fn index_package_root()               L723
+// fn parse_names()                      L764
+// fn split_alias()                      L795
+// fn module_binding_name()              L801
+// fn classify_kind()                    L811
+// fn has_python_top_level_entries()     L823
+// fn is_python_source()                 L842
+// fn is_python_package_dir()            L850
 // ------------------------------------------
 
 /// Cached Python workspace data: maps top-level package names and module
@@ -440,7 +441,7 @@ impl<'src> SetupPyRootCollector<'src> {
     fn collect(&self) -> Vec<String> {
         let mut roots = Vec::new();
 
-        Self::walk_depth_first(self.tree.root_node(), |node| {
+        walk_depth_first(self.tree.root_node(), |node| {
             if node.kind() != "call" {
                 return;
             }
@@ -472,31 +473,6 @@ impl<'src> SetupPyRootCollector<'src> {
         }
 
         deduped
-    }
-
-    fn walk_depth_first(root: Node<'_>, mut visit: impl FnMut(Node<'_>)) {
-        let mut cursor = root.walk();
-
-        loop {
-            visit(cursor.node());
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-
-            loop {
-                if !cursor.goto_parent() {
-                    return;
-                }
-                if cursor.goto_next_sibling() {
-                    break;
-                }
-            }
-        }
     }
 
     fn call_function_name(&self, call: Node<'_>) -> Option<String> {

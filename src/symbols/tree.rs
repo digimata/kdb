@@ -8,18 +8,19 @@ use crate::lang::CodeLanguage;
 // ------------------------------------------------
 // src/symbols/tree.rs
 //
-// pub(super) fn parse_tree()                   L22
-// fn tree_sitter_language()                    L35
-// pub(super) fn trim_node_text()               L47
-// pub(super) fn walk_depth_first()             L66
-// pub(super) fn nearest_ancestor()             L93
-// pub(super) fn normalize_type_name()         L104
-// pub(super) fn extract_go_receiver_type()    L139
-// pub(super) fn decorated_parent_or_self()    L175
+// pub(crate) fn parse_tree()                   L23
+// pub(crate) fn tree_sitter_language()         L36
+// pub(super) fn trim_node_text()               L48
+// pub(crate) fn raw_node_text()                L67
+// pub(crate) fn walk_depth_first()             L73
+// pub(super) fn nearest_ancestor()            L100
+// pub(super) fn normalize_type_name()         L111
+// pub(super) fn extract_go_receiver_type()    L146
+// pub(super) fn decorated_parent_or_self()    L182
 // ------------------------------------------------
 
 /// Parse source text into a tree-sitter syntax tree.
-pub(super) fn parse_tree(language: CodeLanguage, source: &str) -> Result<tree_sitter::Tree> {
+pub(crate) fn parse_tree(language: CodeLanguage, source: &str) -> Result<tree_sitter::Tree> {
     let mut parser = Parser::new();
     let ts_language = tree_sitter_language(language);
     parser
@@ -32,7 +33,7 @@ pub(super) fn parse_tree(language: CodeLanguage, source: &str) -> Result<tree_si
 }
 
 /// Map a language enum to its tree-sitter grammar.
-fn tree_sitter_language(language: CodeLanguage) -> Language {
+pub(crate) fn tree_sitter_language(language: CodeLanguage) -> Language {
     match language {
         CodeLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
         CodeLanguage::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
@@ -62,8 +63,14 @@ pub(super) fn trim_node_text(node: Node<'_>, source: &[u8]) -> Option<String> {
     Some(stripped.to_string())
 }
 
+/// Extract the trimmed text content of a node without quote-stripping.
+pub(crate) fn raw_node_text<'a>(node: Node<'_>, source: &'a [u8]) -> Option<&'a str> {
+    let text = node.utf8_text(source).ok()?.trim();
+    if text.is_empty() { None } else { Some(text) }
+}
+
 /// Walk all nodes in depth-first order and invoke `visit` for each.
-pub(super) fn walk_depth_first(root: Node<'_>, mut visit: impl FnMut(Node<'_>)) {
+pub(crate) fn walk_depth_first(root: Node<'_>, mut visit: impl FnMut(Node<'_>)) {
     let mut cursor = root.walk();
 
     loop {

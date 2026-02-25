@@ -6,9 +6,9 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
+use crate::lang::CodeLanguage;
 use crate::project::discover::discover_files;
 use crate::project::ignore::{ALWAYS_IGNORED_DIRS, build_ignore_globset};
-use crate::lang::CodeLanguage;
 use crate::symbols::{Symbol, extract_symbols, format_symbol_display};
 
 pub mod preamble;
@@ -43,7 +43,7 @@ use self::preamble::{comment_prefix, preamble_end_index};
 const LEGACY_INDEX_HEADER: &str = "## Index";
 const LINE_GAP: usize = 4;
 
-
+/// Summary of a `kdb fmt` run: how many files were scanned, updated, and any warnings.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FormatReport {
     pub scanned_files: usize,

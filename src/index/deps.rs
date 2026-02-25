@@ -8,18 +8,20 @@ use super::{CodeIndex, VaultIndex, resolve_target_path};
 // -------------------------------------
 // src/index/deps.rs
 //
-// pub struct Dependency             L18
-// pub fn collect_outbound()         L23
-// pub fn collect_code_outbound()    L48
-// pub fn print_text()               L70
+// pub struct Dependency             L19
+// pub fn collect_outbound()         L25
+// pub fn collect_code_outbound()    L51
+// pub fn print_text()               L74
 // -------------------------------------
 
+/// A single outbound dependency: target file path and optional heading anchor.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Dependency {
     pub file: PathBuf,
     pub anchor: Option<String>,
 }
 
+/// Collect outbound markdown link dependencies from a single vault file.
 pub fn collect_outbound(index: &VaultIndex, source_file: &Path) -> Result<Vec<Dependency>> {
     let file_entry = index.files.get(source_file).with_context(|| {
         format!(
@@ -45,6 +47,7 @@ pub fn collect_outbound(index: &VaultIndex, source_file: &Path) -> Result<Vec<De
     Ok(outbound.into_iter().collect())
 }
 
+/// Collect outbound code import dependencies from a single code file.
 pub fn collect_code_outbound(index: &CodeIndex, source_file: &Path) -> Result<Vec<Dependency>> {
     let imports = index.code_imports.get(source_file).with_context(|| {
         format!(
@@ -67,6 +70,7 @@ pub fn collect_code_outbound(index: &CodeIndex, source_file: &Path) -> Result<Ve
     Ok(outbound.into_iter().collect())
 }
 
+/// Print outbound dependencies as plain text, one per line.
 pub fn print_text(outbound: &[Dependency]) {
     if outbound.is_empty() {
         println!("(no dependencies)");

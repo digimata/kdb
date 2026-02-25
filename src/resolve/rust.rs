@@ -6,60 +6,61 @@ use toml::Value as TomlValue;
 use tree_sitter::{Node, Parser};
 use walkdir::WalkDir;
 
+use crate::symbols::walk_depth_first;
+
 use super::{ImportKind, LanguageResolver, ResolvedImport, normalize_identifier, resolve_file};
 
 // --------------------------------------------
 // src/resolve/rust.rs
 //
-// enum SourceImport                        L66
-// struct RustImportCollector               L71
-//   fn new()                               L77
-//   fn collect()                           L84
-//   fn parse_tree()                       L109
-//   fn walk_depth_first()                 L116
-//   fn parse_mod_item()                   L141
-//   fn parse_use_declaration()            L168
-//   fn use_path_from_text()               L189
-//   fn first_named_child_of_kind()        L204
-// fn collect_source_imports()             L212
-// pub(crate) fn collect_mod_and_use()     L217
-// struct ParsedManifest                   L233
-//   fn parse()                            L242
-//   fn src_root()                         L283
-// struct LocalDependency                  L292
-// pub struct RustWorkspaceCrate           L302
-// pub struct RustWorkspaceCache           L312
-//   pub(super) fn build()                 L319
-// pub(crate) struct RustResolver          L391
-//   pub(super) fn new()                   L398
-//   fn resolve_source()                   L404
-//   fn resolve()                          L451
-// struct CrateContext                     L459
-//   fn from_workspace()                   L470
-//   fn resolve_mod_decl()                 L507
-//   fn resolve_use()                      L534
-// fn discover_manifest_paths()            L616
-// fn parse_crate_root_files()             L668
-// fn push_manifest_entry_path()           L693
-// fn default_crate_root_files()           L703
-// fn normalize_manifest_path()            L712
-// fn collect_dependency_sections()        L722
-// fn parse_local_dependency()             L755
-// fn resolve_dependency_root()            L811
-// fn crate_root_for_name()                L836
-// fn crate_import_name()                  L850
-// fn parse_use_prefix()                   L855
-// fn find_crate_root()                    L869
-// fn classify_use_kind()                  L889
-// fn rust_module_path()                   L912
-// fn rust_crate_entry_path()              L930
-// fn rust_file_candidates()               L947
-// fn looks_like_module_segment()          L956
-// fn source_segments()                    L965
-// fn imported_names()                     L989
-// fn split_brace_group()                 L1027
-// fn last_segment()                      L1040
-// fn dedupe_names()                      L1057
+// enum SourceImport                        L67
+// struct RustImportCollector               L72
+//   fn new()                               L78
+//   fn collect()                           L85
+//   fn parse_tree()                       L110
+//   fn parse_mod_item()                   L117
+//   fn parse_use_declaration()            L144
+//   fn use_path_from_text()               L165
+//   fn first_named_child_of_kind()        L180
+// fn collect_source_imports()             L188
+// pub(crate) fn collect_mod_and_use()     L193
+// struct ParsedManifest                   L209
+//   fn parse()                            L218
+//   fn src_root()                         L259
+// struct LocalDependency                  L268
+// pub struct RustWorkspaceCrate           L278
+// pub struct RustWorkspaceCache           L288
+//   pub(super) fn build()                 L295
+// pub(crate) struct RustResolver          L366
+//   pub(super) fn new()                   L373
+//   fn resolve_source()                   L379
+//   fn resolve()                          L426
+// struct CrateContext                     L434
+//   fn from_workspace()                   L445
+//   fn resolve_mod_decl()                 L482
+//   fn resolve_use()                      L504
+// fn discover_manifest_paths()            L581
+// fn parse_crate_root_files()             L633
+// fn push_manifest_entry_path()           L658
+// fn default_crate_root_files()           L668
+// fn normalize_manifest_path()            L677
+// fn collect_dependency_sections()        L687
+// fn parse_local_dependency()             L720
+// fn resolve_dependency_root()            L776
+// fn crate_root_for_name()                L801
+// fn crate_import_name()                  L815
+// fn parse_use_prefix()                   L820
+// fn find_crate_root()                    L834
+// fn classify_use_kind()                  L854
+// fn rust_module_path()                   L877
+// fn rust_crate_entry_path()              L895
+// fn rust_file_candidates()               L912
+// fn looks_like_module_segment()          L921
+// fn source_segments()                    L930
+// fn imported_names()                     L954
+// fn split_brace_group()                  L992
+// fn last_segment()                      L1005
+// fn dedupe_names()                      L1022
 // --------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -87,7 +88,7 @@ impl<'src> RustImportCollector<'src> {
         };
 
         let mut imports = Vec::new();
-        Self::walk_depth_first(tree.root_node(), |node| match node.kind() {
+        walk_depth_first(tree.root_node(), |node| match node.kind() {
             "mod_item" => {
                 if let Some(item) = self.parse_mod_item(node) {
                     imports.push(item);
@@ -111,31 +112,6 @@ impl<'src> RustImportCollector<'src> {
         let language: tree_sitter::Language = tree_sitter_rust::LANGUAGE.into();
         parser.set_language(&language).ok()?;
         parser.parse(self.source, None)
-    }
-
-    fn walk_depth_first(root: Node<'_>, mut visit: impl FnMut(Node<'_>)) {
-        let mut cursor = root.walk();
-
-        loop {
-            visit(cursor.node());
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-
-            loop {
-                if !cursor.goto_parent() {
-                    return;
-                }
-                if cursor.goto_next_sibling() {
-                    break;
-                }
-            }
-        }
     }
 
     fn parse_mod_item(&self, node: Node<'_>) -> Option<SourceImport> {
@@ -366,8 +342,7 @@ impl RustWorkspaceCache {
                     continue;
                 };
 
-                dependency_src_roots
-                    .insert(alias.clone(), target_manifest.src_root(&target_root));
+                dependency_src_roots.insert(alias.clone(), target_manifest.src_root(&target_root));
                 dependency_entry_files.insert(alias, target_manifest.crate_root_files.clone());
             }
 
@@ -426,9 +401,9 @@ impl<'a> RustResolver<'a> {
                 }
                 SourceImport::Use { path, line } => {
                     let prefix = parse_use_prefix(&path);
-                    let resolved_path = prefix.as_deref().and_then(|value| {
-                        crate_context.resolve_use(self.root, source_file, value)
-                    });
+                    let resolved_path = prefix
+                        .as_deref()
+                        .and_then(|value| crate_context.resolve_use(self.root, source_file, value));
                     let kind = classify_use_kind(prefix.as_deref(), resolved_path.is_some());
 
                     imports.push(ResolvedImport {
@@ -504,12 +479,7 @@ impl CrateContext {
     /// Resolve a `mod <name>;` declaration to a file path by looking for
     /// `<name>.rs` or `<name>/mod.rs` relative to the source file's module
     /// directory.
-    fn resolve_mod_decl(
-        &self,
-        root: &Path,
-        source_file: &Path,
-        name: &str,
-    ) -> Option<PathBuf> {
+    fn resolve_mod_decl(&self, root: &Path, source_file: &Path, name: &str) -> Option<PathBuf> {
         let mut module_dir = source_file.parent().unwrap_or(Path::new("")).to_path_buf();
         if self
             .crate_root_files
@@ -531,12 +501,7 @@ impl CrateContext {
 
     /// Resolve a `use` path (after prefix extraction) to a file path, walking
     /// through `crate`, `self`, `super`, or external crate prefixes.
-    fn resolve_use(
-        &self,
-        root: &Path,
-        source_file: &Path,
-        path: &str,
-    ) -> Option<PathBuf> {
+    fn resolve_use(&self, root: &Path, source_file: &Path, path: &str) -> Option<PathBuf> {
         let parts = path
             .split("::")
             .map(str::trim)

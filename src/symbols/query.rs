@@ -12,19 +12,20 @@ use super::{Symbol, extract_symbol_body, extract_symbols};
 // ----------------------------------------
 // src/symbols/query.rs
 //
-// pub fn collect_rows()                L28
-// pub fn collect_body_rows()           L77
-// fn collect_code_body_rows()         L109
-// fn collect_markdown_body_rows()     L150
-// fn is_markdown_file()               L196
-// fn normalize_markdown_selector()    L202
-// struct SymbolSelector               L217
-//   fn parse()                        L223
-//   fn matches()                      L250
-//   fn display()                      L261
-// fn normalize_selector_name()        L269
+// pub fn collect_rows()                L29
+// pub fn collect_body_rows()           L79
+// fn collect_code_body_rows()         L111
+// fn collect_markdown_body_rows()     L152
+// fn is_markdown_file()               L198
+// fn normalize_markdown_selector()    L204
+// struct SymbolSelector               L219
+//   fn parse()                        L225
+//   fn matches()                      L252
+//   fn display()                      L263
+// fn normalize_selector_name()        L271
 // ----------------------------------------
 
+/// Collect symbol rows for a single file (headings for markdown, declarations for code).
 pub fn collect_rows(root: &Path, file_abs: &Path, rel_path: &Path) -> Result<Vec<SymbolRow>> {
     let is_markdown = is_markdown_file(rel_path);
 
@@ -74,6 +75,7 @@ pub fn collect_rows(root: &Path, file_abs: &Path, rel_path: &Path) -> Result<Vec
     Ok(rows)
 }
 
+/// Collect full symbol bodies matching a selector for `kdb symbols -s`.
 pub fn collect_body_rows(
     file_abs: &Path,
     rel_path: &Path,

@@ -2,6 +2,7 @@
 
 use anyhow::{Context, Result};
 use globset::GlobSet;
+use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::ErrorKind;
@@ -10,6 +11,34 @@ use walkdir::WalkDir;
 
 use crate::lang::CodeLanguage;
 // NOTE: index block managed by kdb fmt — do not update manually
+
+// ----------------------------------------------------
+// src/resolve/mod.rs
+//
+// mod go                                           L47
+// mod python                                       L48
+// mod rust                                         L49
+// mod tsjs                                         L50
+// pub type WorkspacePackages                       L64
+// pub struct WorkspaceCaches                       L68
+//   pub fn build()                                 L77
+// pub enum ImportKind                              L90
+// pub struct ResolvedImport                       L100
+// pub(crate) trait LanguageResolver               L113
+// pub(crate) struct WorkspaceImportResult         L122
+// pub(crate) fn build_workspace_import_index()    L130
+// pub fn resolve_imports_for_language()           L176
+// fn discover_code_files()                        L203
+// pub(super) fn sanitize_specifier()              L260
+// pub(super) fn normalize_identifier()            L279
+// pub(super) fn resolve_with_exts()               L309
+// pub(super) fn resolve_file()                    L337
+// fn canonicalize_existing_rel_path()             L346
+// pub(super) fn list_go_package_files()           L385
+// pub(super) fn slash_path()                      L420
+// pub(super) fn to_root_relative()                L425
+// fn rel_path_from_root()                         L430
+// ----------------------------------------------------
 
 pub(super) use crate::project::ignore::ALWAYS_IGNORED_DIRS;
 pub(super) use crate::project::ignore::{build_ignore_globset, path_is_ignored};
@@ -104,31 +133,33 @@ pub(crate) fn build_workspace_import_index(
 ) -> Result<WorkspaceImportResult> {
     let ignore_set = build_ignore_globset(ignore_patterns)?;
     let workspace_caches = WorkspaceCaches::build(root, ignore_patterns)?;
+    let discovered = discover_code_files(root, &ignore_set)?;
+
+    let parsed: Vec<_> = discovered
+        .par_iter()
+        .filter_map(|rel_path| {
+            let language = CodeLanguage::from_path(rel_path)?;
+            let abs_path = root.join(rel_path);
+            let source = match fs::read_to_string(&abs_path) {
+                Ok(source) => source,
+                Err(error) if error.kind() == ErrorKind::InvalidData => return None,
+                Err(_) => return None,
+            };
+
+            let mut imports =
+                resolve_imports_for_language(root, rel_path, &source, language, &workspace_caches);
+            imports.sort_by(|left, right| {
+                left.line
+                    .cmp(&right.line)
+                    .then_with(|| left.raw.cmp(&right.raw))
+                    .then_with(|| left.resolved_path.cmp(&right.resolved_path))
+            });
+            Some((rel_path.clone(), imports))
+        })
+        .collect();
+
     let mut file_imports = BTreeMap::new();
-
-    for rel_path in discover_code_files(root, &ignore_set)? {
-        let Some(language) = CodeLanguage::from_path(&rel_path) else {
-            continue;
-        };
-
-        let abs_path = root.join(&rel_path);
-        let source = match fs::read_to_string(&abs_path) {
-            Ok(source) => source,
-            Err(error) if error.kind() == ErrorKind::InvalidData => continue,
-            Err(error) => {
-                return Err(error)
-                    .with_context(|| format!("failed to read {}", abs_path.display()));
-            }
-        };
-
-        let mut imports =
-            resolve_imports_for_language(root, &rel_path, &source, language, &workspace_caches);
-        imports.sort_by(|left, right| {
-            left.line
-                .cmp(&right.line)
-                .then_with(|| left.raw.cmp(&right.raw))
-                .then_with(|| left.resolved_path.cmp(&right.resolved_path))
-        });
+    for (rel_path, imports) in parsed {
         file_imports.insert(rel_path, imports);
     }
 

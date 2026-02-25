@@ -15,20 +15,23 @@ mod extract;
 // mod extract                           L10
 // pub(crate) mod query                  L30
 // mod tree                              L31
-// pub enum SymbolKind                   L38
-// pub struct Symbol                     L60
-// struct SeenSymbolKey                  L73
-// pub(super) struct Extractor           L85
-//   pub(super) fn new()                 L92
-//   pub(super) fn name_from_field()    L100
-//   pub(super) fn node_text()          L105
-//   pub(super) fn push()               L109
-//   pub(super) fn finish()             L148
-// pub fn extract_symbols()             L154
+// pub enum SymbolKind                   L41
+// pub struct Symbol                     L63
+// struct SeenSymbolKey                  L76
+// pub(super) struct Extractor           L88
+//   pub(super) fn new()                 L95
+//   pub(super) fn name_from_field()    L103
+//   pub(super) fn node_text()          L108
+//   pub(super) fn push()               L112
+//   pub(super) fn finish()             L151
+// pub fn extract_symbols()             L157
 // -----------------------------------------
 
 pub(crate) mod query;
 mod tree;
+
+// Re-export tree-sitter helpers for use outside the symbols module.
+pub(crate) use tree::{parse_tree, raw_node_text, walk_depth_first};
 
 // Re-export display utilities for external callers.
 pub use display::{extract_symbol_body, format_symbol_display, is_callable_kind, kind_label};

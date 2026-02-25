@@ -22,9 +22,10 @@ mod utils;
 // mod rust                     L13
 // mod typescript               L14
 // mod utils                    L15
-// pub fn collect_outbound()    L28
+// pub fn collect_outbound()    L29
 // --------------------------------
 
+/// Collect outbound code dependencies by dispatching to the appropriate language extractor.
 pub fn collect_outbound(root: &Path, source_file: &Path) -> Result<Vec<Dependency>> {
     let language = CodeLanguage::from_path(source_file).with_context(|| {
         format!(
