@@ -9,7 +9,7 @@ use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 use walkdir::WalkDir;
 
-use crate::symbols::{CodeLanguage, language_for_path};
+use crate::lang::CodeLanguage;
 
 mod go;
 mod python;
@@ -23,50 +23,52 @@ mod tsjs;
 // mod python                                      L15
 // mod rust                                        L16
 // mod tsjs                                        L17
-// pub type WorkspacePackages                      L72
-// pub struct GoWorkspaceCache                     L75
-// pub struct RustWorkspaceCrate                   L80
-// pub struct RustWorkspaceCache                   L89
-// pub enum ImportKind                             L94
-// pub struct ResolvedImport                      L102
-// pub struct WorkspaceImportIndex                L111
-// pub fn build_workspace_import_index()          L118
-// pub fn resolve_imports_for_language()          L169
-// const IGNORED_DIRS                             L188
-// const TSJS_EXTS                                L202
-// fn build_ignore_globset()                      L206
-// fn discover_code_files()                       L219
-// fn discover_workspace_packages()               L274
-// struct WorkspacePatternSet                     L349
-// fn workspace_patterns()                        L354
-// fn read_pnpm_workspace_patterns()              L378
-// fn read_package_json_workspace_patterns()      L424
-// fn compile_globset()                           L461
-// fn workspace_path_allowed()                    L477
-// fn globset_matches_path()                      L495
-// fn package_name_from_manifest()                L507
-// pub(super) fn classify_local_kind()            L519
-// pub(super) fn sanitize_specifier()             L534
-// pub(super) fn normalize_identifier()           L551
-// pub(super) fn resolve_with_exts()              L579
-// pub(super) fn resolve_file()                   L605
-// pub(super) fn list_go_package_files()          L614
-// pub(super) fn build_line_starts()              L648
-// pub(super) fn line_number_for_offset()         L658
-// pub(super) fn normalize_rel_path()             L667
-// pub(super) fn slash_path()                     L686
-// pub(super) fn to_root_relative()               L690
-// fn rel_path_from_root()                        L695
-// fn path_is_ignored()                           L700
-// pub(super) struct WorkspaceMatch               L718
-// pub(super) fn workspace_match()                L723
-// fn split_package_specifier()                   L735
-// pub(super) fn resolve_workspace_specifier()    L765
-// fn resolve_workspace_entry()                   L778
-// fn resolve_package_target()                    L830
-// fn export_target()                             L841
-// fn first_export_string()                       L869
-// fn read_json_value()                           L885
+// pub type WorkspacePackages                      L74
+// pub struct GoWorkspaceCache                     L77
+// pub struct PythonWorkspaceCache                 L82
+// pub struct RustWorkspaceCrate                   L88
+// pub struct RustWorkspaceCache                   L97
+// pub enum ImportKind                            L102
+// pub struct ResolvedImport                      L110
+// pub struct WorkspaceImportIndex                L119
+// pub fn build_workspace_import_index()          L127
+// pub fn resolve_imports_for_language()          L181
+// const IGNORED_DIRS                             L201
+// const TSJS_EXTS                                L215
+// fn build_ignore_globset()                      L219
+// fn discover_code_files()                       L232
+// fn discover_workspace_packages()               L287
+// struct WorkspacePatternSet                     L362
+// fn workspace_patterns()                        L367
+// fn read_pnpm_workspace_patterns()              L391
+// fn read_package_json_workspace_patterns()      L437
+// fn compile_globset()                           L474
+// fn workspace_path_allowed()                    L490
+// fn globset_matches_path()                      L508
+// fn package_name_from_manifest()                L520
+// pub(super) fn classify_local_kind()            L532
+// pub(super) fn sanitize_specifier()             L547
+// pub(super) fn normalize_identifier()           L564
+// pub(super) fn resolve_with_exts()              L592
+// pub(super) fn resolve_file()                   L618
+// fn canonicalize_existing_rel_path()            L627
+// pub(super) fn list_go_package_files()          L665
+// pub(super) fn build_line_starts()              L699
+// pub(super) fn line_number_for_offset()         L709
+// pub(super) fn normalize_rel_path()             L718
+// pub(super) fn slash_path()                     L737
+// pub(super) fn to_root_relative()               L741
+// fn rel_path_from_root()                        L746
+// fn path_is_ignored()                           L751
+// pub(super) struct WorkspaceMatch               L769
+// pub(super) fn workspace_match()                L774
+// fn split_package_specifier()                   L786
+// pub(super) fn resolve_workspace_specifier()    L816
+// fn resolve_workspace_entry()                   L829
+// fn resolve_package_target()                    L881
+// fn export_target()                             L892
+// fn first_export_string()                       L920
+// fn read_json_value()                           L936
 // ---------------------------------------------------
 
 pub type WorkspacePackages = HashMap<String, PathBuf>;
@@ -74,6 +76,12 @@ pub type WorkspacePackages = HashMap<String, PathBuf>;
 #[derive(Debug, Clone, Default)]
 pub struct GoWorkspaceCache {
     pub modules_by_path: HashMap<String, PathBuf>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PythonWorkspaceCache {
+    pub package_dirs: HashMap<String, Vec<PathBuf>>,
+    pub module_files: HashMap<String, Vec<PathBuf>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -111,6 +119,7 @@ pub struct ResolvedImport {
 pub struct WorkspaceImportIndex {
     pub workspace_packages: WorkspacePackages,
     pub go_workspace: GoWorkspaceCache,
+    pub python_workspace: PythonWorkspaceCache,
     pub rust_workspace: RustWorkspaceCache,
     pub file_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
 }
@@ -122,11 +131,12 @@ pub fn build_workspace_import_index(
     let ignore_set = build_ignore_globset(ignore_patterns)?;
     let workspace_packages = discover_workspace_packages(root, &ignore_set);
     let go_workspace = go::build_workspace_cache(root);
+    let python_workspace = python::build_workspace_cache(root, &ignore_set);
     let rust_workspace = rust::build_workspace_cache(root, &ignore_set);
     let mut file_imports = BTreeMap::new();
 
     for rel_path in discover_code_files(root, &ignore_set)? {
-        let Some(language) = language_for_path(&rel_path) else {
+        let Some(language) = CodeLanguage::from_path(&rel_path) else {
             continue;
         };
 
@@ -147,6 +157,7 @@ pub fn build_workspace_import_index(
             language,
             &workspace_packages,
             &go_workspace,
+            &python_workspace,
             &rust_workspace,
         );
         imports.sort_by(|left, right| {
@@ -161,6 +172,7 @@ pub fn build_workspace_import_index(
     Ok(WorkspaceImportIndex {
         workspace_packages,
         go_workspace,
+        python_workspace,
         rust_workspace,
         file_imports,
     })
@@ -173,6 +185,7 @@ pub fn resolve_imports_for_language(
     language: CodeLanguage,
     workspace_packages: &WorkspacePackages,
     go_workspace: &GoWorkspaceCache,
+    python_workspace: &PythonWorkspaceCache,
     rust_workspace: &RustWorkspaceCache,
 ) -> Vec<ResolvedImport> {
     match language {
@@ -181,7 +194,7 @@ pub fn resolve_imports_for_language(
         }
         CodeLanguage::Rust => rust::resolve(root, source_file, source, rust_workspace),
         CodeLanguage::Go => go::resolve(root, source_file, source, go_workspace),
-        CodeLanguage::Python => python::resolve(root, source_file, source),
+        CodeLanguage::Python => python::resolve(root, source_file, source, python_workspace),
     }
 }
 
@@ -262,7 +275,7 @@ fn discover_code_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>
             continue;
         }
 
-        if language_for_path(&rel).is_some() {
+        if CodeLanguage::from_path(&rel).is_some() {
             paths.push(rel);
         }
     }
@@ -604,11 +617,49 @@ pub(super) fn resolve_with_exts(root: &Path, base: &Path, exts: &[&str]) -> Opti
 
 pub(super) fn resolve_file(root: &Path, candidate: &Path) -> Option<PathBuf> {
     let rel = normalize_rel_path(candidate)?;
-    if root.join(&rel).is_file() {
-        Some(rel)
-    } else {
-        None
+    if !root.join(&rel).is_file() {
+        return None;
     }
+
+    Some(canonicalize_existing_rel_path(root, &rel))
+}
+
+fn canonicalize_existing_rel_path(root: &Path, rel: &Path) -> PathBuf {
+    let mut canonical = PathBuf::new();
+    let mut cursor = root.to_path_buf();
+
+    for component in rel.components() {
+        let Component::Normal(part) = component else {
+            continue;
+        };
+
+        let mut exact_name = None;
+        let mut folded_name = None;
+        let part_text = part.to_string_lossy();
+
+        if let Ok(entries) = fs::read_dir(&cursor) {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                if name == part {
+                    exact_name = Some(name);
+                    break;
+                }
+
+                if folded_name.is_none() && name.to_string_lossy().eq_ignore_ascii_case(&part_text)
+                {
+                    folded_name = Some(name);
+                }
+            }
+        }
+
+        let selected = exact_name
+            .or(folded_name)
+            .unwrap_or_else(|| part.to_os_string());
+        cursor.push(&selected);
+        canonical.push(selected);
+    }
+
+    canonical
 }
 
 pub(super) fn list_go_package_files(root: &Path, dir: &Path) -> Vec<PathBuf> {

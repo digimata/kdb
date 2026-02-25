@@ -4,69 +4,73 @@ use std::path::Path;
 use std::process::Command;
 use tempfile::tempdir;
 
-// -----------------------------------------------------------------------
+// ---------------------------------------------------------------------------------
 // tests/cli.rs
 //
-// fn write_file()                                                     L71
-// fn bin()                                                            L79
-// fn write_root_config()                                              L83
-// fn check_exits_zero_for_clean_vault()                               L88
-// fn check_exits_one_for_broken_links()                              L106
-// fn check_respects_index_ignore_patterns_from_config()              L124
-// fn check_respects_gitignore_rules()                                L151
-// fn check_orphan_only_shows_orphan_count_hint_without_listing()     L175
-// fn check_orphans_flag_lists_orphan_files()                         L197
-// fn check_scopes_output_to_explicit_subtree_path()                  L219
-// fn check_scoped_subtree_still_validates_cross_subtree_links()      L244
-// fn check_errors_when_root_marker_missing()                         L272
-// fn outline_prints_heading_tree()                                   L288
-// fn outline_reports_no_headings_for_plain_markdown()                L311
-// fn outline_errors_for_nonexistent_file()                           L332
-// fn fmt_generates_code_index_headers_for_supported_files()          L348
-// fn fmt_warns_when_nonstandard_index_rows_are_removed()             L370
-// fn fmt_scopes_to_explicit_file_path()                              L393
-// fn fmt_respects_gitignore_rules()                                  L417
-// fn fmt_explicit_path_can_format_gitignored_file()                  L439
-// fn tree_prints_filtered_directory_structure()                      L460
-// fn tree_level_option_matches_tree_l_flag()                         L490
-// fn tree_json_dirs_only_and_all_flags_are_supported()               L510
-// fn tree_full_path_flag_prints_full_relative_paths()                L536
-// fn tree_ignore_pattern_flag_excludes_matches()                     L554
-// fn tree_pattern_flag_includes_only_matching_subtrees()             L575
-// fn symbols_prints_markdown_heading_symbols()                       L599
-// fn symbols_supports_public_filter_for_code_files()                 L625
-// fn symbols_json_outputs_structured_rows()                          L657
-// fn symbols_selector_prints_multiple_matching_bodies()              L685
-// fn symbols_selector_supports_qualified_names()                     L723
-// fn symbols_selector_json_outputs_body_and_metadata()               L757
-// fn symbols_selector_respects_public_filter()                       L800
-// fn symbols_selector_extracts_markdown_sections_by_slug()           L841
-// fn symbols_selector_markdown_json_outputs_body_and_metadata()      L875
-// fn symbols_selector_markdown_slug_not_found_errors()               L918
-// fn refs_lists_inbound_references_for_file_target()                 L942
-// fn refs_lists_inbound_references_for_heading_target()              L969
-// fn refs_count_prints_number_of_inbound_references()               L1000
-// fn refs_json_outputs_structured_rows()                            L1021
-// fn deps_lists_outbound_dependencies_for_file_target()             L1048
-// fn deps_json_outputs_structured_rows()                            L1081
-// fn deps_supports_rust_code_file_targets()                         L1118
-// fn deps_supports_rust_nested_crate_roots_in_monorepos()           L1145
-// fn deps_supports_rust_workspace_sibling_crate_imports()           L1186
-// fn deps_supports_rust_workspace_renamed_path_dependencies()       L1232
-// fn deps_supports_rust_custom_lib_path_mod_declarations()          L1278
-// fn deps_supports_rust_custom_bin_path_mod_declarations()          L1302
-// fn deps_supports_rust_custom_lib_path_cross_crate_fallback()      L1326
-// fn deps_supports_typescript_code_file_targets()                   L1367
-// fn deps_supports_typescript_tsconfig_path_aliases()               L1395
-// fn deps_supports_typescript_workspace_package_imports()           L1423
-// fn deps_supports_python_code_file_targets()                       L1471
-// fn deps_supports_go_code_file_targets()                           L1507
-// fn deps_supports_go_workspace_use_cross_module_imports()          L1536
-// fn deps_supports_go_workspace_replace_local_path_overrides()      L1566
-// fn graph_is_stubbed_with_clear_message()                          L1605
-// fn init_creates_kdb_directory_and_default_config()                L1618
-// fn init_errors_if_kdb_directory_already_exists()                  L1640
-// -----------------------------------------------------------------------
+// fn write_file()                                                               L75
+// fn bin()                                                                      L83
+// fn write_root_config()                                                        L87
+// fn check_exits_zero_for_clean_vault()                                         L92
+// fn check_exits_one_for_broken_links()                                        L110
+// fn check_respects_index_ignore_patterns_from_config()                        L128
+// fn check_respects_gitignore_rules()                                          L155
+// fn check_orphan_only_shows_orphan_count_hint_without_listing()               L179
+// fn check_orphans_flag_lists_orphan_files()                                   L201
+// fn check_scopes_output_to_explicit_subtree_path()                            L223
+// fn check_scoped_subtree_still_validates_cross_subtree_links()                L248
+// fn check_errors_when_root_marker_missing()                                   L276
+// fn outline_prints_heading_tree()                                             L292
+// fn outline_reports_no_headings_for_plain_markdown()                          L315
+// fn outline_errors_for_nonexistent_file()                                     L336
+// fn fmt_generates_code_index_headers_for_supported_files()                    L352
+// fn fmt_warns_when_nonstandard_index_rows_are_removed()                       L374
+// fn fmt_scopes_to_explicit_file_path()                                        L397
+// fn fmt_respects_gitignore_rules()                                            L421
+// fn fmt_explicit_path_can_format_gitignored_file()                            L443
+// fn tree_prints_filtered_directory_structure()                                L464
+// fn tree_level_option_matches_tree_l_flag()                                   L494
+// fn tree_json_dirs_only_and_all_flags_are_supported()                         L514
+// fn tree_full_path_flag_prints_full_relative_paths()                          L540
+// fn tree_ignore_pattern_flag_excludes_matches()                               L558
+// fn tree_pattern_flag_includes_only_matching_subtrees()                       L579
+// fn symbols_prints_markdown_heading_symbols()                                 L603
+// fn symbols_supports_public_filter_for_code_files()                           L629
+// fn symbols_json_outputs_structured_rows()                                    L661
+// fn symbols_selector_prints_multiple_matching_bodies()                        L689
+// fn symbols_selector_supports_qualified_names()                               L727
+// fn symbols_selector_json_outputs_body_and_metadata()                         L761
+// fn symbols_selector_respects_public_filter()                                 L804
+// fn symbols_selector_extracts_markdown_sections_by_slug()                     L845
+// fn symbols_selector_markdown_json_outputs_body_and_metadata()                L879
+// fn symbols_selector_markdown_slug_not_found_errors()                         L922
+// fn refs_lists_inbound_references_for_file_target()                           L946
+// fn refs_lists_inbound_references_for_heading_target()                        L973
+// fn refs_count_prints_number_of_inbound_references()                         L1004
+// fn refs_json_outputs_structured_rows()                                      L1025
+// fn deps_lists_outbound_dependencies_for_file_target()                       L1052
+// fn deps_json_outputs_structured_rows()                                      L1085
+// fn deps_supports_rust_code_file_targets()                                   L1122
+// fn deps_supports_rust_nested_crate_roots_in_monorepos()                     L1149
+// fn deps_supports_rust_workspace_sibling_crate_imports()                     L1190
+// fn deps_supports_rust_workspace_renamed_path_dependencies()                 L1236
+// fn deps_supports_rust_custom_lib_path_mod_declarations()                    L1282
+// fn deps_supports_rust_custom_bin_path_mod_declarations()                    L1306
+// fn deps_supports_rust_custom_lib_path_cross_crate_fallback()                L1330
+// fn deps_supports_typescript_code_file_targets()                             L1371
+// fn deps_supports_typescript_tsconfig_path_aliases()                         L1399
+// fn deps_supports_typescript_workspace_package_imports()                     L1427
+// fn deps_supports_python_code_file_targets()                                 L1475
+// fn deps_supports_python_pyproject_src_layout_package_imports()              L1511
+// fn deps_supports_python_setup_py_src_layout_fallback()                      L1549
+// fn deps_supports_python_poetry_src_namespace_packages()                     L1574
+// fn deps_python_canonicalizes_resolved_file_case_on_case_insensitive_fs()    L1609
+// fn deps_supports_go_code_file_targets()                                     L1651
+// fn deps_supports_go_workspace_use_cross_module_imports()                    L1680
+// fn deps_supports_go_workspace_replace_local_path_overrides()                L1710
+// fn graph_is_stubbed_with_clear_message()                                    L1749
+// fn init_creates_kdb_directory_and_default_config()                          L1762
+// fn init_errors_if_kdb_directory_already_exists()                            L1784
+// ---------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
     let path = root.join(rel_path);
@@ -1501,6 +1505,146 @@ fn deps_supports_python_code_file_targets() {
             "pkg/utils.py"
         ]
     );
+}
+
+#[test]
+fn deps_supports_python_pyproject_src_layout_package_imports() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "pyproject.toml",
+        "[build-system]\nrequires = [\"setuptools>=61\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[tool.setuptools]\npackage-dir = {\"\" = \"src\"}\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n",
+    );
+    write_file(
+        temp.path(),
+        "app/main.py",
+        "import mypkg.utils\nfrom mypkg.sub import thing\nimport requests\n",
+    );
+    write_file(temp.path(), "src/mypkg/__init__.py", "\n");
+    write_file(temp.path(), "src/mypkg/utils.py", "VALUE = 1\n");
+    write_file(temp.path(), "src/mypkg/sub/__init__.py", "\n");
+    write_file(temp.path(), "src/mypkg/sub/thing.py", "THING = 1\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("app/main.py")
+        .output()
+        .expect("run kdb deps for python src layout");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec![
+            "src/mypkg/sub/__init__.py",
+            "src/mypkg/sub/thing.py",
+            "src/mypkg/utils.py"
+        ]
+    );
+}
+
+#[test]
+fn deps_supports_python_setup_py_src_layout_fallback() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "setup.py",
+        "from setuptools import find_packages, setup\n\nsetup(\n    name=\"demo\",\n    package_dir={\"\": \"src\"},\n    packages=find_packages(where=\"src\"),\n)\n",
+    );
+    write_file(temp.path(), "tool/main.py", "import acme.util\n");
+    write_file(temp.path(), "src/acme/__init__.py", "\n");
+    write_file(temp.path(), "src/acme/util.py", "VALUE = 1\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("tool/main.py")
+        .output()
+        .expect("run kdb deps for python setup.py src layout");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.lines().collect::<Vec<_>>(), vec!["src/acme/util.py"]);
+}
+
+#[test]
+fn deps_supports_python_poetry_src_namespace_packages() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "pyproject.toml",
+        "[project]\nname = \"poetry\"\nversion = \"0.1.0\"\n\n[tool.poetry]\nrequires-poetry = \">=2.0\"\n\n[build-system]\nrequires = [\"poetry-core>=2.0\"]\nbuild-backend = \"poetry.core.masonry.api\"\n",
+    );
+    write_file(
+        temp.path(),
+        "src/poetry/factory.py",
+        "from poetry.config.config import Config\n",
+    );
+    write_file(
+        temp.path(),
+        "src/poetry/config/config.py",
+        "class Config:\n    pass\n",
+    );
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("src/poetry/factory.py")
+        .output()
+        .expect("run kdb deps for poetry src namespace package");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["src/poetry/config/config.py"]
+    );
+}
+
+#[test]
+fn deps_python_canonicalizes_resolved_file_case_on_case_insensitive_fs() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "pyproject.toml",
+        "[build-system]\nrequires = [\"setuptools>=61\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[tool.setuptools]\npackage-dir = {\"\" = \"src\"}\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n",
+    );
+    write_file(
+        temp.path(),
+        "src/poetry/factory.py",
+        "from poetry.packages.Locker import Locker\n",
+    );
+    write_file(
+        temp.path(),
+        "src/poetry/packages/locker.py",
+        "class Locker:\n    pass\n",
+    );
+    write_file(temp.path(), "src/poetry/packages/__init__.py", "\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("deps")
+        .arg("src/poetry/factory.py")
+        .output()
+        .expect("run kdb deps for python case canonicalization");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let case_insensitive = temp.path().join("src/poetry/packages/Locker.py").is_file();
+
+    if case_insensitive {
+        assert_eq!(
+            stdout.lines().collect::<Vec<_>>(),
+            vec!["src/poetry/packages/locker.py"]
+        );
+    } else {
+        assert_eq!(stdout.trim(), "(no dependencies)");
+    }
 }
 
 #[test]
