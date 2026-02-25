@@ -88,6 +88,18 @@ Zed (example for Rust):
 }
 ```
 
+## Development
+
+### Changelog
+
+Maintained with [git-cliff](https://git-cliff.org/). Config in `cliff.toml`.
+
+Commits follow [conventional commits](https://www.conventionalcommits.org/) (`type(scope): description`). To regenerate:
+
+```
+git cliff -o CHANGELOG.md
+```
+
 ## License
 
 MIT

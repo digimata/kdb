@@ -4,13 +4,19 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 
 | Issue | Label | Status | Priority |
 | --- | --- | --- | --- |
+| [0046 — Project Structure Proposal](iss-0046-project-structure-proposal.md) | refactor | proposed | high |
+| [0047 — ProjectContext + Shared Utilities](iss-0047-project-context.md) | refactor | proposed | high |
+| [0048 — Split Project Index (Vault vs Code)](iss-0048-split-project-index.md) | refactor | proposed | high |
+| [0039 — Lift CodeLanguage to src/lang.rs](iss-0039-lift-codelanguage.md) | refactor | proposed | high |
+| [0040 — Extract CmdContext in cmd.rs](iss-0040-cmd-context.md) | refactor | proposed | high |
+| [0042 — Extract Symbol Extractor Context](iss-0042-symbol-extractor-context.md) | refactor | proposed | medium |
+| [0043 — Consolidate Resolve Workspace Caches](iss-0043-workspace-caches.md) | refactor | proposed | medium |
+| [0044 — Move TS/JS Workspace Logic](iss-0044-move-tsjs-workspace-logic.md) | refactor | proposed | medium |
 | [0012 — CLI Commands (tracking)](iss-0012-cli-commands.md) | feat | in_progress | high |
 | [0019 — kdb refs Command](iss-0019-refs-command.md) | feat | in_progress | high |
-| [0026 — Workspace Module Resolution](iss-0026-workspace-module-resolution.md) | feat | in_progress | high |
 | [0014 — Code File Index Headers](iss-0014-code-file-indexes.md) | feat | in_progress | medium |
 | [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | chore | proposed | high |
 | [0028 — Code Symbol References (`refs -s`)](iss-0028-code-symbol-refs.md) | feat | proposed | high |
-| [0038 — Python Package Discovery Resolution](iss-0038-python-package-discovery-resolution.md) | feat | proposed | high |
 | [0016 — Codemap](iss-0016-codemap.md) | feat | proposed | high |
 | [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | high |
 | [0007 — Production Readiness](iss-0007-production-readiness.md) | chore | proposed | high |
