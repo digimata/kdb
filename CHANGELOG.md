@@ -4,6 +4,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] — 2026-02-25
+
+### Added
+
+- add Python package discovery with src/ layout and case-sensitive resolution
+
+### Changed
+
+- update issue tracker, add changelog tooling, refresh docs
+- bump version to 0.7.1
+
 ## [0.7.0] — 2026-02-24
 
 ### Other
