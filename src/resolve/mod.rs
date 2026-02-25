@@ -2,7 +2,6 @@
 
 use anyhow::{Context, Result};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
-use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::ErrorKind;
@@ -20,58 +19,40 @@ pub use go::GoWorkspaceCache;
 pub use python::PythonWorkspaceCache;
 pub use rust::{RustWorkspaceCache, RustWorkspaceCrate};
 
-// ---------------------------------------------------
+// ------------------------------------------------
 // src/resolve/mod.rs
 //
-// mod go                                          L14
-// mod python                                      L15
-// mod rust                                        L16
-// mod tsjs                                        L17
-// pub type WorkspacePackages                      L76
-// pub struct WorkspaceCaches                      L79
-//   pub fn build()                                L87
-// pub enum ImportKind                             L99
-// pub struct ResolvedImport                      L107
-// pub struct WorkspaceImportIndex                L116
-// pub fn build_workspace_import_index()          L124
-// pub fn resolve_imports_for_language()          L167
-// const IGNORED_DIRS                             L195
-// const TSJS_EXTS                                L209
-// fn build_ignore_globset()                      L213
-// fn discover_code_files()                       L226
-// fn discover_workspace_packages()               L281
-// struct WorkspacePatternSet                     L356
-// fn workspace_patterns()                        L361
-// fn read_pnpm_workspace_patterns()              L385
-// fn read_package_json_workspace_patterns()      L431
-// fn compile_globset()                           L468
-// fn workspace_path_allowed()                    L484
-// fn globset_matches_path()                      L502
-// fn package_name_from_manifest()                L514
-// pub(super) fn classify_local_kind()            L526
-// pub(super) fn sanitize_specifier()             L541
-// pub(super) fn normalize_identifier()           L558
-// pub(super) fn resolve_with_exts()              L586
-// pub(super) fn resolve_file()                   L612
-// fn canonicalize_existing_rel_path()            L621
-// pub(super) fn list_go_package_files()          L659
-// pub(super) fn build_line_starts()              L693
-// pub(super) fn line_number_for_offset()         L703
-// pub(super) fn normalize_rel_path()             L712
-// pub(super) fn slash_path()                     L731
-// pub(super) fn to_root_relative()               L735
-// fn rel_path_from_root()                        L740
-// fn path_is_ignored()                           L745
-// pub(super) struct WorkspaceMatch               L763
-// pub(super) fn workspace_match()                L768
-// fn split_package_specifier()                   L780
-// pub(super) fn resolve_workspace_specifier()    L810
-// fn resolve_workspace_entry()                   L823
-// fn resolve_package_target()                    L875
-// fn export_target()                             L886
-// fn first_export_string()                       L914
-// fn read_json_value()                           L930
-// ---------------------------------------------------
+// mod go                                       L13
+// mod python                                   L14
+// mod rust                                     L15
+// mod tsjs                                     L16
+// pub type WorkspacePackages                   L57
+// pub struct WorkspaceCaches                   L60
+//   pub fn build()                             L68
+// pub enum ImportKind                          L80
+// pub struct ResolvedImport                    L88
+// pub struct WorkspaceImportIndex              L97
+// pub fn build_workspace_import_index()       L105
+// pub fn resolve_imports_for_language()       L148
+// pub(crate) fn collect_tsjs_specifiers()     L174
+// pub(crate) fn collect_rust_mod_and_use()    L178
+// const IGNORED_DIRS                          L182
+// fn build_ignore_globset()                   L196
+// fn discover_code_files()                    L209
+// pub(super) fn sanitize_specifier()          L264
+// pub(super) fn normalize_identifier()        L281
+// pub(super) fn resolve_with_exts()           L309
+// pub(super) fn resolve_file()                L335
+// fn canonicalize_existing_rel_path()         L344
+// pub(super) fn list_go_package_files()       L382
+// pub(super) fn build_line_starts()           L416
+// pub(super) fn line_number_for_offset()      L426
+// pub(super) fn normalize_rel_path()          L435
+// pub(super) fn slash_path()                  L454
+// pub(super) fn to_root_relative()            L458
+// fn rel_path_from_root()                     L463
+// fn path_is_ignored()                        L468
+// ------------------------------------------------
 
 pub type WorkspacePackages = HashMap<String, PathBuf>;
 
@@ -87,7 +68,7 @@ impl WorkspaceCaches {
     pub fn build(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
         let ignore_set = build_ignore_globset(ignore_patterns)?;
         Ok(Self {
-            workspace_packages: discover_workspace_packages(root, &ignore_set),
+            workspace_packages: tsjs::discover_workspace_packages(root, &ignore_set),
             go_workspace: GoWorkspaceCache::build(root),
             python_workspace: PythonWorkspaceCache::build(root, &ignore_set),
             rust_workspace: RustWorkspaceCache::build(root, &ignore_set),
@@ -172,12 +153,10 @@ pub fn resolve_imports_for_language(
     workspace_caches: &WorkspaceCaches,
 ) -> Vec<ResolvedImport> {
     match language {
-        CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => tsjs::resolve(
-            root,
-            source_file,
-            source,
-            &workspace_caches.workspace_packages,
-        ),
+        CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
+            let resolver = tsjs::TsjsResolver::new(root, &workspace_caches.workspace_packages);
+            resolver.resolve(source_file, source)
+        }
         CodeLanguage::Rust => workspace_caches
             .rust_workspace
             .resolve(root, source_file, source),
@@ -192,6 +171,14 @@ pub fn resolve_imports_for_language(
     }
 }
 
+pub(crate) fn collect_tsjs_specifiers(source_file: &Path, source: &str) -> Vec<String> {
+    tsjs::collect_specifiers(source_file, source)
+}
+
+pub(crate) fn collect_rust_mod_and_use(source: &str) -> (Vec<String>, Vec<String>) {
+    rust::collect_mod_and_use(source)
+}
+
 const IGNORED_DIRS: &[&str] = &[
     "node_modules",
     ".git",
@@ -204,10 +191,6 @@ const IGNORED_DIRS: &[&str] = &[
     "__pycache__",
     ".venv",
     ".kdb",
-];
-
-const TSJS_EXTS: &[&str] = &[
-    "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "d.ts", "d.mts", "d.cts",
 ];
 
 fn build_ignore_globset(ignore_patterns: &[String]) -> Result<GlobSet> {
@@ -276,266 +259,6 @@ fn discover_code_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>
 
     paths.sort();
     Ok(paths)
-}
-
-fn discover_workspace_packages(root: &Path, ignore_set: &GlobSet) -> WorkspacePackages {
-    let patterns = workspace_patterns(root);
-    let include_set = compile_globset(&patterns.includes);
-    let exclude_set = compile_globset(&patterns.excludes);
-
-    let mut packages = WorkspacePackages::new();
-    let mut package_json_paths = Vec::new();
-
-    for entry in WalkDir::new(root)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|entry| {
-            if !entry.file_type().is_dir() {
-                return true;
-            }
-
-            let Some(rel) = rel_path_from_root(root, entry.path()) else {
-                return false;
-            };
-            if rel.as_os_str().is_empty() {
-                return true;
-            }
-
-            let name = entry.file_name().to_string_lossy();
-            if IGNORED_DIRS.contains(&name.as_ref()) {
-                return false;
-            }
-
-            !path_is_ignored(ignore_set, &rel, true)
-        })
-        .filter_map(std::result::Result::ok)
-    {
-        if !entry.file_type().is_file() {
-            continue;
-        }
-
-        if entry.file_name().to_string_lossy() != "package.json" {
-            continue;
-        }
-
-        let Ok(rel) = entry.path().strip_prefix(root) else {
-            continue;
-        };
-        let Some(rel) = normalize_rel_path(rel) else {
-            continue;
-        };
-        if path_is_ignored(ignore_set, &rel, false) {
-            continue;
-        }
-
-        package_json_paths.push(rel);
-    }
-
-    package_json_paths.sort();
-
-    for rel_manifest in package_json_paths {
-        let rel_dir = rel_manifest.parent().unwrap_or(Path::new(""));
-        if !workspace_path_allowed(rel_dir, include_set.as_ref(), exclude_set.as_ref()) {
-            continue;
-        }
-
-        let Some(package_name) = package_name_from_manifest(root, &rel_manifest) else {
-            continue;
-        };
-
-        let Some(package_root) = normalize_rel_path(rel_dir) else {
-            continue;
-        };
-        packages.entry(package_name).or_insert(package_root);
-    }
-
-    packages
-}
-
-#[derive(Debug, Default)]
-struct WorkspacePatternSet {
-    includes: Vec<String>,
-    excludes: Vec<String>,
-}
-
-fn workspace_patterns(root: &Path) -> WorkspacePatternSet {
-    let mut patterns = WorkspacePatternSet::default();
-    let mut all_patterns = Vec::new();
-    all_patterns.extend(read_pnpm_workspace_patterns(root));
-    all_patterns.extend(read_package_json_workspace_patterns(root));
-
-    for pattern in all_patterns {
-        let value = pattern.trim();
-        if value.is_empty() {
-            continue;
-        }
-        if let Some(rest) = value.strip_prefix('!') {
-            let rest = rest.trim();
-            if !rest.is_empty() {
-                patterns.excludes.push(rest.to_string());
-            }
-            continue;
-        }
-        patterns.includes.push(value.to_string());
-    }
-
-    patterns
-}
-
-fn read_pnpm_workspace_patterns(root: &Path) -> Vec<String> {
-    let path = root.join("pnpm-workspace.yaml");
-    let raw = match fs::read_to_string(&path) {
-        Ok(raw) => raw,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Vec::new(),
-        Err(_) => return Vec::new(),
-    };
-
-    let mut patterns = Vec::new();
-    let mut in_packages = false;
-
-    for line in raw.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-
-        if !in_packages {
-            if trimmed == "packages:" || trimmed.starts_with("packages:") {
-                in_packages = true;
-            }
-            continue;
-        }
-
-        let indent = line.chars().take_while(|ch| ch.is_whitespace()).count();
-        if indent == 0 && trimmed.ends_with(':') && !trimmed.starts_with('-') {
-            in_packages = false;
-            continue;
-        }
-
-        let Some(item) = trimmed.strip_prefix('-') else {
-            if indent == 0 {
-                in_packages = false;
-            }
-            continue;
-        };
-
-        let value = item.trim().trim_matches('"').trim_matches('\'').trim();
-        if !value.is_empty() {
-            patterns.push(value.to_string());
-        }
-    }
-
-    patterns
-}
-
-fn read_package_json_workspace_patterns(root: &Path) -> Vec<String> {
-    let path = root.join("package.json");
-    let raw = match fs::read_to_string(&path) {
-        Ok(raw) => raw,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Vec::new(),
-        Err(_) => return Vec::new(),
-    };
-
-    let Ok(value) = serde_json::from_str::<Value>(&raw) else {
-        return Vec::new();
-    };
-    let Some(workspaces) = value.get("workspaces") else {
-        return Vec::new();
-    };
-
-    if let Some(array) = workspaces.as_array() {
-        return array
-            .iter()
-            .filter_map(Value::as_str)
-            .map(ToString::to_string)
-            .collect();
-    }
-
-    workspaces
-        .as_object()
-        .and_then(|table| table.get("packages"))
-        .and_then(Value::as_array)
-        .map(|array| {
-            array
-                .iter()
-                .filter_map(Value::as_str)
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
-}
-
-fn compile_globset(patterns: &[String]) -> Option<GlobSet> {
-    if patterns.is_empty() {
-        return None;
-    }
-
-    let mut builder = GlobSetBuilder::new();
-    for pattern in patterns {
-        let Ok(glob) = GlobBuilder::new(pattern).literal_separator(true).build() else {
-            continue;
-        };
-        builder.add(glob);
-    }
-
-    builder.build().ok()
-}
-
-fn workspace_path_allowed(
-    rel_dir: &Path,
-    include_set: Option<&GlobSet>,
-    exclude_set: Option<&GlobSet>,
-) -> bool {
-    let slash = slash_path(rel_dir);
-
-    if include_set.is_some_and(|set| !globset_matches_path(set, &slash)) {
-        return false;
-    }
-
-    if exclude_set.is_some_and(|set| globset_matches_path(set, &slash)) {
-        return false;
-    }
-
-    true
-}
-
-fn globset_matches_path(set: &GlobSet, slash_path: &str) -> bool {
-    if set.is_match(slash_path) {
-        return true;
-    }
-
-    if slash_path.is_empty() {
-        return set.is_match("./");
-    }
-
-    set.is_match(format!("{slash_path}/"))
-}
-
-fn package_name_from_manifest(root: &Path, rel_manifest: &Path) -> Option<String> {
-    let abs = root.join(rel_manifest);
-    let raw = fs::read_to_string(abs).ok()?;
-    let value = serde_json::from_str::<Value>(&raw).ok()?;
-    let name = value.get("name")?.as_str()?.trim();
-    if name.is_empty() {
-        None
-    } else {
-        Some(name.to_string())
-    }
-}
-
-pub(super) fn classify_local_kind(
-    specifier: &str,
-    workspace_packages: &WorkspacePackages,
-) -> ImportKind {
-    if specifier.starts_with('.') || specifier.starts_with('/') {
-        return ImportKind::Relative;
-    }
-
-    if workspace_match(specifier, workspace_packages).is_some() {
-        return ImportKind::Workspace;
-    }
-
-    ImportKind::TsconfigPath
 }
 
 pub(super) fn sanitize_specifier(raw: &str) -> Option<String> {
@@ -757,177 +480,4 @@ fn path_is_ignored(ignore_set: &GlobSet, rel_path: &Path, is_dir: bool) -> bool 
     }
 
     false
-}
-
-#[derive(Debug, Clone)]
-pub(super) struct WorkspaceMatch {
-    pub package_root: PathBuf,
-    pub subpath: Option<String>,
-}
-
-pub(super) fn workspace_match(
-    specifier: &str,
-    workspace_packages: &WorkspacePackages,
-) -> Option<WorkspaceMatch> {
-    let (package_name, subpath) = split_package_specifier(specifier)?;
-    let package_root = workspace_packages.get(&package_name)?.clone();
-    Some(WorkspaceMatch {
-        package_root,
-        subpath,
-    })
-}
-
-fn split_package_specifier(specifier: &str) -> Option<(String, Option<String>)> {
-    let value = specifier.trim();
-    if value.is_empty() {
-        return None;
-    }
-
-    let mut segments = value.split('/');
-    let first = segments.next()?;
-    if first.is_empty() {
-        return None;
-    }
-
-    if first.starts_with('@') {
-        let second = segments.next()?;
-        if second.is_empty() {
-            return None;
-        }
-
-        let package_name = format!("{first}/{second}");
-        let rest = segments.collect::<Vec<_>>().join("/");
-        let subpath = (!rest.is_empty()).then_some(rest);
-        return Some((package_name, subpath));
-    }
-
-    let package_name = first.to_string();
-    let rest = segments.collect::<Vec<_>>().join("/");
-    let subpath = (!rest.is_empty()).then_some(rest);
-    Some((package_name, subpath))
-}
-
-pub(super) fn resolve_workspace_specifier(
-    root: &Path,
-    specifier: &str,
-    workspace_packages: &WorkspacePackages,
-) -> Option<PathBuf> {
-    let workspace_match = workspace_match(specifier, workspace_packages)?;
-    resolve_workspace_entry(
-        root,
-        &workspace_match.package_root,
-        workspace_match.subpath.as_deref(),
-    )
-}
-
-fn resolve_workspace_entry(
-    root: &Path,
-    package_root: &Path,
-    subpath: Option<&str>,
-) -> Option<PathBuf> {
-    let manifest = read_json_value(root.join(package_root).join("package.json"));
-
-    if let Some(subpath) = subpath {
-        if let Some(target) = manifest
-            .as_ref()
-            .and_then(|value| value.get("exports"))
-            .and_then(|exports| export_target(exports, &format!("./{subpath}")))
-            .and_then(|target| resolve_package_target(root, package_root, &target))
-        {
-            return Some(target);
-        }
-
-        let candidate = package_root.join(subpath);
-        return resolve_with_exts(root, &candidate, TSJS_EXTS)
-            .or_else(|| resolve_file(root, &candidate));
-    }
-
-    if let Some(target) = manifest
-        .as_ref()
-        .and_then(|value| value.get("exports"))
-        .and_then(|exports| export_target(exports, "."))
-        .and_then(|target| resolve_package_target(root, package_root, &target))
-    {
-        return Some(target);
-    }
-
-    if let Some(value) = manifest.as_ref() {
-        for field in ["types", "typings", "module", "main"] {
-            if let Some(target) = value
-                .get(field)
-                .and_then(Value::as_str)
-                .and_then(|target| resolve_package_target(root, package_root, target))
-            {
-                return Some(target);
-            }
-        }
-    }
-
-    for base in [package_root.join("src/index"), package_root.join("index")] {
-        if let Some(path) = resolve_with_exts(root, &base, TSJS_EXTS) {
-            return Some(path);
-        }
-    }
-
-    None
-}
-
-fn resolve_package_target(root: &Path, package_root: &Path, raw_target: &str) -> Option<PathBuf> {
-    let target = sanitize_specifier(raw_target)?;
-    let rel = Path::new(target.trim_start_matches("./"));
-    if rel.as_os_str().is_empty() || rel.is_absolute() {
-        return None;
-    }
-
-    let candidate = package_root.join(rel);
-    resolve_with_exts(root, &candidate, TSJS_EXTS).or_else(|| resolve_file(root, &candidate))
-}
-
-fn export_target(exports: &Value, key: &str) -> Option<String> {
-    match exports {
-        Value::String(value) => {
-            if key == "." {
-                Some(value.to_string())
-            } else {
-                None
-            }
-        }
-        Value::Array(values) => values.iter().find_map(|value| export_target(value, key)),
-        Value::Object(table) => {
-            if let Some(value) = table.get(key) {
-                return first_export_string(value);
-            }
-
-            if key == "." {
-                let has_subpath_keys = table.keys().any(|entry| entry.starts_with('.'));
-                if !has_subpath_keys {
-                    return first_export_string(exports);
-                }
-            }
-
-            None
-        }
-        _ => None,
-    }
-}
-
-fn first_export_string(value: &Value) -> Option<String> {
-    match value {
-        Value::String(value) => Some(value.to_string()),
-        Value::Array(values) => values.iter().find_map(first_export_string),
-        Value::Object(table) => {
-            for key in ["types", "import", "module", "default", "require"] {
-                if let Some(value) = table.get(key).and_then(first_export_string) {
-                    return Some(value);
-                }
-            }
-            table.values().find_map(first_export_string)
-        }
-        _ => None,
-    }
-}
-
-fn read_json_value(path: PathBuf) -> Option<Value> {
-    let raw = fs::read_to_string(path).ok()?;
-    serde_json::from_str::<Value>(&raw).ok()
 }
