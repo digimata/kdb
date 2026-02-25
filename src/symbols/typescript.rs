@@ -1,9 +1,6 @@
-use std::collections::HashSet;
 use tree_sitter::Node;
 
-use super::{
-    Symbol, SymbolKind, name_from_field, normalized_node_text, push_symbol, walk_depth_first,
-};
+use super::{Extractor, Symbol, SymbolKind, walk_depth_first};
 
 // -------------------------------------
 // src/symbols/typescript.rs
@@ -32,101 +29,88 @@ use super::{
 
 /// Extract JavaScript/TypeScript symbols used by code indexing and symbol listing.
 pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
-    let mut symbols = Vec::new();
-    let mut seen = HashSet::new();
+    let mut extractor = Extractor::new(source);
 
     walk_depth_first(root, |node| match node.kind() {
         "class_declaration" | "abstract_class_declaration" | "class" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = is_exported(node, source);
                 let span_node = declaration_span_node(node);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     span_node,
                     name,
                     None,
                     SymbolKind::Class,
-                    class_display_kind(node, source),
+                    class_display_kind(node, source, &extractor),
                     is_public,
                 );
             }
         }
         "interface_declaration" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = is_exported(node, source);
                 let span_node = declaration_span_node(node);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     span_node,
                     name,
                     None,
                     SymbolKind::Interface,
-                    declaration_display_kind(node, source, "interface", false),
+                    declaration_display_kind(node, source, &extractor, "interface", false),
                     is_public,
                 );
             }
         }
         "type_alias_declaration" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = is_exported(node, source);
                 let span_node = declaration_span_node(node);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     span_node,
                     name,
                     None,
                     SymbolKind::TypeAlias,
-                    declaration_display_kind(node, source, "type", false),
+                    declaration_display_kind(node, source, &extractor, "type", false),
                     is_public,
                 );
             }
         }
         "enum_declaration" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = is_exported(node, source);
                 let span_node = declaration_span_node(node);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     span_node,
                     name,
                     None,
                     SymbolKind::Enum,
-                    declaration_display_kind(node, source, "enum", true),
+                    declaration_display_kind(node, source, &extractor, "enum", true),
                     is_public,
                 );
             }
         }
         "function_declaration" | "generator_function_declaration" | "function_signature" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = is_exported(node, source);
                 let span_node = declaration_span_node(node);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     span_node,
                     name,
                     None,
                     SymbolKind::Function,
-                    function_display_kind(node, source),
+                    function_display_kind(node, source, &extractor),
                     is_public,
                 );
             }
         }
         "method_definition" | "method_signature" | "abstract_method_signature" => {
-            let Some(name) = name_from_field(node, source, "name") else {
+            let Some(name) = extractor.name_from_field(node, "name") else {
                 return;
             };
-            let (parent, parent_is_public) = member_parent(node, source);
+            let (parent, parent_is_public) = member_parent(node, source, &extractor);
             let is_public = parent_is_public && !is_private_member(node, source, &name);
 
             if name == "constructor" {
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     parent,
@@ -146,28 +130,17 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
                 SymbolKind::Method
             };
 
-            push_symbol(
-                &mut symbols,
-                &mut seen,
-                node,
-                name,
-                parent,
-                kind,
-                display_kind,
-                is_public,
-            );
+            extractor.push(node, name, parent, kind, display_kind, is_public);
         }
         "public_field_definition" | "field_definition" | "property_signature" => {
-            let Some(name) = name_from_field(node, source, "name") else {
+            let Some(name) = extractor.name_from_field(node, "name") else {
                 return;
             };
-            let (parent, parent_is_public) = member_parent(node, source);
+            let (parent, parent_is_public) = member_parent(node, source, &extractor);
             let is_public = parent_is_public && !is_private_member(node, source, &name);
             let display_kind = property_display_kind(node, source, &name);
 
-            push_symbol(
-                &mut symbols,
-                &mut seen,
+            extractor.push(
                 node,
                 name,
                 parent,
@@ -190,7 +163,7 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             ) {
                 return;
             }
-            let Some(name) = normalized_node_text(name_node, source) else {
+            let Some(name) = extractor.node_text(name_node) else {
                 return;
             };
 
@@ -210,24 +183,19 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             };
             let span_node = variable_span_node(node);
 
-            push_symbol(
-                &mut symbols,
-                &mut seen,
-                span_node,
-                name,
-                None,
-                kind,
-                display_kind,
-                is_public,
-            );
+            extractor.push(span_node, name, None, kind, display_kind, is_public);
         }
         _ => {}
     });
 
-    symbols
+    extractor.finish()
 }
 
-fn member_parent(node: Node<'_>, source: &[u8]) -> (Option<String>, bool) {
+fn member_parent(
+    node: Node<'_>,
+    source: &[u8],
+    extractor: &Extractor<'_>,
+) -> (Option<String>, bool) {
     let mut cursor = node;
     while let Some(parent) = cursor.parent() {
         match parent.kind() {
@@ -236,7 +204,7 @@ fn member_parent(node: Node<'_>, source: &[u8]) -> (Option<String>, bool) {
             | "class"
             | "interface_declaration" => {
                 return (
-                    name_from_field(parent, source, "name"),
+                    extractor.name_from_field(parent, "name"),
                     is_exported(parent, source),
                 );
             }
@@ -283,10 +251,11 @@ fn variable_span_node(node: Node<'_>) -> Node<'_> {
 fn declaration_display_kind(
     node: Node<'_>,
     source: &[u8],
+    extractor: &Extractor<'_>,
     keyword: &str,
     allow_const_prefix: bool,
 ) -> String {
-    let Some(signature) = signature_until_name(node, source) else {
+    let Some(signature) = signature_until_name(node, source, extractor) else {
         return keyword.to_string();
     };
 
@@ -304,8 +273,8 @@ fn declaration_display_kind(
     parts.join(" ")
 }
 
-fn class_display_kind(node: Node<'_>, source: &[u8]) -> String {
-    let Some(signature) = signature_until_name(node, source) else {
+fn class_display_kind(node: Node<'_>, source: &[u8], extractor: &Extractor<'_>) -> String {
+    let Some(signature) = signature_until_name(node, source, extractor) else {
         return "class".to_string();
     };
 
@@ -320,8 +289,8 @@ fn class_display_kind(node: Node<'_>, source: &[u8]) -> String {
     parts.join(" ")
 }
 
-fn function_display_kind(node: Node<'_>, source: &[u8]) -> String {
-    let Some(signature) = signature_until_name(node, source) else {
+fn function_display_kind(node: Node<'_>, source: &[u8], extractor: &Extractor<'_>) -> String {
+    let Some(signature) = signature_until_name(node, source, extractor) else {
         return "function".to_string();
     };
     let normalized = normalize_whitespace(&signature);
@@ -420,7 +389,11 @@ fn declaration_keyword(node: Node<'_>, source: &[u8]) -> Option<&'static str> {
     None
 }
 
-fn signature_until_name(node: Node<'_>, source: &[u8]) -> Option<String> {
+fn signature_until_name(
+    node: Node<'_>,
+    source: &[u8],
+    extractor: &Extractor<'_>,
+) -> Option<String> {
     let text = node.utf8_text(source).ok()?;
     let head = text
         .split('{')
@@ -434,7 +407,7 @@ fn signature_until_name(node: Node<'_>, source: &[u8]) -> Option<String> {
         .unwrap_or(text);
     let normalized = normalize_whitespace(head);
 
-    let name = name_from_field(node, source, "name")?;
+    let name = extractor.name_from_field(node, "name")?;
     let index = normalized.rfind(&name).or_else(|| {
         name.strip_prefix('#')
             .and_then(|without_hash| normalized.rfind(without_hash))

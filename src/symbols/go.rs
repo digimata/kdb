@@ -1,10 +1,6 @@
-use std::collections::HashSet;
 use tree_sitter::Node;
 
-use super::{
-    Symbol, SymbolKind, extract_go_receiver_type, name_from_field, normalized_node_text,
-    push_symbol, walk_depth_first,
-};
+use super::{Extractor, Symbol, SymbolKind, extract_go_receiver_type, walk_depth_first};
 
 // -------------------------------
 // src/symbols/go.rs
@@ -18,16 +14,13 @@ use super::{
 
 /// Extract Go functions, methods, named types, and top-level const/var symbols.
 pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
-    let mut symbols = Vec::new();
-    let mut seen = HashSet::new();
+    let mut extractor = Extractor::new(source);
 
     walk_depth_first(root, |node| match node.kind() {
         "function_declaration" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = is_exported_name(&name);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -38,12 +31,10 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             }
         }
         "method_declaration" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let parent = receiver_parent(node, source);
                 let is_public = is_exported_name(&name);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     parent,
@@ -54,7 +45,7 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             }
         }
         "type_spec" => {
-            let Some(name) = name_from_field(node, source, "name") else {
+            let Some(name) = extractor.name_from_field(node, "name") else {
                 return;
             };
             let (kind, display_kind) = node
@@ -66,26 +57,15 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
                 })
                 .unwrap_or((SymbolKind::TypeAlias, "type".to_string()));
             let is_public = is_exported_name(&name);
-            push_symbol(
-                &mut symbols,
-                &mut seen,
-                node,
-                name,
-                None,
-                kind,
-                display_kind,
-                is_public,
-            );
+            extractor.push(node, name, None, kind, display_kind, is_public);
         }
         "const_spec" => {
             if !is_top_level_spec(node) {
                 return;
             }
-            for name in names_from_spec(node, source) {
+            for name in names_from_spec(node, &extractor) {
                 let is_public = is_exported_name(&name);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -99,11 +79,9 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             if !is_top_level_spec(node) {
                 return;
             }
-            for name in names_from_spec(node, source) {
+            for name in names_from_spec(node, &extractor) {
                 let is_public = is_exported_name(&name);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -116,7 +94,7 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
         _ => {}
     });
 
-    symbols
+    extractor.finish()
 }
 
 /// Extract the receiver type name from a Go method declaration.
@@ -141,11 +119,11 @@ fn is_top_level_spec(node: Node<'_>) -> bool {
     false
 }
 
-fn names_from_spec(node: Node<'_>, source: &[u8]) -> Vec<String> {
+fn names_from_spec(node: Node<'_>, extractor: &Extractor<'_>) -> Vec<String> {
     let mut names = Vec::new();
 
     if let Some(name_node) = node.child_by_field_name("name") {
-        if let Some(name) = normalized_node_text(name_node, source) {
+        if let Some(name) = extractor.node_text(name_node) {
             names.push(name);
         }
     }
@@ -155,7 +133,7 @@ fn names_from_spec(node: Node<'_>, source: &[u8]) -> Vec<String> {
         if child.kind() != "identifier" {
             continue;
         }
-        if let Some(name) = normalized_node_text(child, source) {
+        if let Some(name) = extractor.node_text(child) {
             if !names.contains(&name) {
                 names.push(name);
             }

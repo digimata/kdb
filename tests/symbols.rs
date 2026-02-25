@@ -1,4 +1,5 @@
-use kdb::symbols::{CodeLanguage, Symbol, SymbolKind, extract_symbols};
+use kdb::lang::CodeLanguage;
+use kdb::symbols::{extract_symbols, Symbol, SymbolKind};
 
 // --------------------------------------------------------------------------
 // tests/symbols.rs

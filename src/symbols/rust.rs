@@ -1,9 +1,7 @@
-use std::collections::HashSet;
 use tree_sitter::Node;
 
 use super::{
-    Symbol, SymbolKind, name_from_field, nearest_ancestor, normalize_type_name, push_symbol,
-    walk_depth_first,
+    Extractor, Symbol, SymbolKind, nearest_ancestor, normalize_type_name, walk_depth_first,
 };
 
 // ----------------------------------
@@ -27,15 +25,14 @@ use super::{
 
 /// Extract Rust symbols used by code indexing and symbol listing.
 pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
-    let mut symbols = Vec::new();
-    let mut seen = HashSet::new();
+    let mut extractor = Extractor::new(source);
 
     walk_depth_first(root, |node| match node.kind() {
         "function_item" => {
-            let Some(name) = name_from_field(node, source, "name") else {
+            let Some(name) = extractor.name_from_field(node, "name") else {
                 return;
             };
-            let parent = method_parent(node, source);
+            let parent = method_parent(node, source, &extractor);
             let kind = if parent.is_some() {
                 SymbolKind::Method
             } else {
@@ -43,23 +40,12 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             };
             let is_public = function_is_public(node, source);
             let display_kind = function_display_kind(node, source);
-            push_symbol(
-                &mut symbols,
-                &mut seen,
-                node,
-                name,
-                parent,
-                kind,
-                display_kind,
-                is_public,
-            );
+            extractor.push(node, name, parent, kind, display_kind, is_public);
         }
         "struct_item" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = item_is_public(node, source);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -70,11 +56,9 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             }
         }
         "enum_item" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = item_is_public(node, source);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -85,11 +69,9 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             }
         }
         "trait_item" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = item_is_public(node, source);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -100,11 +82,9 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             }
         }
         "type_item" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = item_is_public(node, source);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -115,11 +95,9 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             }
         }
         "const_item" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = item_is_public(node, source);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -130,11 +108,9 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             }
         }
         "static_item" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = item_is_public(node, source);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -145,11 +121,9 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             }
         }
         "mod_item" => {
-            if let Some(name) = name_from_field(node, source, "name") {
+            if let Some(name) = extractor.name_from_field(node, "name") {
                 let is_public = item_is_public(node, source);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -160,11 +134,9 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
             }
         }
         "macro_definition" | "macro_rule" => {
-            if let Some(name) = macro_name(node, source) {
+            if let Some(name) = macro_name(node, source, &extractor) {
                 let is_public = item_is_public(node, source);
-                push_symbol(
-                    &mut symbols,
-                    &mut seen,
+                extractor.push(
                     node,
                     name,
                     None,
@@ -177,11 +149,11 @@ pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
         _ => {}
     });
 
-    symbols
+    extractor.finish()
 }
 
 /// Resolve the parent type/trait name for a Rust method.
-fn method_parent(node: Node<'_>, source: &[u8]) -> Option<String> {
+fn method_parent(node: Node<'_>, source: &[u8], extractor: &Extractor<'_>) -> Option<String> {
     if let Some(impl_node) = nearest_ancestor(node, "impl_item") {
         if let Some(type_node) = impl_node.child_by_field_name("type") {
             if let Some(name) = normalize_type_name(type_node, source) {
@@ -191,7 +163,7 @@ fn method_parent(node: Node<'_>, source: &[u8]) -> Option<String> {
     }
 
     nearest_ancestor(node, "trait_item")
-        .and_then(|trait_node| name_from_field(trait_node, source, "name"))
+        .and_then(|trait_node| extractor.name_from_field(trait_node, "name"))
 }
 
 /// Determine whether a Rust function should be considered public.
@@ -303,8 +275,8 @@ fn static_display_kind(node: Node<'_>, source: &[u8]) -> String {
     parts.join(" ")
 }
 
-fn macro_name(node: Node<'_>, source: &[u8]) -> Option<String> {
-    if let Some(name) = name_from_field(node, source, "name") {
+fn macro_name(node: Node<'_>, source: &[u8], extractor: &Extractor<'_>) -> Option<String> {
+    if let Some(name) = extractor.name_from_field(node, "name") {
         return Some(name);
     }
 

@@ -1,7 +1,7 @@
 ---
 id: 42
 title: Extract symbol Extractor context struct
-status: proposed
+status: done
 priority: medium
 labels:
   - refactor

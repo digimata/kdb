@@ -13,28 +13,32 @@ mod python;
 //
 // mod go                                        L9
 // mod python                                   L10
-// pub(crate) mod query                         L40
-// pub mod render                               L41
-// mod rust                                     L42
-// mod typescript                               L43
-// pub enum SymbolKind                          L47
-// pub struct Symbol                            L69
-// type SeenSymbols                             L81
-// pub fn extract_symbols()                     L93
-// fn parse_tree()                             L111
-// fn tree_sitter_language()                   L124
-// pub(super) fn walk_depth_first()            L136
-// pub(super) fn name_from_field()             L163
-// pub(super) fn normalized_node_text()        L169
-// pub(super) fn push_symbol()                 L188
-// pub fn extract_symbol_body()                L228
-// pub(super) fn nearest_ancestor()            L241
-// pub(super) fn normalize_type_name()         L252
-// pub(super) fn extract_go_receiver_type()    L287
-// pub(super) fn decorated_parent_or_self()    L323
-// pub fn kind_label()                         L331
-// pub fn is_callable_kind()                   L352
-// pub fn format_symbol_display()              L364
+// pub(crate) mod query                         L44
+// pub mod render                               L45
+// mod rust                                     L46
+// mod typescript                               L47
+// pub enum SymbolKind                          L51
+// pub struct Symbol                            L73
+// struct SeenSymbolKey                         L86
+// pub(super) struct Extractor                  L97
+//   pub(super) fn new()                       L104
+//   pub(super) fn name_from_field()           L112
+//   pub(super) fn node_text()                 L117
+//   pub(super) fn push()                      L121
+//   pub(super) fn finish()                    L160
+// fn trim_node_text()                         L165
+// pub fn extract_symbols()                    L184
+// fn parse_tree()                             L202
+// fn tree_sitter_language()                   L215
+// pub(super) fn walk_depth_first()            L227
+// pub fn extract_symbol_body()                L254
+// pub(super) fn nearest_ancestor()            L267
+// pub(super) fn normalize_type_name()         L278
+// pub(super) fn extract_go_receiver_type()    L313
+// pub(super) fn decorated_parent_or_self()    L349
+// pub fn kind_label()                         L357
+// pub fn is_callable_kind()                   L378
+// pub fn format_symbol_display()              L390
 // ------------------------------------------------
 
 pub(crate) mod query;
@@ -78,16 +82,103 @@ pub struct Symbol {
     pub is_public: bool,
 }
 
-type SeenSymbols = HashSet<(
-    usize,
-    usize,
-    usize,
-    String,
-    Option<String>,
-    SymbolKind,
-    String,
-    bool,
-)>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct SeenSymbolKey {
+    line: usize,
+    end_line: usize,
+    start_byte: usize,
+    name: String,
+    parent: Option<String>,
+    kind: SymbolKind,
+    display_kind: String,
+    is_public: bool,
+}
+
+pub(super) struct Extractor<'src> {
+    source: &'src [u8],
+    symbols: Vec<Symbol>,
+    seen: HashSet<SeenSymbolKey>,
+}
+
+impl<'src> Extractor<'src> {
+    pub(super) fn new(source: &'src [u8]) -> Self {
+        Self {
+            source,
+            symbols: Vec::new(),
+            seen: HashSet::new(),
+        }
+    }
+
+    pub(super) fn name_from_field(&self, node: Node<'_>, field: &str) -> Option<String> {
+        let name_node = node.child_by_field_name(field)?;
+        self.node_text(name_node)
+    }
+
+    pub(super) fn node_text(&self, node: Node<'_>) -> Option<String> {
+        trim_node_text(node, self.source)
+    }
+
+    pub(super) fn push(
+        &mut self,
+        node: Node<'_>,
+        name: String,
+        parent: Option<String>,
+        kind: SymbolKind,
+        display_kind: String,
+        is_public: bool,
+    ) {
+        let line = node.start_position().row as usize + 1;
+        let end_line = node.end_position().row as usize + 1;
+        let start_byte = node.start_byte();
+        let end_byte = node.end_byte();
+        let key = SeenSymbolKey {
+            line,
+            end_line,
+            start_byte,
+            name: name.clone(),
+            parent: parent.clone(),
+            kind,
+            display_kind: display_kind.clone(),
+            is_public,
+        };
+
+        if self.seen.insert(key) {
+            self.symbols.push(Symbol {
+                name,
+                parent,
+                kind,
+                display_kind,
+                line,
+                end_line,
+                start_byte,
+                end_byte,
+                is_public,
+            });
+        }
+    }
+
+    pub(super) fn finish(self) -> Vec<Symbol> {
+        self.symbols
+    }
+}
+
+fn trim_node_text(node: Node<'_>, source: &[u8]) -> Option<String> {
+    let text = node.utf8_text(source).ok()?.trim();
+    if text.is_empty() {
+        return None;
+    }
+
+    let stripped = text
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim_matches('`')
+        .trim();
+    if stripped.is_empty() {
+        return None;
+    }
+
+    Some(stripped.to_string())
+}
 
 /// Parse source and extract language-appropriate symbols.
 pub fn extract_symbols(language: CodeLanguage, source: &str) -> Result<Vec<Symbol>> {
@@ -159,71 +250,6 @@ pub(super) fn walk_depth_first(root: Node<'_>, mut visit: impl FnMut(Node<'_>)) 
     }
 }
 
-/// Read a named child field and return normalized text.
-pub(super) fn name_from_field(node: Node<'_>, source: &[u8], field: &str) -> Option<String> {
-    let name_node = node.child_by_field_name(field)?;
-    normalized_node_text(name_node, source)
-}
-
-/// Normalize a node's text by trimming whitespace and quote wrappers.
-pub(super) fn normalized_node_text(node: Node<'_>, source: &[u8]) -> Option<String> {
-    let text = node.utf8_text(source).ok()?.trim();
-    if text.is_empty() {
-        return None;
-    }
-
-    let stripped = text
-        .trim_matches('"')
-        .trim_matches('\'')
-        .trim_matches('`')
-        .trim();
-    if stripped.is_empty() {
-        return None;
-    }
-
-    Some(stripped.to_string())
-}
-
-/// Add a symbol with deduplication by location/name/kind/visibility.
-pub(super) fn push_symbol(
-    symbols: &mut Vec<Symbol>,
-    seen: &mut SeenSymbols,
-    node: Node<'_>,
-    name: String,
-    parent: Option<String>,
-    kind: SymbolKind,
-    display_kind: String,
-    is_public: bool,
-) {
-    let line = node.start_position().row as usize + 1;
-    let end_line = node.end_position().row as usize + 1;
-    let start_byte = node.start_byte();
-    let end_byte = node.end_byte();
-    let key = (
-        line,
-        end_line,
-        start_byte,
-        name.clone(),
-        parent.clone(),
-        kind,
-        display_kind.clone(),
-        is_public,
-    );
-    if seen.insert(key) {
-        symbols.push(Symbol {
-            name,
-            parent,
-            kind,
-            display_kind,
-            line,
-            end_line,
-            start_byte,
-            end_byte,
-            is_public,
-        });
-    }
-}
-
 /// Extract the source body for a symbol using byte span coordinates.
 pub fn extract_symbol_body(source: &str, symbol: &Symbol) -> Result<String> {
     source
@@ -251,10 +277,10 @@ pub(super) fn nearest_ancestor<'tree>(mut node: Node<'tree>, kind: &str) -> Opti
 /// Normalize a Rust type node to a display name used for method qualification.
 pub(super) fn normalize_type_name(node: Node<'_>, source: &[u8]) -> Option<String> {
     if let Some(name_node) = node.child_by_field_name("name") {
-        return normalized_node_text(name_node, source);
+        return trim_node_text(name_node, source);
     }
 
-    let text = normalized_node_text(node, source)?;
+    let text = trim_node_text(node, source)?;
     let path_segment = text.split("::").last().unwrap_or(&text);
     let path_segment = path_segment.split('.').last().unwrap_or(path_segment);
     let path_segment = path_segment.trim();
