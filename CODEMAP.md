@@ -2,39 +2,20 @@
 
 ## Overview
 
-kdb is a compiler and language server for markdown knowledge bases. It treats a directory of `.md` files like a codebase — headings are exported symbols, links are imports, and broken references are compile errors.
+kdb is a compiler and language server for markdown knowledge bases. It treats a directory of `.md` files like a codebase — headings are exported symbols, links are imports, and broken references are compile errors. It also indexes code files for import resolution and dependency tracking.
 
-## Architecture
-
-```
-CLI (src/main.rs)
- └─ cmd (src/cmd.rs) ─── dispatches subcommands
-     ├─ init    → root, config
-     ├─ check   → index (build + validate)
-     ├─ outline → index (build + query)
-     ├─ fmt     → fmt (walk + rewrite code files)
-     └─ lsp     → lsp/backend (long-running server)
-
-LSP (src/lsp/)
- └─ backend ─── holds cached VaultIndex + open document state
-     ├─ completion  → index (heading/file completions)
-     ├─ definition  → index (link → target resolution)
-     ├─ diagnostics → index (broken link reporting)
-     ├─ hover       → index (link preview on hover)
-     └─ symbols     → index (heading outline for document)
-```
-
-**Core module**: `index` — everything flows through `VaultIndex`. CLI commands build a fresh index per invocation. The LSP caches one and updates it incrementally from editor events and file watcher notifications.
+**Index split**: `VaultIndex` handles markdown (files, headings, links, inbound maps). `CodeIndex` handles code (workspace packages, language caches, resolved imports). `ProjectIndex { vault, code }` wraps both. Most commands only need the vault; `deps` builds the full project index.
 
 **Stateless vs stateful**: CLI commands are stateless (build index, do work, exit). The LSP is stateful — it caches the vault index and tracks open document buffers so unsaved edits are reflected immediately.
 
 ## Data flow
 
-1. **Discovery**: walk the vault directory, respect `.kdb/config.toml` ignore patterns
-2. **Parsing**: `parse_markdown()` extracts headings and links from each `.md` file
-3. **Indexing**: `VaultIndex::build()` assembles the file map and inbound link graphs
-4. **Validation**: `VaultIndex::check()` resolves every link, reports broken refs and orphans
-5. **Resolution**: links resolve relative to their source file; wikilinks auto-append `.md`
+1. **Project discovery**: `ProjectContext::discover()` walks up looking for `.kdb/`, loads config + ignore patterns
+2. **Markdown parsing**: `parse_markdown()` extracts headings and links from each `.md` file
+3. **Vault indexing**: `VaultIndex::build()` assembles the file map and inbound link graphs
+4. **Code indexing**: `CodeIndex::build()` scans code files and resolves imports per language
+5. **Validation**: `VaultIndex::check()` resolves every link, reports broken refs and orphans
+6. **Resolution**: links resolve relative to their source file; wikilinks auto-append `.md`
 
 ## Key conventions
 
@@ -43,35 +24,82 @@ LSP (src/lsp/)
 - Project root is discovered by walking upward looking for `.kdb/` directory
 - Heading anchors are GitHub-compatible slugs with numeric dedup suffixes
 - The LSP uses `tower-lsp` over stdio; one `Backend` struct holds all shared state
+- Tree-sitter is used for all code parsing (symbols, imports, index headers)
 
 ## Modules
 
 ```
 src/
   main.rs           CLI entrypoint — clap parser, subcommand dispatch
-  cmd.rs            Subcommand implementations (init, check, outline, fmt, lsp)
-  config.rs         .kdb/config.toml parsing (index ignore patterns)
-  root.rs           Project root discovery — walks up looking for .kdb/
+  lib.rs            Crate root — public module declarations
+  cmd.rs            CmdContext + subcommand implementations
+  lang.rs           CodeLanguage enum + file-type detection
+  tree.rs           Filtered tree rendering for `kdb tree`
+
+  project/
+    mod.rs          ProjectContext — root, config, ignore patterns
+    root.rs         Root marker discovery — walks up looking for .kdb/
+    config.rs       .kdb/config.toml parsing (index ignore patterns)
+    ignore.rs       Ignore sets + always-ignored dirs (shared across modules)
+    paths.rs        normalize_rel_path + rel path helpers
+    discover.rs     File discovery walker (shared by index + tree + fmt)
 
   index/
-    mod.rs          Markdown parser, vault indexer, link resolver — the core module
+    mod.rs          VaultIndex, CodeIndex, ProjectIndex — the core indexer
+    markdown.rs     Markdown parser (headings, links, section bounds)
+    refs.rs         Inbound reference queries for `kdb refs`
+    deps.rs         Outbound dependency collection for `kdb deps`
+
+  resolve/
+    mod.rs          WorkspaceCaches + import resolution dispatch
+    go.rs           Go import resolver
+    python.rs       Python import resolver
+    rust.rs         Rust use/mod resolver
+    tsjs.rs         TypeScript/JavaScript import resolver
+
+  deps/
+    mod.rs          Standalone code deps extraction (non-index path)
+    go.rs           Go dependency extraction
+    python.rs       Python dependency extraction
+    rust.rs         Rust dependency extraction
+    typescript.rs   TypeScript/JavaScript dependency extraction
+    utils.rs        Shared dep extraction helpers
+
+  symbols/
+    mod.rs          Symbol extraction dispatch + shared tree-sitter helpers
+    extract/
+      mod.rs        Extractor context struct
+      go.rs         Go symbol extraction
+      python.rs     Python symbol extraction
+      rust.rs       Rust symbol extraction
+      typescript.rs TypeScript/JavaScript symbol extraction
+    query.rs        Symbol query API (collect_rows, collect_body_rows)
+    display.rs      Text output formatting for symbol results
+    tree.rs         Symbol tree building (qualified names, nesting)
 
   fmt/
-    mod.rs          Code file index header generation — workspace walker + file rewriter
-    languages.rs    Tree-sitter symbol extraction for Rust, TS/JS, Python, Go
+    mod.rs          Code file index header generation — workspace walker + rewriter
+    preamble.rs     Language-specific preamble detection (doc comments, imports)
 
   lsp/
     mod.rs          LSP module root — re-exports and serve() entrypoint
-    backend.rs      Server state (cached index, open docs) + LanguageServer trait impl
+    backend.rs      Server state (cached index, open docs) + LanguageServer impl
     completion.rs   Autocomplete for links and headings
     definition.rs   Go-to-definition for markdown/wikilinks
     diagnostics.rs  Broken link diagnostics (publish on open/change/close)
+    formatting.rs   Code index header formatting via LSP
     hover.rs        Hover info for links (target heading preview)
+    semantic_tokens.rs  Semantic token highlighting
     symbols.rs      Document symbol outline (heading tree)
 ```
 
 ## Testing
 
-- `tests/cli.rs` — end-to-end CLI integration tests (init, check, outline)
-- `tests/index.rs` — vault indexer unit tests (parsing, resolution, validation)
+- `tests/cli.rs` — end-to-end CLI integration tests (all subcommands)
+- `tests/index.rs` — vault/project indexer tests (parsing, resolution, validation, code imports)
+- `tests/config.rs` — config loading tests
+- `tests/fmt.rs` — code index header formatting tests
+- `tests/lsp.rs` — LSP integration tests (diagnostics, completion, definition, hover, symbols)
+- `tests/root.rs` — project root discovery tests
+- `tests/symbols.rs` — symbol extraction tests (all languages)
 - Run: `cargo test`

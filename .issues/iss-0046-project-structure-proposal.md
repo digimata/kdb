@@ -1,7 +1,7 @@
 ---
 id: 46
 title: Project Structure Proposal — Shared Components + Boundaries
-status: in_progress
+status: done
 priority: high
 labels:
   - refactor
