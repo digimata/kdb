@@ -97,7 +97,7 @@ CLI/LSP can hold a `ProjectIndex { vault, code }` (or a unified wrapper) rather 
 ### WorkspaceCaches
 
 One struct holding the per-language caches (Go/Python/Rust/TSJS), instead of threading four separate cache params. This keeps signatures small and keeps caching policy in one place.
-
+u
 ## Proposal: ideal `src/` layout (physical)
 
 ```text

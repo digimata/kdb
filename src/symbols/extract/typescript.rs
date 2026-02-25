@@ -2,33 +2,33 @@ use tree_sitter::Node;
 
 use super::{Extractor, Symbol, SymbolKind, walk_depth_first};
 
-// -------------------------------------
-// src/symbols/typescript.rs
+// -------------------------------------------
+// src/symbols/extract/typescript.rs
 //
-// pub(super) fn extract()           L31
-// fn member_parent()               L194
-// fn declaration_span_node()       L220
-// fn variable_span_node()          L235
-// fn declaration_display_kind()    L251
-// fn class_display_kind()          L276
-// fn function_display_kind()       L292
-// fn member_display_kind()         L317
-// fn property_display_kind()       L334
-// fn is_module_level_variable()    L349
-// fn declaration_keyword()         L365
-// fn signature_until_name()        L392
-// fn signature_head()              L419
-// fn is_exported()                 L438
-// fn has_export_ancestor()         L449
-// fn is_default_export()           L463
-// fn is_private_member()           L489
-// fn normalize_whitespace()        L510
-// fn ends_with_token()             L514
-// fn contains_token()              L518
-// -------------------------------------
+// pub(in crate::symbols) fn extract()     L31
+// fn member_parent()                     L194
+// fn declaration_span_node()             L220
+// fn variable_span_node()                L235
+// fn declaration_display_kind()          L251
+// fn class_display_kind()                L276
+// fn function_display_kind()             L292
+// fn member_display_kind()               L317
+// fn property_display_kind()             L334
+// fn is_module_level_variable()          L349
+// fn declaration_keyword()               L365
+// fn signature_until_name()              L392
+// fn signature_head()                    L419
+// fn is_exported()                       L438
+// fn has_export_ancestor()               L449
+// fn is_default_export()                 L463
+// fn is_private_member()                 L489
+// fn normalize_whitespace()              L510
+// fn ends_with_token()                   L514
+// fn contains_token()                    L518
+// -------------------------------------------
 
 /// Extract JavaScript/TypeScript symbols used by code indexing and symbol listing.
-pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
+pub(in crate::symbols) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
     let mut extractor = Extractor::new(source);
 
     walk_depth_first(root, |node| match node.kind() {

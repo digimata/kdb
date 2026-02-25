@@ -2,18 +2,18 @@ use tree_sitter::Node;
 
 use super::{Extractor, Symbol, SymbolKind, extract_go_receiver_type, walk_depth_first};
 
-// -------------------------------
-// src/symbols/go.rs
+// -------------------------------------------
+// src/symbols/extract/go.rs
 //
-// pub(super) fn extract()     L16
-// fn receiver_parent()       L101
-// fn is_top_level_spec()     L107
-// fn names_from_spec()       L122
-// fn is_exported_name()      L147
-// -------------------------------
+// pub(in crate::symbols) fn extract()     L16
+// fn receiver_parent()                   L101
+// fn is_top_level_spec()                 L107
+// fn names_from_spec()                   L122
+// fn is_exported_name()                  L147
+// -------------------------------------------
 
 /// Extract Go functions, methods, named types, and top-level const/var symbols.
-pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
+pub(in crate::symbols) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
     let mut extractor = Extractor::new(source);
 
     walk_depth_first(root, |node| match node.kind() {

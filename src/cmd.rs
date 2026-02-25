@@ -277,7 +277,7 @@ pub fn symbols(
                 .context("failed to serialize symbol bodies as JSON")?;
             println!("{output}");
         } else {
-            symbols::render::print_bodies_text(&rows);
+            symbols::display::print_bodies_text(&rows);
         }
     } else {
         let mut rows = symbols::query::collect_rows(&root, &file_abs, &rel_path)?;
@@ -290,7 +290,7 @@ pub fn symbols(
                 .context("failed to serialize symbols as JSON")?;
             println!("{output}");
         } else {
-            symbols::render::print_text(&rows);
+            symbols::display::print_text(&rows);
         }
     }
 

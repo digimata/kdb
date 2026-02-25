@@ -4,19 +4,19 @@ use super::{
     Extractor, Symbol, SymbolKind, decorated_parent_or_self, nearest_ancestor, walk_depth_first,
 };
 
-// --------------------------------------
-// src/symbols/python.rs
+// -------------------------------------------
+// src/symbols/extract/python.rs
 //
-// pub(super) fn extract()            L19
-// fn function_kind_and_display()     L59
-// fn symbol_kind_for_context()      L115
-// fn decorators_for()               L123
-// fn is_async_function()            L155
-// fn is_public_name()               L163
-// --------------------------------------
+// pub(in crate::symbols) fn extract()     L19
+// fn function_kind_and_display()          L59
+// fn symbol_kind_for_context()           L115
+// fn decorators_for()                    L123
+// fn is_async_function()                 L155
+// fn is_public_name()                    L163
+// -------------------------------------------
 
 /// Extract Python classes, methods, and module-level functions.
-pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
+pub(in crate::symbols) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
     let mut extractor = Extractor::new(source);
 
     walk_depth_first(root, |node| match node.kind() {

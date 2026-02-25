@@ -8,6 +8,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- split `symbols/` into `extract/`, `tree.rs`, and `display.rs` per CC-3.6; merge render into display
 - introduce `src/project/` module with `ProjectContext`, consolidating root discovery, config loading, ignore handling, path normalization, and file discovery
 - centralize CodeLanguage for cross-module dispatch
 - introduce extractor context for symbol extraction

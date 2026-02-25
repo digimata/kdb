@@ -6,7 +6,7 @@ use crate::index::{VaultIndex, parse_markdown, section_byte_bounds, section_line
 use crate::lang::CodeLanguage;
 use crate::project::config;
 
-use super::render::{self, SymbolBodyRow, SymbolRow};
+use super::display::{self, SymbolBodyRow, SymbolRow};
 use super::{Symbol, extract_symbol_body, extract_symbols};
 
 // ----------------------------------------
@@ -142,7 +142,7 @@ fn collect_code_body_rows(
                     rel_path.display()
                 )
             })?;
-            Ok(render::code_symbol_body_row(&file, symbol, body))
+            Ok(display::code_symbol_body_row(&file, symbol, body))
         })
         .collect::<Result<Vec<_>>>()
 }
@@ -188,7 +188,7 @@ fn collect_markdown_body_rows(
     let file = rel_path.to_string_lossy().replace('\\', "/");
     let body = source[start_byte..end_byte].to_string();
 
-    Ok(vec![render::markdown_symbol_body_row(
+    Ok(vec![display::markdown_symbol_body_row(
         &file, heading, end_line, body,
     )])
 }

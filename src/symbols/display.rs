@@ -1,21 +1,26 @@
-//! Symbol display formatting for CLI output and codemap generation.
+//! Symbol display formatting, CLI output, and codemap generation.
 
+use anyhow::{Context, Result};
 use serde::Serialize;
 
 use crate::index::Heading;
 
-use super::{Symbol, format_symbol_display, kind_label};
+use super::{Symbol, SymbolKind};
 
 // -----------------------------------------
-// src/symbols/render.rs
+// src/symbols/display.rs
 //
-// pub struct SymbolRow                  L23
-// pub struct SymbolBodyRow              L52
-//   fn from()                           L76
-// pub fn code_symbol_body_row()         L94
-// pub fn markdown_symbol_body_row()    L109
-// pub fn print_text()                  L129
-// pub fn print_bodies_text()           L142
+// pub struct SymbolRow                  L28
+//   fn from()                           L56
+// pub struct SymbolBodyRow              L75
+// pub fn kind_label()                   L99
+// pub fn is_callable_kind()            L120
+// pub fn format_symbol_display()       L132
+// pub fn extract_symbol_body()         L160
+// pub fn code_symbol_body_row()        L173
+// pub fn markdown_symbol_body_row()    L188
+// pub fn print_text()                  L208
+// pub fn print_bodies_text()           L221
 // -----------------------------------------
 
 /// A formatted symbol row ready for display.
@@ -47,6 +52,24 @@ pub struct SymbolRow {
     pub is_public: bool,
 }
 
+impl From<Symbol> for SymbolRow {
+    fn from(symbol: Symbol) -> Self {
+        let display_kind = symbol.display_kind.clone();
+
+        Self {
+            display: format_symbol_display(&symbol),
+            kind: kind_label(symbol.kind).to_string(),
+            display_kind: Some(display_kind),
+            name: symbol.name,
+            line: symbol.line,
+            parent: symbol.parent,
+            level: None,
+            anchor: None,
+            is_public: symbol.is_public,
+        }
+    }
+}
+
 /// A formatted symbol body row for `kdb symbols -s` output.
 #[derive(Debug, Clone, Serialize)]
 pub struct SymbolBodyRow {
@@ -72,22 +95,78 @@ pub struct SymbolBodyRow {
     pub body: String,
 }
 
-impl From<Symbol> for SymbolRow {
-    fn from(symbol: Symbol) -> Self {
-        let display_kind = symbol.display_kind.clone();
-
-        Self {
-            display: format_symbol_display(&symbol),
-            kind: kind_label(symbol.kind).to_string(),
-            display_kind: Some(display_kind),
-            name: symbol.name,
-            line: symbol.line,
-            parent: symbol.parent,
-            level: None,
-            anchor: None,
-            is_public: symbol.is_public,
-        }
+/// Stable symbol kind labels for JSON output and filtering.
+pub fn kind_label(kind: SymbolKind) -> &'static str {
+    match kind {
+        SymbolKind::Function | SymbolKind::Method | SymbolKind::Constructor => "fn",
+        SymbolKind::Struct => "struct",
+        SymbolKind::Enum => "enum",
+        SymbolKind::Trait => "trait",
+        SymbolKind::TypeAlias => "type",
+        SymbolKind::Class => "class",
+        SymbolKind::Interface => "interface",
+        SymbolKind::Const => "const",
+        SymbolKind::Static => "static",
+        SymbolKind::Property => "property",
+        SymbolKind::Getter => "getter",
+        SymbolKind::Setter => "setter",
+        SymbolKind::Module => "module",
+        SymbolKind::Macro => "macro",
+        SymbolKind::Variable => "variable",
     }
+}
+
+/// Return whether a symbol should be displayed as callable with trailing `()`.
+pub fn is_callable_kind(kind: SymbolKind) -> bool {
+    matches!(
+        kind,
+        SymbolKind::Function
+            | SymbolKind::Method
+            | SymbolKind::Constructor
+            | SymbolKind::Getter
+            | SymbolKind::Setter
+    )
+}
+
+/// Build a display line fragment for a code symbol.
+pub fn format_symbol_display(symbol: &Symbol) -> String {
+    let indent = if symbol.parent.is_some() { "  " } else { "" };
+    let display_kind = symbol.display_kind.trim();
+
+    if symbol.kind == SymbolKind::Constructor
+        && display_kind == "constructor"
+        && symbol.name == "constructor"
+    {
+        return format!("{indent}constructor()");
+    }
+
+    let mut display_name = symbol.name.clone();
+    if is_callable_kind(symbol.kind) {
+        display_name.push_str("()");
+    }
+
+    if display_kind == "#" {
+        return format!("{indent}#{}", display_name.trim_start_matches('#'));
+    }
+
+    if display_kind.is_empty() {
+        format!("{indent}{display_name}")
+    } else {
+        format!("{indent}{display_kind} {display_name}")
+    }
+}
+
+/// Extract the source body for a symbol using byte span coordinates.
+pub fn extract_symbol_body(source: &str, symbol: &Symbol) -> Result<String> {
+    source
+        .get(symbol.start_byte..symbol.end_byte)
+        .map(|slice| slice.to_string())
+        .with_context(|| {
+            format!(
+                "invalid symbol span {}..{} for `{}`",
+                symbol.start_byte, symbol.end_byte, symbol.name
+            )
+        })
 }
 
 /// Convert a code symbol and source body into a body output row.

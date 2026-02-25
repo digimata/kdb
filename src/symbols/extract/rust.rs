@@ -4,27 +4,27 @@ use super::{
     Extractor, Symbol, SymbolKind, nearest_ancestor, normalize_type_name, walk_depth_first,
 };
 
-// ----------------------------------
-// src/symbols/rust.rs
+// -------------------------------------------
+// src/symbols/extract/rust.rs
 //
-// pub(super) fn extract()        L27
-// fn method_parent()            L156
-// fn function_is_public()       L170
-// fn item_is_public()           L183
-// fn function_display_kind()    L191
-// fn trait_display_kind()       L224
-// fn item_display_kind()        L243
-// fn static_display_kind()      L259
-// fn macro_name()               L278
-// fn declaration_signature()    L296
-// fn visibility_prefix()        L308
-// fn leading_visibility()       L315
-// fn contains_keyword()         L350
-// fn find_keyword_index()       L355
-// ----------------------------------
+// pub(in crate::symbols) fn extract()     L27
+// fn method_parent()                     L156
+// fn function_is_public()                L170
+// fn item_is_public()                    L183
+// fn function_display_kind()             L191
+// fn trait_display_kind()                L224
+// fn item_display_kind()                 L243
+// fn static_display_kind()               L259
+// fn macro_name()                        L278
+// fn declaration_signature()             L296
+// fn visibility_prefix()                 L308
+// fn leading_visibility()                L315
+// fn contains_keyword()                  L350
+// fn find_keyword_index()                L355
+// -------------------------------------------
 
 /// Extract Rust symbols used by code indexing and symbol listing.
-pub(super) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
+pub(in crate::symbols) fn extract(root: Node<'_>, source: &[u8]) -> Vec<Symbol> {
     let mut extractor = Extractor::new(source);
 
     walk_depth_first(root, |node| match node.kind() {
