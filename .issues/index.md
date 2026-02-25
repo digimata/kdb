@@ -13,7 +13,6 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | high |
 | [0007 — Production Readiness](iss-0007-production-readiness.md) | chore | proposed | high |
 | [0005 — Code Comment Links Into KDB Docs](iss-0005-code-comment-links.md) | feat | proposed | high |
-| [0006 — Realtime Multiplayer Workspace](iss-0006-realtime-workspace.md) | feat | proposed | high |
 | [0031 — Parallel Tree-Sitter File Parsing](iss-0031-parallel-file-parsing.md) | perf | in_progress | high |
 | [0003 — Databases and Bases](iss-0003-databases-bases.md) | feat | proposed | high |
 | [0035 — Root-Relative Path Support](iss-0035-root-relative-paths.md) | feat | proposed | medium |
