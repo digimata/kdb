@@ -8,7 +8,7 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0047 — ProjectContext + Shared Utilities](iss-0047-project-context.md) | refactor | done | high |
 | [0048 — Split Project Index (Vault vs Code)](iss-0048-split-project-index.md) | refactor | proposed | high |
 | [0039 — Lift CodeLanguage to src/lang.rs](iss-0039-lift-codelanguage.md) | refactor | done | high |
-| [0040 — Extract CmdContext in cmd.rs](iss-0040-cmd-context.md) | refactor | proposed | high |
+| [0040 — Extract CmdContext in cmd.rs](iss-0040-cmd-context.md) | refactor | done | high |
 | [0042 — Extract Symbol Extractor Context](iss-0042-symbol-extractor-context.md) | refactor | done | medium |
 | [0043 — Consolidate Resolve Workspace Caches](iss-0043-workspace-caches.md) | refactor | done | medium |
 | [0044 — Move TS/JS Workspace Logic](iss-0044-move-tsjs-workspace-logic.md) | refactor | done | medium |

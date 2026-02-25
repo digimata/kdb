@@ -157,7 +157,7 @@ async fn main() {
         } => kdb::cmd::refs(target, json, count),
         Command::Deps { target, json } => kdb::cmd::deps(target, json),
         Command::Graph { path } => kdb::cmd::graph(path),
-        Command::Fmt { path } => kdb::cmd::fmt(path),
+        Command::Fmt { path } => kdb::cmd::format(path),
         Command::Lsp { path } => kdb::lsp::serve(path).await,
     };
 

@@ -1,7 +1,7 @@
 ---
 id: 40
 title: Extract CmdContext in cmd.rs
-status: proposed
+status: done
 priority: high
 labels:
   - refactor
