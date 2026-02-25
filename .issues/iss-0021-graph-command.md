@@ -68,6 +68,16 @@ Orphans: changelog.md
 
 Markdown-only for now. Code dependency graph (phase 3) will extend this.
 
+## Notes
+
+### Typed edges for agent navigation
+
+Consider supporting typed/labeled edges rather than bare `from → to`. This would let an agent query richer relationships — e.g. `implements <Interface>`, `imports <module>`, `extends <class>`, `tests <function>`. Even for markdown, edges could carry labels like `references`, `defines`, `see-also`.
+
+This makes the graph useful not just for visualization but as a **queryable knowledge graph** — an agent could ask "what implements Resolver?" or "what tests build_workspace_import_index?" and get structured answers.
+
+Might be premature for v1 but worth designing the edge model to accommodate labels from the start (e.g. an optional `kind` field on edges) so we don't have to retrofit later.
+
 ## Changes
 
 | File | Change |

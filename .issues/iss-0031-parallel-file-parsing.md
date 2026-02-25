@@ -1,7 +1,7 @@
 ---
 id: 31
 title: Parallel tree-sitter file parsing during index build
-status: proposed
+status: done
 priority: high
 labels:
   - perf
@@ -27,11 +27,6 @@ Parallelize tree-sitter parsing across files during index build. For a 10k-file 
 - Per-file facts are independent — no coordination needed during parsing
 - Cross-reference map building must happen after all files are parsed (needs the full import map)
 - For small projects (<100 files), parallelism overhead may exceed benefit — consider a threshold
-
-## Dependencies
-
-- **iss-0030** (`ignore` crate): provides the parallel file walker
-- **iss-0028** (code symbol refs): the index build pipeline that gets parallelized
 
 ## Changes
 

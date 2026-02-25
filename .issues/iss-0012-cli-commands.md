@@ -16,32 +16,20 @@ Tracking issue for the full kdb CLI surface area.
 ## Shipped
 
 - [x] `kdb init`
-- [x] `kdb check`
+- [x] `kdb check` (with `--orphans`)
 - [x] `kdb outline`
-- [x] `kdb lsp`
 - [x] `kdb tree`
+- [x] `kdb symbols` (markdown + code, `-s` selection, `--json`, `--public`)
+- [x] `kdb refs` (markdown inbound refs, `--json`, `--count`)
+- [x] `kdb deps` (markdown + code, `--json`)
+- [x] `kdb fmt` (code index headers, LSP formatter chain) → [iss-0014](iss-0014-code-file-indexes.md)
+- [x] `kdb lsp`
 
-## In progress
+## Not yet implemented
 
-- [ ] `kdb fmt` → [iss-0014](iss-0014-code-file-indexes.md)
-- [ ] `kdb codemap` → [iss-0016](iss-0016-codemap.md)
-
-## Phase 1 — markdown queries
-
-- [x] `kdb symbols` → [iss-0018](iss-0018-symbols-command.md)
-- [ ] `kdb refs` → [iss-0019](iss-0019-refs-command.md)
-- [ ] `kdb deps` → [iss-0020](iss-0020-deps-command.md)
-- [ ] `kdb graph` → [iss-0021](iss-0021-graph-command.md)
-
-## Phase 2 — code symbol queries
-
-- [ ] `kdb symbols <file.rs>` — extends iss-0018 with code file support
-
-## Phase 3 — code dependency graph
-
-- [ ] `kdb deps <file.rs>` — import → file resolution per language
-- [ ] `kdb refs <module>` — reverse import lookup
-- [ ] `kdb graph` for code files
+- [ ] `kdb refs -s <symbol>` — code symbol references → [iss-0028](iss-0028-code-symbol-refs.md)
+- [ ] `kdb graph` — dependency graph output (stubbed, not implemented) → [iss-0021](iss-0021-graph-command.md)
+- [ ] `kdb codemap` — unified agent-readable codebase map → [iss-0016](iss-0016-codemap.md)
 
 ## Retired
 

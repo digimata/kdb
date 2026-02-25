@@ -1,7 +1,7 @@
 ---
 id: 19
 title: kdb refs Command
-status: proposed
+status: done
 priority: high
 labels:
   - feat
