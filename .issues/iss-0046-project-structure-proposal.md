@@ -1,7 +1,7 @@
 ---
 id: 46
 title: Project Structure Proposal — Shared Components + Boundaries
-status: proposed
+status: in_progress
 priority: high
 labels:
   - refactor
@@ -97,76 +97,85 @@ CLI/LSP can hold a `ProjectIndex { vault, code }` (or a unified wrapper) rather 
 ### WorkspaceCaches
 
 One struct holding the per-language caches (Go/Python/Rust/TSJS), instead of threading four separate cache params. This keeps signatures small and keeps caching policy in one place.
-u
-## Proposal: ideal `src/` layout (physical)
+## Adopted `src/` layout
+
+The original proposal sketched a deeper nesting (e.g. `index/vault/`, `index/code/`, `cli/`). During implementation we kept a flatter layout — the structural boundaries are in place without the extra directories. This is the adopted structure:
 
 ```text
 src/
   main.rs
   lib.rs
+  cmd.rs              # CmdContext + command implementations
+  lang.rs             # CodeLanguage + language detection
+  tree.rs             # filtered tree rendering
 
   project/
     mod.rs            # ProjectContext
-    root.rs           # root marker discovery (was src/root.rs)
-    config.rs         # config loading (was src/config.rs)
+    root.rs           # root marker discovery
+    config.rs         # config loading
     ignore.rs         # ignore sets + always-ignored dirs
     paths.rs          # normalize_rel_path + rel path helpers
     discover.rs       # single discovery/walk API
-    text.rs           # line starts / offset helpers shared by LSP + resolve
-
-  lang.rs             # CodeLanguage + language_for_path (currently in symbols)
 
   index/
-    mod.rs            # ProjectIndex { vault, code }
-    vault/
-      mod.rs          # VaultIndex + check/link graph
-      markdown.rs     # parse_markdown + slug/section bounds
-      refs.rs         # inbound refs queries
-      deps.rs         # markdown outbound deps queries
-    code/
-      mod.rs          # CodeIndex + ImportKind + ResolvedImport
-      workspace.rs    # package discovery (pnpm/package.json)
-      go.rs
-      python.rs
-      rust.rs
-      tsjs.rs
+    mod.rs            # VaultIndex, CodeIndex, ProjectIndex
+    markdown.rs       # parse_markdown + slug/section bounds
+    refs.rs           # inbound refs queries
+    deps.rs           # markdown + code outbound deps queries
+
+  resolve/
+    mod.rs            # WorkspaceCaches, import resolution dispatch
+    go.rs
+    python.rs
+    rust.rs
+    tsjs.rs
+
+  deps/
+    mod.rs            # standalone code deps (go/python/rust/ts)
+    go.rs
+    python.rs
+    rust.rs
+    typescript.rs
+    utils.rs
 
   symbols/
-    mod.rs            # extraction dispatch
+    mod.rs            # extraction dispatch + shared helpers
     extract/
+      mod.rs
       go.rs
       python.rs
       rust.rs
       typescript.rs
     query.rs
-    render.rs
+    display.rs
+    tree.rs
 
   fmt/
     mod.rs
     preamble.rs
 
-  tree/
-    mod.rs            # TreeBuilder/TreeOptions + rendering
-
-  cli/
-    mod.rs            # command wiring
-    context.rs        # CmdContext (thin wrapper over ProjectContext)
-
   lsp/
     mod.rs
     backend.rs
+    completion.rs
+    definition.rs
+    diagnostics.rs
+    formatting.rs
+    hover.rs
+    semantic_tokens.rs
+    symbols.rs
 ```
 
-Notes:
+### Divergences from original sketch
 
-- The proposed structure is a target. It can be achieved incrementally by introducing new modules, then moving code over with compatibility re-exports.
-- The goal is to make “shared” code boring and obvious, and keep language-specific logic isolated.
-
-## Non-goals
-
-- No behavior changes required to accept this proposal.
-- No one-shot big-bang move/rename of the entire tree.
-- No public API break is required; re-exports can keep external paths stable during transition.
+| Proposed | Adopted | Rationale |
+|----------|---------|-----------|
+| `index/vault/` subdir | Flat `index/` | Only 3 files — subdir adds noise, not clarity |
+| `index/code/` merging resolvers | `resolve/` stays separate | Resolvers don't need to know about indexing; cleaner boundary |
+| `cli/context.rs` | `CmdContext` inline in `cmd.rs` | Single file, not enough surface to warrant a module |
+| `tree/mod.rs` dir | `tree.rs` single file | No sub-components to split out |
+| `project/text.rs` | Not created | LSP byte/position helpers are fine in `lsp/backend.rs` |
+| No `src/deps/` | `src/deps/` exists | Standalone code deps extraction landed separately |
 
 ## Execution plan (incremental)
 

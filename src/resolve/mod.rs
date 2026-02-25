@@ -9,33 +9,7 @@ use std::path::{Component, Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::lang::CodeLanguage;
-// ---------------------------------------------
-// src/resolve/mod.rs
-//
-// mod go                                    L44
-// mod python                                L45
-// mod rust                                  L46
-// mod tsjs                                  L47
-// pub type WorkspacePackages                L61
-// pub struct WorkspaceCaches                L65
-//   pub fn build()                          L74
-// pub enum ImportKind                       L87
-// pub struct ResolvedImport                 L97
-// pub(crate) trait LanguageResolver        L110
-// pub struct WorkspaceImportIndex          L117
-// pub fn build_workspace_import_index()    L127
-// pub fn resolve_imports_for_language()    L172
-// fn discover_code_files()                 L199
-// pub(super) fn sanitize_specifier()       L256
-// pub(super) fn normalize_identifier()     L275
-// pub(super) fn resolve_with_exts()        L305
-// pub(super) fn resolve_file()             L333
-// fn canonicalize_existing_rel_path()      L342
-// pub(super) fn list_go_package_files()    L381
-// pub(super) fn slash_path()               L416
-// pub(super) fn to_root_relative()         L421
-// fn rel_path_from_root()                  L426
-// ---------------------------------------------
+// NOTE: index block managed by kdb fmt — do not update manually
 
 pub(super) use crate::project::ignore::ALWAYS_IGNORED_DIRS;
 pub(super) use crate::project::ignore::{build_ignore_globset, path_is_ignored};
@@ -112,22 +86,22 @@ pub(crate) trait LanguageResolver {
     fn resolve(&self, source_file: &Path, source: &str) -> Vec<ResolvedImport>;
 }
 
-/// Complete import index for a workspace: caches plus per-file resolved imports.
+/// Result of scanning all code files for imports.
+///
+/// Internal to the resolve module; consumed by [`crate::index::CodeIndex::build`].
 #[derive(Debug, Clone, Default)]
-pub struct WorkspaceImportIndex {
+pub(crate) struct WorkspaceImportResult {
     pub workspace_packages: WorkspacePackages,
     pub go_workspace: GoWorkspaceCache,
-    pub python_workspace: PythonWorkspaceCache,
     pub rust_workspace: RustWorkspaceCache,
     pub file_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
 }
 
-/// Scan every code file under `root` and resolve all imports, returning the
-/// complete workspace import index.
-pub fn build_workspace_import_index(
+/// Scan every code file under `root` and resolve all imports.
+pub(crate) fn build_workspace_import_index(
     root: &Path,
     ignore_patterns: &[String],
-) -> Result<WorkspaceImportIndex> {
+) -> Result<WorkspaceImportResult> {
     let ignore_set = build_ignore_globset(ignore_patterns)?;
     let workspace_caches = WorkspaceCaches::build(root, ignore_patterns)?;
     let mut file_imports = BTreeMap::new();
@@ -158,10 +132,9 @@ pub fn build_workspace_import_index(
         file_imports.insert(rel_path, imports);
     }
 
-    Ok(WorkspaceImportIndex {
+    Ok(WorkspaceImportResult {
         workspace_packages: workspace_caches.workspace_packages,
         go_workspace: workspace_caches.go_workspace,
-        python_workspace: workspace_caches.python_workspace,
         rust_workspace: workspace_caches.rust_workspace,
         file_imports,
     })

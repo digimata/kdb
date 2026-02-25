@@ -4,9 +4,9 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 
 | Issue | Label | Status | Priority |
 | --- | --- | --- | --- |
-| [0046 — Project Structure Proposal](iss-0046-project-structure-proposal.md) | refactor | proposed | high |
+| [0046 — Project Structure Proposal](iss-0046-project-structure-proposal.md) | refactor | in_progress | high |
 | [0047 — ProjectContext + Shared Utilities](iss-0047-project-context.md) | refactor | done | high |
-| [0048 — Split Project Index (Vault vs Code)](iss-0048-split-project-index.md) | refactor | proposed | high |
+| [0048 — Split Project Index (Vault vs Code)](iss-0048-split-project-index.md) | refactor | done | high |
 | [0039 — Lift CodeLanguage to src/lang.rs](iss-0039-lift-codelanguage.md) | refactor | done | high |
 | [0040 — Extract CmdContext in cmd.rs](iss-0040-cmd-context.md) | refactor | done | high |
 | [0042 — Extract Symbol Extractor Context](iss-0042-symbol-extractor-context.md) | refactor | done | medium |

@@ -10,35 +10,32 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::fmt;
-use crate::index::{self, VaultIndex, deps as md_deps, refs};
+use crate::index::{self, ProjectIndex, VaultIndex, deps as md_deps, refs};
 use crate::lang::CodeLanguage;
 use crate::project::{self, ProjectContext};
 use crate::symbols;
 use crate::tree;
 
-// ------------------------------
+// --------------------------------------
 // src/cmd.rs
 //
-// pub struct CmdContext      L42
-//   pub fn from_path()       L53
-//   pub fn build_index()     L63
-//   pub fn rel_path()        L71
-// pub fn init()              L98
-// pub fn check()            L147
-// pub fn outline()          L167
-// pub fn tree()             L197
-// pub fn symbols()          L245
-// pub fn refs()             L295
-// pub fn deps()             L318
-// pub fn graph()            L353
-// pub fn format()           L367
-// ------------------------------
+// pub struct CmdContext              L39
+//   pub fn from_path()               L50
+//   pub fn build_index()             L60
+//   pub fn build_project_index()     L65
+//   pub fn rel_path()                L73
+// pub fn init()                     L100
+// pub fn check()                    L149
+// pub fn outline()                  L169
+// pub fn tree()                     L199
+// pub fn symbols()                  L247
+// pub fn refs()                     L297
+// pub fn deps()                     L320
+// pub fn graph()                    L355
+// pub fn format()                   L369
+// --------------------------------------
 
 /// CLI command context: resolved start path + project state.
-///
-/// Wraps [`ProjectContext`] with the CLI-specific conveniences shared by most
-/// subcommands: start-path resolution, on-demand index building, and the
-/// canonicalize → strip_prefix → normalize chain.
 pub struct CmdContext {
     /// Resolved absolute start path (from CLI arg or cwd).
     pub start: PathBuf,
@@ -59,9 +56,14 @@ impl CmdContext {
         Ok(Self { start, project })
     }
 
-    /// Build a [`VaultIndex`] using the project's ignore patterns.
+    /// Build a [`VaultIndex`] (markdown only) using the project's ignore patterns.
     pub fn build_index(&self) -> Result<VaultIndex> {
         VaultIndex::build_with_ignores(&self.project.root, &self.project.ignore_patterns)
+    }
+
+    /// Build a [`ProjectIndex`] (vault + code) using the project's ignore patterns.
+    pub fn build_project_index(&self) -> Result<ProjectIndex> {
+        ProjectIndex::build_with_ignores(&self.project.root, &self.project.ignore_patterns)
     }
 
     /// Canonicalize an absolute path and return its root-relative form.
@@ -330,12 +332,12 @@ pub fn deps(target: String, as_json: bool) -> Result<()> {
         );
     }
 
-    let index = ctx.build_index()?;
+    let pi = ctx.build_project_index()?;
 
     let outbound = if is_markdown {
-        md_deps::collect_outbound(&index, &source_file)?
+        md_deps::collect_outbound(&pi.vault, &source_file)?
     } else {
-        md_deps::collect_code_outbound(&index, &source_file)?
+        md_deps::collect_code_outbound(&pi.code, &source_file)?
     };
 
     if as_json {

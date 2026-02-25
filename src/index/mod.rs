@@ -28,7 +28,8 @@ use crate::project::discover::discover_files;
 use crate::project::ignore::{ALWAYS_IGNORED_DIRS, build_ignore_globset, path_is_ignored};
 use crate::project::paths::normalize_rel_path;
 use crate::resolve::{
-    GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, build_workspace_import_index,
+    GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, WorkspacePackages,
+    build_workspace_import_index,
 };
 
 pub use markdown::{
@@ -40,41 +41,48 @@ pub use markdown::{
 // Data types
 // ---------------------------------------------------------------------------
 
+// NOTE: index block managed by kdb fmt — do not update manually
+
 // -------------------------------------
 // src/index/mod.rs
 //
 // pub mod deps                      L17
 // mod markdown                      L18
 // pub mod refs                      L19
-// pub struct VaultIndex             L85
-// pub struct FileEntry             L108
-// pub struct Heading               L121
-// pub enum LinkKind                L137
-// pub struct LinkTarget            L146
-// pub struct Link                  L155
-// pub struct HeadingKey            L170
-// pub struct LinkRef               L179
-// pub struct ParsedDocument        L194
-// pub struct BrokenLink            L203
-// pub struct CheckReport           L218
-//   pub fn has_errors()            L227
-//   pub fn print()                 L232
-//   pub fn scoped_to()             L289
-// fn path_is_in_check_scope()      L298
-//   pub fn build()                 L319
-//   pub fn build_with_ignores()    L327
-//   pub fn upsert_file()           L371
-//   pub fn reload_file()           L394
-//   pub fn remove_file()           L423
-//   pub fn check()                 L431
-//   fn populate_inbound()          L470
-//   fn resolve_link()              L523
-// enum ResolveError                L556
-//   fn message()                   L563
-// fn discover_markdown_files()     L578
-// fn resolve_target_file()         L596
-// pub fn resolve_target_path()     L609
-// pub fn resolve_file_target()     L637
+// pub struct VaultIndex             L93
+// pub struct CodeIndex             L111
+// pub struct ProjectIndex          L128
+// pub struct FileEntry             L137
+// pub struct Heading               L150
+// pub enum LinkKind                L166
+// pub struct LinkTarget            L175
+// pub struct Link                  L184
+// pub struct HeadingKey            L199
+// pub struct LinkRef               L208
+// pub struct ParsedDocument        L223
+// pub struct BrokenLink            L232
+// pub struct CheckReport           L247
+//   pub fn has_errors()            L256
+//   pub fn print()                 L261
+//   pub fn scoped_to()             L318
+// fn path_is_in_check_scope()      L327
+//   pub fn build()                 L345
+//   pub fn build()                 L358
+//   pub fn build_with_ignores()    L363
+//   pub fn build()                 L378
+//   pub fn build_with_ignores()    L386
+//   pub fn upsert_file()           L425
+//   pub fn reload_file()           L448
+//   pub fn remove_file()           L477
+//   pub fn check()                 L485
+//   fn populate_inbound()          L524
+//   fn resolve_link()              L577
+// enum ResolveError                L610
+//   fn message()                   L617
+// fn discover_markdown_files()     L632
+// fn resolve_target_file()         L650
+// pub fn resolve_target_path()     L663
+// pub fn resolve_file_target()     L691
 // -------------------------------------
 
 /// Complete index of a markdown vault.
@@ -93,14 +101,35 @@ pub struct VaultIndex {
     pub file_inbound: HashMap<PathBuf, Vec<LinkRef>>,
     /// Inbound links grouped by target heading (file + anchor).
     pub heading_inbound: HashMap<HeadingKey, Vec<LinkRef>>,
+}
+
+/// Index of workspace-level code imports and language caches.
+///
+/// Built by scanning all supported code files under the project root and
+/// resolving their imports. Used by `kdb deps` for code dependency tracking.
+#[derive(Debug, Clone, Default)]
+pub struct CodeIndex {
     /// Workspace package map (`package.json` name -> local relative directory).
-    pub workspace_packages: HashMap<String, PathBuf>,
+    pub workspace_packages: WorkspacePackages,
     /// Go workspace module cache used during import resolution.
     pub go_workspace: GoWorkspaceCache,
     /// Rust workspace crate/dependency cache used during import resolution.
     pub rust_workspace: RustWorkspaceCache,
     /// Per-code-file resolved imports used by `kdb deps` and code refs.
     pub code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
+}
+
+/// Combined vault and code index for a project.
+///
+/// Commands that need both markdown and code data (e.g. `kdb deps`) build
+/// this; commands that only need markdown (e.g. `kdb check`) use [`VaultIndex`]
+/// directly.
+#[derive(Debug, Clone)]
+pub struct ProjectIndex {
+    /// Markdown vault index (files, headings, links, inbound maps).
+    pub vault: VaultIndex,
+    /// Code import index (workspace packages, language caches, resolved imports).
+    pub code: CodeIndex,
 }
 
 /// A single indexed markdown file.
@@ -311,6 +340,36 @@ fn path_is_in_check_scope(path: &Path, scope_rel: &Path, scope_is_dir: bool) -> 
 // Vault index
 // ---------------------------------------------------------------------------
 
+impl CodeIndex {
+    /// Build a code index by scanning all supported code files under `root`.
+    pub fn build(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
+        let import_index = build_workspace_import_index(root, ignore_patterns)?;
+        Ok(Self {
+            workspace_packages: import_index.workspace_packages,
+            go_workspace: import_index.go_workspace,
+            rust_workspace: import_index.rust_workspace,
+            code_imports: import_index.file_imports,
+        })
+    }
+}
+
+impl ProjectIndex {
+    /// Build a combined vault and code index for the project at `root`.
+    pub fn build(root: &Path) -> Result<Self> {
+        Self::build_with_ignores(root, &[])
+    }
+
+    /// Build a combined vault and code index with user-defined ignore patterns.
+    pub fn build_with_ignores(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
+        let canonical = root
+            .canonicalize()
+            .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
+        let vault = VaultIndex::build_with_ignores(&canonical, ignore_patterns)?;
+        let code = CodeIndex::build(&canonical, ignore_patterns)?;
+        Ok(Self { vault, code })
+    }
+}
+
 impl VaultIndex {
     /// Build an index of the entire vault by discovering and parsing all markdown files.
     ///
@@ -323,13 +382,12 @@ impl VaultIndex {
     /// Build an index of the entire vault with user-defined ignore patterns.
     ///
     /// Ignore patterns use glob syntax and are matched against slash-separated
-    /// paths relative to `root`.
+    /// paths relative to `root`. Only discovers markdown files — no code scan.
     pub fn build_with_ignores(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
         let root = root
             .canonicalize()
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
         let ignore_set = build_ignore_globset(ignore_patterns)?;
-        let import_index = build_workspace_import_index(&root, ignore_patterns)?;
 
         let mut files = BTreeMap::new();
         for rel_path in discover_markdown_files(&root, &ignore_set)? {
@@ -356,10 +414,6 @@ impl VaultIndex {
             files,
             file_inbound: HashMap::new(),
             heading_inbound: HashMap::new(),
-            workspace_packages: import_index.workspace_packages,
-            go_workspace: import_index.go_workspace,
-            rust_workspace: import_index.rust_workspace,
-            code_imports: import_index.file_imports,
         };
         index.populate_inbound();
         Ok(index)
@@ -653,4 +707,3 @@ pub fn resolve_file_target(root: &Path, file: &str) -> Result<PathBuf> {
 
     normalize_rel_path(path).with_context(|| format!("target path resolves outside root: {file}"))
 }
-

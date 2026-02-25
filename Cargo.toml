@@ -1,6 +1,6 @@
 [package]
 name = "kdb"
-version = "0.7.5"
+version = "0.7.6"
 edition = "2024"
 description = "Code intelligence CLI and LSP for knowledge bases"
 license = "MIT"

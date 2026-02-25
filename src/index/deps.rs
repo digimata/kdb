@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use super::{VaultIndex, resolve_target_path};
+use super::{CodeIndex, VaultIndex, resolve_target_path};
 
 // -------------------------------------
 // src/index/deps.rs
@@ -45,7 +45,7 @@ pub fn collect_outbound(index: &VaultIndex, source_file: &Path) -> Result<Vec<De
     Ok(outbound.into_iter().collect())
 }
 
-pub fn collect_code_outbound(index: &VaultIndex, source_file: &Path) -> Result<Vec<Dependency>> {
+pub fn collect_code_outbound(index: &CodeIndex, source_file: &Path) -> Result<Vec<Dependency>> {
     let imports = index.code_imports.get(source_file).with_context(|| {
         format!(
             "target file is not an indexed supported code file: {}",

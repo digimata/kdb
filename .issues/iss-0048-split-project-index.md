@@ -1,7 +1,7 @@
 ---
 id: 48
 title: Split Project Index (Vault vs Code)
-status: proposed
+status: done
 priority: high
 labels:
   - refactor

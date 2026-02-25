@@ -1,6 +1,6 @@
 use kdb::index::{
-    HeadingKey, LinkKind, LinkTarget, VaultIndex, parse_markdown, parse_markdown_target,
-    parse_wikilink_target, resolve_target_path, slug_anchor,
+    HeadingKey, LinkKind, LinkTarget, ProjectIndex, VaultIndex, parse_markdown,
+    parse_markdown_target, parse_wikilink_target, resolve_target_path, slug_anchor,
 };
 use kdb::project::paths::normalize_rel_path;
 use kdb::resolve::ImportKind;
@@ -404,7 +404,7 @@ fn vault_index_incremental_upsert_respects_ignore_patterns() {
 }
 
 #[test]
-fn vault_index_build_populates_code_import_maps_for_typescript() {
+fn project_index_build_populates_code_import_maps_for_typescript() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());
     write_file(
@@ -420,8 +420,9 @@ fn vault_index_build_populates_code_import_maps_for_typescript() {
     write_file(temp.path(), "src/utils.ts", "export type Util = string;\n");
     write_file(temp.path(), "web/local.ts", "export default 1;\n");
 
-    let index = VaultIndex::build(temp.path()).expect("build index");
-    let imports = index
+    let pi = ProjectIndex::build(temp.path()).expect("build project index");
+    let imports = pi
+        .code
         .code_imports
         .get(Path::new("web/main.ts"))
         .expect("code imports for web/main.ts");
@@ -441,7 +442,7 @@ fn vault_index_build_populates_code_import_maps_for_typescript() {
 }
 
 #[test]
-fn vault_index_build_populates_workspace_package_map_and_imports() {
+fn project_index_build_populates_workspace_package_map_and_imports() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());
     write_file(
@@ -470,13 +471,14 @@ fn vault_index_build_populates_workspace_package_map_and_imports() {
         "export const run = () => {};\n",
     );
 
-    let index = VaultIndex::build(temp.path()).expect("build index");
+    let pi = ProjectIndex::build(temp.path()).expect("build project index");
     assert_eq!(
-        index.workspace_packages.get("@kernl-sdk/protocol"),
+        pi.code.workspace_packages.get("@kernl-sdk/protocol"),
         Some(&PathBuf::from("packages/protocol"))
     );
 
-    let imports = index
+    let imports = pi
+        .code
         .code_imports
         .get(Path::new("apps/web/main.ts"))
         .expect("code imports for apps/web/main.ts");
