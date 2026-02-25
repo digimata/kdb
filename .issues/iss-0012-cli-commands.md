@@ -17,21 +17,21 @@ Tracking issue for the full kdb CLI surface area.
 
 - [x] `kdb init`
 - [x] `kdb check` (with `--orphans`)
-- [x] `kdb outline`
 - [x] `kdb tree`
 - [x] `kdb symbols` (markdown + code, `-s` selection, `--json`, `--public`)
 - [x] `kdb refs` (markdown inbound refs, `--json`, `--count`)
+- [x] `kdb refs -s` (code symbol references, `-c` context, `--json`, `--count`)
 - [x] `kdb deps` (markdown + code, `--json`)
-- [x] `kdb fmt` (code index headers, LSP formatter chain) → [iss-0014](iss-0014-code-file-indexes.md)
+- [x] `kdb fmt` (code index headers, LSP formatter chain)
 - [x] `kdb lsp`
 
 ## Not yet implemented
 
-- [ ] `kdb refs -s <symbol>` — code symbol references → [iss-0028](iss-0028-code-symbol-refs.md)
 - [ ] `kdb graph` — dependency graph output (stubbed, not implemented) → [iss-0021](iss-0021-graph-command.md)
 - [ ] `kdb codemap` — unified agent-readable codebase map → [iss-0016](iss-0016-codemap.md)
 
 ## Retired
 
 - `kdb orphans` → folded into `kdb check --orphans`
-- `kdb stubs` → TBD, may become a `check` flag
+- `kdb stubs` → folded into `kdb check --orphans`
+- `kdb outline` → removed, use `kdb symbols` instead
