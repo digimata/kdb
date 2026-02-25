@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use crate::config;
 use crate::fmt;
 use crate::index::{self, VaultIndex, deps as md_deps, refs};
+use crate::lang::CodeLanguage;
 use crate::root;
 use crate::symbols;
 use crate::tree;
@@ -19,15 +20,15 @@ use crate::tree;
 // ------------------------
 // src/cmd.rs
 //
-// pub fn init()        L34
-// pub fn check()       L79
-// pub fn outline()    L124
-// pub fn tree()       L177
-// pub fn symbols()    L229
-// pub fn refs()       L297
-// pub fn deps()       L323
-// pub fn graph()      L360
-// pub fn fmt()        L374
+// pub fn init()        L35
+// pub fn check()       L80
+// pub fn outline()    L125
+// pub fn tree()       L178
+// pub fn symbols()    L230
+// pub fn refs()       L298
+// pub fn deps()       L324
+// pub fn graph()      L361
+// pub fn fmt()        L375
 // ------------------------
 
 /// Initialize a kdb project by creating `.kdb/config.toml`.
@@ -329,7 +330,7 @@ pub fn deps(target: String, as_json: bool) -> Result<()> {
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
 
-    if !is_markdown && symbols::language_for_path(&source_file).is_none() {
+    if !is_markdown && CodeLanguage::from_path(&source_file).is_none() {
         bail!(
             "deps is not supported for file type: {}",
             source_file.display()

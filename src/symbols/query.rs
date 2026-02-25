@@ -4,24 +4,25 @@ use std::path::Path;
 
 use crate::config;
 use crate::index::{parse_markdown, section_byte_bounds, section_line_bounds, VaultIndex};
+use crate::lang::CodeLanguage;
 
 use super::render::{self, SymbolBodyRow, SymbolRow};
-use super::{extract_symbol_body, extract_symbols, language_for_path, Symbol};
+use super::{extract_symbol_body, extract_symbols, Symbol};
 
 // ----------------------------------------
 // src/symbols/query.rs
 //
-// pub fn collect_rows()                L27
-// pub fn collect_body_rows()           L76
-// fn collect_code_body_rows()         L108
-// fn collect_markdown_body_rows()     L149
-// fn is_markdown_file()               L195
-// fn normalize_markdown_selector()    L201
-// struct SymbolSelector               L216
-//   fn parse()                        L222
-//   fn matches()                      L249
-//   fn display()                      L260
-// fn normalize_selector_name()        L268
+// pub fn collect_rows()                L28
+// pub fn collect_body_rows()           L77
+// fn collect_code_body_rows()         L109
+// fn collect_markdown_body_rows()     L150
+// fn is_markdown_file()               L196
+// fn normalize_markdown_selector()    L202
+// struct SymbolSelector               L217
+//   fn parse()                        L223
+//   fn matches()                      L250
+//   fn display()                      L261
+// fn normalize_selector_name()        L269
 // ----------------------------------------
 
 pub fn collect_rows(root: &Path, file_abs: &Path, rel_path: &Path) -> Result<Vec<SymbolRow>> {
@@ -56,7 +57,7 @@ pub fn collect_rows(root: &Path, file_abs: &Path, rel_path: &Path) -> Result<Vec
                 is_public: true,
             })
             .collect()
-    } else if let Some(language) = language_for_path(rel_path) {
+    } else if let Some(language) = CodeLanguage::from_path(rel_path) {
         let source = fs::read_to_string(file_abs)
             .with_context(|| format!("failed to read {}", file_abs.display()))?;
         let mut symbols = extract_symbols(language, &source)?;
@@ -111,7 +112,7 @@ fn collect_code_body_rows(
     selector: &str,
     public_only: bool,
 ) -> Result<Vec<SymbolBodyRow>> {
-    let Some(language) = language_for_path(rel_path) else {
+    let Some(language) = CodeLanguage::from_path(rel_path) else {
         bail!("unsupported file type for symbols: {}", rel_path.display());
     };
 

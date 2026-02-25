@@ -7,9 +7,8 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use crate::discovery::{build_ignore_globset, discover_files};
-use crate::symbols::{
-    CodeLanguage, Symbol, extract_symbols, format_symbol_display, language_for_path,
-};
+use crate::lang::CodeLanguage;
+use crate::symbols::{Symbol, extract_symbols, format_symbol_display};
 
 pub mod preamble;
 
@@ -18,27 +17,27 @@ use self::preamble::{comment_prefix, preamble_end_index};
 // -------------------------------------------
 // src/fmt/mod.rs
 //
-// pub mod preamble                        L14
-// const LEGACY_INDEX_HEADER               L44
-// const LINE_GAP                          L45
-// const IGNORED_DIRS                      L48
-// pub struct FormatReport                 L63
-// pub struct FormatWarning                L71
-// struct RewriteResult                    L77
-// pub fn format_workspace()               L85
-// pub fn format_path()                    L99
-// pub fn format_source()                 L122
-// fn format_files()                      L131
-// fn rewrite_code_index()                L180
-// fn removal_warning_message()           L290
-// fn find_managed_block()                L310
-// fn is_header_candidate()               L341
-// fn looks_like_path_header()            L354
-// fn is_index_body_line()                L374
-// fn is_canonical_index_body_line()      L386
-// fn is_separator_only_comment_line()    L414
-// fn render_block()                      L428
-// fn discover_code_files_in_scope()      L460
+// pub mod preamble                        L13
+// const LEGACY_INDEX_HEADER               L43
+// const LINE_GAP                          L44
+// const IGNORED_DIRS                      L47
+// pub struct FormatReport                 L62
+// pub struct FormatWarning                L70
+// struct RewriteResult                    L76
+// pub fn format_workspace()               L84
+// pub fn format_path()                    L98
+// pub fn format_source()                 L121
+// fn format_files()                      L130
+// fn rewrite_code_index()                L179
+// fn removal_warning_message()           L289
+// fn find_managed_block()                L309
+// fn is_header_candidate()               L340
+// fn looks_like_path_header()            L353
+// fn is_index_body_line()                L373
+// fn is_canonical_index_body_line()      L385
+// fn is_separator_only_comment_line()    L413
+// fn render_block()                      L427
+// fn discover_code_files_in_scope()      L459
 // -------------------------------------------
 
 const LEGACY_INDEX_HEADER: &str = "## Index";
@@ -120,7 +119,7 @@ pub fn format_path(root: &Path, target: &Path, ignore_patterns: &[String]) -> Re
 
 /// Rewrite a single source string for a supported code file path.
 pub fn format_source(rel_path: &Path, source: &str) -> Result<Option<String>> {
-    let Some(language) = language_for_path(rel_path) else {
+    let Some(language) = CodeLanguage::from_path(rel_path) else {
         return Ok(None);
     };
 
@@ -136,7 +135,7 @@ fn format_files(root: &Path, files: Vec<PathBuf>) -> Result<FormatReport> {
     };
 
     for rel_path in files {
-        let Some(language) = language_for_path(&rel_path) else {
+        let Some(language) = CodeLanguage::from_path(&rel_path) else {
             continue;
         };
         let abs_path = root.join(&rel_path);
@@ -465,6 +464,6 @@ fn discover_code_files_in_scope(
     let paths = discover_files(root, scope, ignore_set, IGNORED_DIRS)?;
     Ok(paths
         .into_iter()
-        .filter(|rel| language_for_path(rel).is_some())
+        .filter(|rel| CodeLanguage::from_path(rel).is_some())
         .collect())
 }

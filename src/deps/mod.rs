@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::index::deps::Dependency;
-use crate::symbols::{CodeLanguage, language_for_path};
+use crate::lang::CodeLanguage;
 
 mod go;
 mod python;
@@ -26,7 +26,7 @@ mod utils;
 // --------------------------------
 
 pub fn collect_outbound(root: &Path, source_file: &Path) -> Result<Vec<Dependency>> {
-    let language = language_for_path(source_file).with_context(|| {
+    let language = CodeLanguage::from_path(source_file).with_context(|| {
         format!(
             "deps is not supported for file type: {}",
             source_file.display()

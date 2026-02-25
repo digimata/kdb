@@ -1,6 +1,6 @@
 //! Preamble detection helpers used by `kdb fmt`.
 
-use crate::symbols::CodeLanguage;
+use crate::lang::CodeLanguage;
 
 // -------------------------------------------
 // src/fmt/preamble.rs

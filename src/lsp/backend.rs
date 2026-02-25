@@ -25,8 +25,8 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::config;
 use crate::index::VaultIndex;
+use crate::lang::CodeLanguage;
 use crate::root;
-use crate::symbols::language_for_path;
 
 use super::{completion, definition, diagnostics, formatting, hover, symbols};
 
@@ -200,7 +200,7 @@ impl Backend {
 
         let rel = abs.strip_prefix(&self.root).ok()?;
         let rel = crate::index::normalize_rel_path(rel)?;
-        if language_for_path(&rel).is_none() {
+        if CodeLanguage::from_path(&rel).is_none() {
             return None;
         }
 

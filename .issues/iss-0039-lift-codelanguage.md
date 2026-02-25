@@ -1,7 +1,7 @@
 ---
 id: 39
 title: Lift CodeLanguage to src/lang.rs
-status: proposed
+status: done
 priority: high
 labels:
   - refactor

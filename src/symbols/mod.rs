@@ -2,58 +2,45 @@
 
 use anyhow::{Context, Result};
 use std::collections::HashSet;
-use std::path::Path;
 use tree_sitter::{Language, Node, Parser};
+
+use crate::lang::CodeLanguage;
 
 mod go;
 mod python;
 // ------------------------------------------------
 // src/symbols/mod.rs
 //
-// mod go                                        L8
-// mod python                                    L9
-// pub(crate) mod query                         L42
-// pub mod render                               L43
-// mod rust                                     L44
-// mod typescript                               L45
-// pub enum CodeLanguage                        L49
-// pub enum SymbolKind                          L60
-// pub struct Symbol                            L82
-// type SeenSymbols                             L94
-// pub fn language_for_path()                  L106
-// pub fn extract_symbols()                    L120
-// fn parse_tree()                             L138
-// fn tree_sitter_language()                   L151
-//   fn as_str()                               L164
-// pub(super) fn walk_depth_first()            L177
-// pub(super) fn name_from_field()             L204
-// pub(super) fn normalized_node_text()        L210
-// pub(super) fn push_symbol()                 L229
-// pub fn extract_symbol_body()                L269
-// pub(super) fn nearest_ancestor()            L282
-// pub(super) fn normalize_type_name()         L293
-// pub(super) fn extract_go_receiver_type()    L328
-// pub(super) fn decorated_parent_or_self()    L364
-// pub fn kind_label()                         L372
-// pub fn is_callable_kind()                   L393
-// pub fn format_symbol_display()              L405
+// mod go                                        L9
+// mod python                                   L10
+// pub(crate) mod query                         L40
+// pub mod render                               L41
+// mod rust                                     L42
+// mod typescript                               L43
+// pub enum SymbolKind                          L47
+// pub struct Symbol                            L69
+// type SeenSymbols                             L81
+// pub fn extract_symbols()                     L93
+// fn parse_tree()                             L111
+// fn tree_sitter_language()                   L124
+// pub(super) fn walk_depth_first()            L136
+// pub(super) fn name_from_field()             L163
+// pub(super) fn normalized_node_text()        L169
+// pub(super) fn push_symbol()                 L188
+// pub fn extract_symbol_body()                L228
+// pub(super) fn nearest_ancestor()            L241
+// pub(super) fn normalize_type_name()         L252
+// pub(super) fn extract_go_receiver_type()    L287
+// pub(super) fn decorated_parent_or_self()    L323
+// pub fn kind_label()                         L331
+// pub fn is_callable_kind()                   L352
+// pub fn format_symbol_display()              L364
 // ------------------------------------------------
 
 pub(crate) mod query;
 pub mod render;
 mod rust;
 mod typescript;
-
-/// Supported code languages for symbol extraction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CodeLanguage {
-    Rust,
-    JavaScript,
-    TypeScript,
-    Tsx,
-    Python,
-    Go,
-}
 
 /// Symbol categories rendered by `kdb fmt` and `kdb codemap`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -102,20 +89,6 @@ type SeenSymbols = HashSet<(
     bool,
 )>;
 
-/// Determine the language from file extension, if supported.
-pub fn language_for_path(path: &Path) -> Option<CodeLanguage> {
-    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
-    match extension.as_str() {
-        "rs" => Some(CodeLanguage::Rust),
-        "js" | "jsx" => Some(CodeLanguage::JavaScript),
-        "ts" => Some(CodeLanguage::TypeScript),
-        "tsx" => Some(CodeLanguage::Tsx),
-        "py" => Some(CodeLanguage::Python),
-        "go" => Some(CodeLanguage::Go),
-        _ => None,
-    }
-}
-
 /// Parse source and extract language-appropriate symbols.
 pub fn extract_symbols(language: CodeLanguage, source: &str) -> Result<Vec<Symbol>> {
     let tree = parse_tree(language, source)?;
@@ -156,20 +129,6 @@ fn tree_sitter_language(language: CodeLanguage) -> Language {
         CodeLanguage::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
         CodeLanguage::Python => tree_sitter_python::LANGUAGE.into(),
         CodeLanguage::Go => tree_sitter_go::LANGUAGE.into(),
-    }
-}
-
-impl CodeLanguage {
-    /// Human-readable language name for diagnostics.
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Rust => "Rust",
-            Self::JavaScript => "JavaScript",
-            Self::TypeScript => "TypeScript",
-            Self::Tsx => "TSX",
-            Self::Python => "Python",
-            Self::Go => "Go",
-        }
     }
 }
 
