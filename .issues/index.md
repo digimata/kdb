@@ -7,9 +7,11 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0012 — CLI Commands (tracking)](iss-0012-cli-commands.md) | tracking | in_progress | high |
 | [0028 — Code Symbol References (`refs -s`)](iss-0028-code-symbol-refs.md) | feat | in_progress | high |
 | [0039 — `refs -s` Recall Gaps (tracking)](iss-0039-refs-recall-gaps.md) | tracking | in_progress | high |
-| [0039.1 — Python Symbol Binding](iss-0039.1-python-symbol-binding.md) | bug | proposed | high |
+| [0039.1 — Python Symbol Binding](iss-0039.1-python-symbol-binding.md) | bug | done | high |
 | [0039.2 — Go Namespace Access](iss-0039.2-go-namespace-access.md) | bug | proposed | high |
 | [0039.3 — Usage Scanner Gaps](iss-0039.3-usage-scanner-gaps.md) | bug | proposed | medium |
+| [0039.4 — Alias Tracking](iss-0039.4-alias-tracking.md) | bug | done | medium |
+| [0039.5 — Re-export Following](iss-0039.5-reexport-following.md) | enhancement | proposed | high |
 | [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | chore | proposed | high |
 | [0016 — Codemap](iss-0016-codemap.md) | feat | proposed | high |
 | [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | high |

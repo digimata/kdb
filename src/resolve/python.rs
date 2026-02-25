@@ -9,8 +9,8 @@ use walkdir::WalkDir;
 use crate::symbols::walk_depth_first;
 
 use super::{
-    ImportKind, LanguageResolver, ResolvedImport, normalize_identifier, normalize_rel_path,
-    resolve_file, to_root_relative,
+    ImportKind, ImportNames, LanguageResolver, ResolvedImport, normalize_identifier,
+    normalize_rel_path, resolve_file, to_root_relative,
 };
 
 // ------------------------------------------
@@ -161,9 +161,17 @@ impl<'a> PythonImportResolver<'a> {
             let (module_name, alias) = split_alias(item);
             let resolved_path = self.resolve_module(module_name);
             let kind = classify_kind(module_name, resolved_path.is_some());
-            let names = module_binding_name(module_name, alias)
-                .map(|name| vec![name])
-                .unwrap_or_default();
+            let local = module_binding_name(module_name, alias);
+            let def = module_binding_name(module_name, None);
+
+            let mut names = ImportNames::new(
+                local.clone().into_iter().collect(),
+            );
+            if let (Some(local), Some(def)) = (&local, &def) {
+                if local != def {
+                    names.aliases.insert(local.clone(), def.clone());
+                }
+            }
 
             imports.push(ResolvedImport {
                 raw: module_name.to_string(),
@@ -186,17 +194,20 @@ impl<'a> PythonImportResolver<'a> {
         };
 
         let module = module.trim();
-        if module.chars().any(|ch| ch != '.') {
+        let parent_resolved = if module.chars().any(|ch| ch != '.') {
             let resolved_path = self.resolve_module(module);
             let kind = classify_kind(module, resolved_path.is_some());
             imports.push(ResolvedImport {
                 raw: module.to_string(),
-                resolved_path,
+                resolved_path: resolved_path.clone(),
                 kind,
-                names: Vec::new(),
+                names: ImportNames::default(),
                 line: line_no,
             });
-        }
+            resolved_path
+        } else {
+            None
+        };
 
         let module_paths = self.module_paths(module);
         for (name, local_name) in parse_names(imported) {
@@ -213,10 +224,21 @@ impl<'a> PythonImportResolver<'a> {
                 }
             }
 
+            if resolved_path.is_none() {
+                resolved_path.clone_from(&parent_resolved);
+            }
+
             let kind = classify_kind(module, resolved_path.is_some());
-            let names = normalize_identifier(&local_name)
-                .map(|value| vec![value])
-                .unwrap_or_default();
+            let local = normalize_identifier(&local_name);
+
+            let mut names = ImportNames::new(
+                local.clone().into_iter().collect(),
+            );
+            if let Some(ref local) = local {
+                if *local != name {
+                    names.aliases.insert(local.clone(), name.clone());
+                }
+            }
 
             imports.push(ResolvedImport {
                 raw: format!("{module}.{name}"),

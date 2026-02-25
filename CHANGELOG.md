@@ -4,6 +4,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] — 2026-02-25
+
+### Fixed
+
+- fix Python `from X import name` symbol binding: fall back to parent module path when submodule resolution fails (iss-0039.1)
+
 ## [Unreleased]
 
 ### Changed
