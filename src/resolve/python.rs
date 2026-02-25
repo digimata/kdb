@@ -1,5 +1,6 @@
 use globset::GlobSet;
 use regex::Regex;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
@@ -7,8 +8,8 @@ use toml::Value as TomlValue;
 use walkdir::WalkDir;
 
 use super::{
-    normalize_identifier, normalize_rel_path, resolve_file, to_root_relative, ImportKind,
-    PythonWorkspaceCache, ResolvedImport,
+    ImportKind, ResolvedImport, normalize_identifier, normalize_rel_path, resolve_file,
+    to_root_relative,
 };
 
 // ---------------------------------------------
@@ -53,68 +54,62 @@ static PACKAGE_DIR_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("valid setup.py package_dir regex")
 });
 
-pub(super) fn build_workspace_cache(root: &Path, ignore_set: &GlobSet) -> PythonWorkspaceCache {
-    let mut cache = PythonWorkspaceCache::default();
-
-    for project_root in discover_python_project_roots(root, ignore_set) {
-        for package_root in project_package_roots(root, &project_root) {
-            index_package_root(root, &package_root, &mut cache);
-        }
-    }
-
-    for paths in cache.package_dirs.values_mut() {
-        paths.sort();
-        paths.dedup();
-    }
-    for paths in cache.module_files.values_mut() {
-        paths.sort();
-        paths.dedup();
-    }
-
-    cache
+#[derive(Debug, Clone, Default)]
+pub struct PythonWorkspaceCache {
+    pub package_dirs: HashMap<String, Vec<PathBuf>>,
+    pub module_files: HashMap<String, Vec<PathBuf>>,
 }
 
-pub(super) fn resolve(
-    root: &Path,
-    source_file: &Path,
-    source: &str,
-    python_workspace: &PythonWorkspaceCache,
-) -> Vec<ResolvedImport> {
-    let mut imports = Vec::new();
+impl PythonWorkspaceCache {
+    pub(super) fn build(root: &Path, ignore_set: &GlobSet) -> Self {
+        let mut cache = Self::default();
 
-    for (index, line) in source.lines().enumerate() {
-        let line_no = index + 1;
-        let no_comment = line.split('#').next().unwrap_or(line).trim();
-        if no_comment.is_empty() {
-            continue;
+        for project_root in discover_python_project_roots(root, ignore_set) {
+            for package_root in project_package_roots(root, &project_root) {
+                index_package_root(root, &package_root, &mut cache);
+            }
         }
 
-        if let Some(rest) = no_comment.strip_prefix("import ") {
-            push_import_statement(
-                root,
-                source_file,
-                python_workspace,
-                line_no,
-                rest,
-                &mut imports,
-            );
-            continue;
+        for paths in cache.package_dirs.values_mut() {
+            paths.sort();
+            paths.dedup();
+        }
+        for paths in cache.module_files.values_mut() {
+            paths.sort();
+            paths.dedup();
         }
 
-        let Some(rest) = no_comment.strip_prefix("from ") else {
-            continue;
-        };
-        push_from_import_statement(
-            root,
-            source_file,
-            python_workspace,
-            line_no,
-            rest,
-            &mut imports,
-        );
+        cache
     }
 
-    imports
+    pub(super) fn resolve(
+        &self,
+        root: &Path,
+        source_file: &Path,
+        source: &str,
+    ) -> Vec<ResolvedImport> {
+        let mut imports = Vec::new();
+
+        for (index, line) in source.lines().enumerate() {
+            let line_no = index + 1;
+            let no_comment = line.split('#').next().unwrap_or(line).trim();
+            if no_comment.is_empty() {
+                continue;
+            }
+
+            if let Some(rest) = no_comment.strip_prefix("import ") {
+                push_import_statement(root, source_file, self, line_no, rest, &mut imports);
+                continue;
+            }
+
+            let Some(rest) = no_comment.strip_prefix("from ") else {
+                continue;
+            };
+            push_from_import_statement(root, source_file, self, line_no, rest, &mut imports);
+        }
+
+        imports
+    }
 }
 
 fn push_import_statement(

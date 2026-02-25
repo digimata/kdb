@@ -8,48 +8,50 @@ use toml::Value as TomlValue;
 use walkdir::WalkDir;
 
 use super::{
-    build_line_starts, line_number_for_offset, normalize_identifier, resolve_file, ImportKind,
-    ResolvedImport, RustWorkspaceCache, RustWorkspaceCrate,
+    ImportKind, ResolvedImport, build_line_starts, line_number_for_offset, normalize_identifier,
+    resolve_file,
 };
 
-// ---------------------------------------------
+// ----------------------------------------
 // src/resolve/rust.rs
 //
-// static MOD_RE                             L54
-// static USE_RE                             L59
-// struct ParsedManifest                     L64
-// struct LocalDependency                    L71
-// pub(super) fn build_workspace_cache()     L78
-// fn discover_manifest_paths()             L150
-// fn parse_manifest()                      L201
-// fn parse_crate_root_files()              L240
-// fn push_manifest_entry_path()            L264
-// fn default_crate_root_files()            L273
-// fn normalize_manifest_path()             L281
-// fn manifest_src_root()                   L289
-// fn collect_dependency_sections()         L297
-// fn parse_local_dependency()              L329
-// fn resolve_dependency_root()             L383
-// fn crate_root_for_name()                 L407
-// fn crate_import_name()                   L420
-// struct CrateContext                      L425
-// pub(super) fn resolve()                  L432
-// fn parse_use_prefix()                    L492
-// fn resolve_mod_decl()                    L504
-// fn resolve_context()                     L529
-// fn find_crate_root()                     L563
-// fn resolve_use()                         L582
-// fn classify_use_kind()                   L661
-// fn rust_module_path()                    L683
-// fn rust_crate_entry_path()               L700
-// fn rust_file_candidates()                L716
-// fn looks_like_module_segment()           L724
-// fn source_segments()                     L732
-// fn imported_names()                      L754
-// fn split_brace_group()                   L791
-// fn last_segment()                        L803
-// fn dedupe_names()                        L819
-// ---------------------------------------------
+// static MOD_RE                        L56
+// static USE_RE                        L61
+// struct ParsedManifest                L66
+// struct LocalDependency               L73
+// pub struct RustWorkspaceCrate        L81
+// pub struct RustWorkspaceCache        L90
+//   pub(super) fn build()              L95
+// fn discover_manifest_paths()        L168
+// fn parse_manifest()                 L219
+// fn parse_crate_root_files()         L258
+// fn push_manifest_entry_path()       L282
+// fn default_crate_root_files()       L291
+// fn normalize_manifest_path()        L299
+// fn manifest_src_root()              L307
+// fn collect_dependency_sections()    L315
+// fn parse_local_dependency()         L347
+// fn resolve_dependency_root()        L401
+// fn crate_root_for_name()            L425
+// fn crate_import_name()              L438
+// struct CrateContext                 L443
+//   pub(super) fn resolve()           L451
+// fn parse_use_prefix()               L512
+// fn resolve_mod_decl()               L524
+// fn resolve_context()                L549
+// fn find_crate_root()                L583
+// fn resolve_use()                    L602
+// fn classify_use_kind()              L681
+// fn rust_module_path()               L703
+// fn rust_crate_entry_path()          L720
+// fn rust_file_candidates()           L736
+// fn looks_like_module_segment()      L744
+// fn source_segments()                L752
+// fn imported_names()                 L774
+// fn split_brace_group()              L811
+// fn last_segment()                   L823
+// fn dedupe_names()                   L839
+// ----------------------------------------
 
 static MOD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;")
@@ -75,76 +77,92 @@ struct LocalDependency {
     workspace: bool,
 }
 
-pub(super) fn build_workspace_cache(root: &Path, ignore_set: &GlobSet) -> RustWorkspaceCache {
-    let manifests = discover_manifest_paths(root, ignore_set);
-    let mut manifests_by_root = HashMap::new();
-    let mut crate_roots_by_name = HashMap::new();
+#[derive(Debug, Clone, Default)]
+pub struct RustWorkspaceCrate {
+    pub name: String,
+    pub src_root: PathBuf,
+    pub crate_root_files: Vec<PathBuf>,
+    pub dependency_src_roots: HashMap<String, PathBuf>,
+    pub dependency_entry_files: HashMap<String, Vec<PathBuf>>,
+}
 
-    for rel_manifest in manifests {
-        let crate_root = rel_manifest.parent().unwrap_or(Path::new("")).to_path_buf();
-        let Some(manifest) = parse_manifest(root, &rel_manifest, &crate_root) else {
-            continue;
-        };
+#[derive(Debug, Clone, Default)]
+pub struct RustWorkspaceCache {
+    pub crates_by_root: HashMap<PathBuf, RustWorkspaceCrate>,
+}
 
-        if let Some(name) = manifest.package_name.as_ref() {
-            crate_roots_by_name
-                .entry(name.clone())
-                .or_insert_with(|| crate_root.clone());
+impl RustWorkspaceCache {
+    pub(super) fn build(root: &Path, ignore_set: &GlobSet) -> Self {
+        let manifests = discover_manifest_paths(root, ignore_set);
+        let mut manifests_by_root = HashMap::new();
+        let mut crate_roots_by_name = HashMap::new();
+
+        for rel_manifest in manifests {
+            let crate_root = rel_manifest.parent().unwrap_or(Path::new("")).to_path_buf();
+            let Some(manifest) = parse_manifest(root, &rel_manifest, &crate_root) else {
+                continue;
+            };
+
+            if let Some(name) = manifest.package_name.as_ref() {
+                crate_roots_by_name
+                    .entry(name.clone())
+                    .or_insert_with(|| crate_root.clone());
+            }
+            manifests_by_root.insert(crate_root, manifest);
         }
-        manifests_by_root.insert(crate_root, manifest);
-    }
 
-    let mut crates_by_root = HashMap::new();
-    for (crate_root, manifest) in &manifests_by_root {
-        let Some(name) = manifest.package_name.clone() else {
-            continue;
-        };
-
-        let mut dependency_src_roots = HashMap::new();
-        let mut dependency_entry_files = HashMap::new();
-        for dependency in manifest.dependencies.values() {
-            let Some(alias) = crate_import_name(&dependency.alias) else {
+        let mut crates_by_root = HashMap::new();
+        for (crate_root, manifest) in &manifests_by_root {
+            let Some(name) = manifest.package_name.clone() else {
                 continue;
             };
 
-            let target_name = dependency.package.as_deref().unwrap_or(&dependency.alias);
-            let Some(target_root) = resolve_dependency_root(
-                dependency,
-                target_name,
-                &manifests_by_root,
-                &crate_roots_by_name,
-            ) else {
-                continue;
-            };
+            let mut dependency_src_roots = HashMap::new();
+            let mut dependency_entry_files = HashMap::new();
+            for dependency in manifest.dependencies.values() {
+                let Some(alias) = crate_import_name(&dependency.alias) else {
+                    continue;
+                };
 
-            if target_root == *crate_root {
-                continue;
+                let target_name = dependency.package.as_deref().unwrap_or(&dependency.alias);
+                let Some(target_root) = resolve_dependency_root(
+                    dependency,
+                    target_name,
+                    &manifests_by_root,
+                    &crate_roots_by_name,
+                ) else {
+                    continue;
+                };
+
+                if target_root == *crate_root {
+                    continue;
+                }
+
+                let Some(target_manifest) = manifests_by_root.get(&target_root) else {
+                    continue;
+                };
+
+                dependency_src_roots.insert(
+                    alias.clone(),
+                    manifest_src_root(&target_root, target_manifest),
+                );
+                dependency_entry_files.insert(alias, target_manifest.crate_root_files.clone());
             }
 
-            let Some(target_manifest) = manifests_by_root.get(&target_root) else {
-                continue;
-            };
-
-            dependency_src_roots.insert(
-                alias.clone(),
-                manifest_src_root(&target_root, target_manifest),
+            crates_by_root.insert(
+                crate_root.clone(),
+                RustWorkspaceCrate {
+                    name,
+                    src_root: manifest_src_root(crate_root, manifest),
+                    crate_root_files: manifest.crate_root_files.clone(),
+                    dependency_src_roots,
+                    dependency_entry_files,
+                },
             );
-            dependency_entry_files.insert(alias, target_manifest.crate_root_files.clone());
         }
 
-        crates_by_root.insert(
-            crate_root.clone(),
-            RustWorkspaceCrate {
-                name,
-                src_root: manifest_src_root(crate_root, manifest),
-                crate_root_files: manifest.crate_root_files.clone(),
-                dependency_src_roots,
-                dependency_entry_files,
-            },
-        );
+        Self { crates_by_root }
     }
-
-    RustWorkspaceCache { crates_by_root }
 }
 
 fn discover_manifest_paths(root: &Path, ignore_set: &GlobSet) -> Vec<PathBuf> {
@@ -429,64 +447,66 @@ struct CrateContext {
     dependency_entry_files: HashMap<String, Vec<PathBuf>>,
 }
 
-pub(super) fn resolve(
-    root: &Path,
-    source_file: &Path,
-    source: &str,
-    rust_workspace: &RustWorkspaceCache,
-) -> Vec<ResolvedImport> {
-    let line_starts = build_line_starts(source);
-    let crate_context = resolve_context(root, source_file, rust_workspace);
-    let mut imports = Vec::new();
+impl RustWorkspaceCache {
+    pub(super) fn resolve(
+        &self,
+        root: &Path,
+        source_file: &Path,
+        source: &str,
+    ) -> Vec<ResolvedImport> {
+        let line_starts = build_line_starts(source);
+        let crate_context = resolve_context(root, source_file, self);
+        let mut imports = Vec::new();
 
-    for captures in MOD_RE.captures_iter(source) {
-        let Some(full_match) = captures.get(0) else {
-            continue;
-        };
-        let Some(name) = captures.get(1).map(|value| value.as_str()) else {
-            continue;
-        };
+        for captures in MOD_RE.captures_iter(source) {
+            let Some(full_match) = captures.get(0) else {
+                continue;
+            };
+            let Some(name) = captures.get(1).map(|value| value.as_str()) else {
+                continue;
+            };
 
-        let resolved_path = resolve_mod_decl(root, source_file, name, &crate_context);
-        let kind = if resolved_path.is_some() {
-            ImportKind::Relative
-        } else {
-            ImportKind::External
-        };
+            let resolved_path = resolve_mod_decl(root, source_file, name, &crate_context);
+            let kind = if resolved_path.is_some() {
+                ImportKind::Relative
+            } else {
+                ImportKind::External
+            };
 
-        imports.push(ResolvedImport {
-            raw: format!("mod {name}"),
-            resolved_path,
-            kind,
-            names: vec![name.to_string()],
-            line: line_number_for_offset(&line_starts, full_match.start()),
-        });
+            imports.push(ResolvedImport {
+                raw: format!("mod {name}"),
+                resolved_path,
+                kind,
+                names: vec![name.to_string()],
+                line: line_number_for_offset(&line_starts, full_match.start()),
+            });
+        }
+
+        for captures in USE_RE.captures_iter(source) {
+            let Some(full_match) = captures.get(0) else {
+                continue;
+            };
+            let Some(path) = captures.get(1).map(|value| value.as_str().trim()) else {
+                continue;
+            };
+
+            let prefix = parse_use_prefix(path);
+            let resolved_path = prefix
+                .as_deref()
+                .and_then(|value| resolve_use(root, source_file, value, &crate_context));
+            let kind = classify_use_kind(prefix.as_deref(), resolved_path.is_some());
+
+            imports.push(ResolvedImport {
+                raw: path.to_string(),
+                resolved_path,
+                kind,
+                names: imported_names(path),
+                line: line_number_for_offset(&line_starts, full_match.start()),
+            });
+        }
+
+        imports
     }
-
-    for captures in USE_RE.captures_iter(source) {
-        let Some(full_match) = captures.get(0) else {
-            continue;
-        };
-        let Some(path) = captures.get(1).map(|value| value.as_str().trim()) else {
-            continue;
-        };
-
-        let prefix = parse_use_prefix(path);
-        let resolved_path = prefix
-            .as_deref()
-            .and_then(|value| resolve_use(root, source_file, value, &crate_context));
-        let kind = classify_use_kind(prefix.as_deref(), resolved_path.is_some());
-
-        imports.push(ResolvedImport {
-            raw: path.to_string(),
-            resolved_path,
-            kind,
-            names: imported_names(path),
-            line: line_number_for_offset(&line_starts, full_match.start()),
-        });
-    }
-
-    imports
 }
 
 fn parse_use_prefix(path: &str) -> Option<String> {

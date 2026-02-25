@@ -1,7 +1,7 @@
 ---
 id: 43
 title: Consolidate resolve workspace caches
-status: proposed
+status: done
 priority: medium
 labels:
   - refactor

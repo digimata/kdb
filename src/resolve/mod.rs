@@ -16,6 +16,10 @@ mod python;
 mod rust;
 mod tsjs;
 
+pub use go::GoWorkspaceCache;
+pub use python::PythonWorkspaceCache;
+pub use rust::{RustWorkspaceCache, RustWorkspaceCrate};
+
 // ---------------------------------------------------
 // src/resolve/mod.rs
 //
@@ -23,79 +27,72 @@ mod tsjs;
 // mod python                                      L15
 // mod rust                                        L16
 // mod tsjs                                        L17
-// pub type WorkspacePackages                      L74
-// pub struct GoWorkspaceCache                     L77
-// pub struct PythonWorkspaceCache                 L82
-// pub struct RustWorkspaceCrate                   L88
-// pub struct RustWorkspaceCache                   L97
-// pub enum ImportKind                            L102
-// pub struct ResolvedImport                      L110
-// pub struct WorkspaceImportIndex                L119
-// pub fn build_workspace_import_index()          L127
-// pub fn resolve_imports_for_language()          L181
-// const IGNORED_DIRS                             L201
-// const TSJS_EXTS                                L215
-// fn build_ignore_globset()                      L219
-// fn discover_code_files()                       L232
-// fn discover_workspace_packages()               L287
-// struct WorkspacePatternSet                     L362
-// fn workspace_patterns()                        L367
-// fn read_pnpm_workspace_patterns()              L391
-// fn read_package_json_workspace_patterns()      L437
-// fn compile_globset()                           L474
-// fn workspace_path_allowed()                    L490
-// fn globset_matches_path()                      L508
-// fn package_name_from_manifest()                L520
-// pub(super) fn classify_local_kind()            L532
-// pub(super) fn sanitize_specifier()             L547
-// pub(super) fn normalize_identifier()           L564
-// pub(super) fn resolve_with_exts()              L592
-// pub(super) fn resolve_file()                   L618
-// fn canonicalize_existing_rel_path()            L627
-// pub(super) fn list_go_package_files()          L665
-// pub(super) fn build_line_starts()              L699
-// pub(super) fn line_number_for_offset()         L709
-// pub(super) fn normalize_rel_path()             L718
-// pub(super) fn slash_path()                     L737
-// pub(super) fn to_root_relative()               L741
-// fn rel_path_from_root()                        L746
-// fn path_is_ignored()                           L751
-// pub(super) struct WorkspaceMatch               L769
-// pub(super) fn workspace_match()                L774
-// fn split_package_specifier()                   L786
-// pub(super) fn resolve_workspace_specifier()    L816
-// fn resolve_workspace_entry()                   L829
-// fn resolve_package_target()                    L881
-// fn export_target()                             L892
-// fn first_export_string()                       L920
-// fn read_json_value()                           L936
+// pub type WorkspacePackages                      L76
+// pub struct WorkspaceCaches                      L79
+//   pub fn build()                                L87
+// pub enum ImportKind                             L99
+// pub struct ResolvedImport                      L107
+// pub struct WorkspaceImportIndex                L116
+// pub fn build_workspace_import_index()          L124
+// pub fn resolve_imports_for_language()          L167
+// const IGNORED_DIRS                             L195
+// const TSJS_EXTS                                L209
+// fn build_ignore_globset()                      L213
+// fn discover_code_files()                       L226
+// fn discover_workspace_packages()               L281
+// struct WorkspacePatternSet                     L356
+// fn workspace_patterns()                        L361
+// fn read_pnpm_workspace_patterns()              L385
+// fn read_package_json_workspace_patterns()      L431
+// fn compile_globset()                           L468
+// fn workspace_path_allowed()                    L484
+// fn globset_matches_path()                      L502
+// fn package_name_from_manifest()                L514
+// pub(super) fn classify_local_kind()            L526
+// pub(super) fn sanitize_specifier()             L541
+// pub(super) fn normalize_identifier()           L558
+// pub(super) fn resolve_with_exts()              L586
+// pub(super) fn resolve_file()                   L612
+// fn canonicalize_existing_rel_path()            L621
+// pub(super) fn list_go_package_files()          L659
+// pub(super) fn build_line_starts()              L693
+// pub(super) fn line_number_for_offset()         L703
+// pub(super) fn normalize_rel_path()             L712
+// pub(super) fn slash_path()                     L731
+// pub(super) fn to_root_relative()               L735
+// fn rel_path_from_root()                        L740
+// fn path_is_ignored()                           L745
+// pub(super) struct WorkspaceMatch               L763
+// pub(super) fn workspace_match()                L768
+// fn split_package_specifier()                   L780
+// pub(super) fn resolve_workspace_specifier()    L810
+// fn resolve_workspace_entry()                   L823
+// fn resolve_package_target()                    L875
+// fn export_target()                             L886
+// fn first_export_string()                       L914
+// fn read_json_value()                           L930
 // ---------------------------------------------------
 
 pub type WorkspacePackages = HashMap<String, PathBuf>;
 
 #[derive(Debug, Clone, Default)]
-pub struct GoWorkspaceCache {
-    pub modules_by_path: HashMap<String, PathBuf>,
+pub struct WorkspaceCaches {
+    pub workspace_packages: WorkspacePackages,
+    pub go_workspace: GoWorkspaceCache,
+    pub python_workspace: PythonWorkspaceCache,
+    pub rust_workspace: RustWorkspaceCache,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct PythonWorkspaceCache {
-    pub package_dirs: HashMap<String, Vec<PathBuf>>,
-    pub module_files: HashMap<String, Vec<PathBuf>>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct RustWorkspaceCrate {
-    pub name: String,
-    pub src_root: PathBuf,
-    pub crate_root_files: Vec<PathBuf>,
-    pub dependency_src_roots: HashMap<String, PathBuf>,
-    pub dependency_entry_files: HashMap<String, Vec<PathBuf>>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct RustWorkspaceCache {
-    pub crates_by_root: HashMap<PathBuf, RustWorkspaceCrate>,
+impl WorkspaceCaches {
+    pub fn build(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
+        let ignore_set = build_ignore_globset(ignore_patterns)?;
+        Ok(Self {
+            workspace_packages: discover_workspace_packages(root, &ignore_set),
+            go_workspace: GoWorkspaceCache::build(root),
+            python_workspace: PythonWorkspaceCache::build(root, &ignore_set),
+            rust_workspace: RustWorkspaceCache::build(root, &ignore_set),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -129,10 +126,7 @@ pub fn build_workspace_import_index(
     ignore_patterns: &[String],
 ) -> Result<WorkspaceImportIndex> {
     let ignore_set = build_ignore_globset(ignore_patterns)?;
-    let workspace_packages = discover_workspace_packages(root, &ignore_set);
-    let go_workspace = go::build_workspace_cache(root);
-    let python_workspace = python::build_workspace_cache(root, &ignore_set);
-    let rust_workspace = rust::build_workspace_cache(root, &ignore_set);
+    let workspace_caches = WorkspaceCaches::build(root, ignore_patterns)?;
     let mut file_imports = BTreeMap::new();
 
     for rel_path in discover_code_files(root, &ignore_set)? {
@@ -150,16 +144,8 @@ pub fn build_workspace_import_index(
             }
         };
 
-        let mut imports = resolve_imports_for_language(
-            root,
-            &rel_path,
-            &source,
-            language,
-            &workspace_packages,
-            &go_workspace,
-            &python_workspace,
-            &rust_workspace,
-        );
+        let mut imports =
+            resolve_imports_for_language(root, &rel_path, &source, language, &workspace_caches);
         imports.sort_by(|left, right| {
             left.line
                 .cmp(&right.line)
@@ -170,10 +156,10 @@ pub fn build_workspace_import_index(
     }
 
     Ok(WorkspaceImportIndex {
-        workspace_packages,
-        go_workspace,
-        python_workspace,
-        rust_workspace,
+        workspace_packages: workspace_caches.workspace_packages,
+        go_workspace: workspace_caches.go_workspace,
+        python_workspace: workspace_caches.python_workspace,
+        rust_workspace: workspace_caches.rust_workspace,
         file_imports,
     })
 }
@@ -183,18 +169,26 @@ pub fn resolve_imports_for_language(
     source_file: &Path,
     source: &str,
     language: CodeLanguage,
-    workspace_packages: &WorkspacePackages,
-    go_workspace: &GoWorkspaceCache,
-    python_workspace: &PythonWorkspaceCache,
-    rust_workspace: &RustWorkspaceCache,
+    workspace_caches: &WorkspaceCaches,
 ) -> Vec<ResolvedImport> {
     match language {
-        CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
-            tsjs::resolve(root, source_file, source, workspace_packages)
+        CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => tsjs::resolve(
+            root,
+            source_file,
+            source,
+            &workspace_caches.workspace_packages,
+        ),
+        CodeLanguage::Rust => workspace_caches
+            .rust_workspace
+            .resolve(root, source_file, source),
+        CodeLanguage::Go => workspace_caches
+            .go_workspace
+            .resolve(root, source_file, source),
+        CodeLanguage::Python => {
+            workspace_caches
+                .python_workspace
+                .resolve(root, source_file, source)
         }
-        CodeLanguage::Rust => rust::resolve(root, source_file, source, rust_workspace),
-        CodeLanguage::Go => go::resolve(root, source_file, source, go_workspace),
-        CodeLanguage::Python => python::resolve(root, source_file, source, python_workspace),
     }
 }
 

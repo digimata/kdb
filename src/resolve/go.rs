@@ -3,34 +3,35 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::{
-    list_go_package_files, normalize_identifier, normalize_rel_path, to_root_relative,
-    GoWorkspaceCache, ImportKind, ResolvedImport,
+    ImportKind, ResolvedImport, list_go_package_files, normalize_identifier, normalize_rel_path,
+    to_root_relative,
 };
 
-// ---------------------------------------------
+// -----------------------------------
 // src/resolve/go.rs
 //
-// enum GoWorkBlock                          L36
-// struct ParsedGoWork                       L42
-// pub(super) fn build_workspace_cache()     L47
-// pub(super) fn resolve()                   L73
-// fn push_import()                         L132
-// fn parse_go_work()                       L167
-// fn go_module_name()                      L228
-// fn resolve_import()                      L243
-// fn workspace_module_match()              L269
-// fn parse_import_line()                   L296
-// fn import_names()                        L320
-// fn classify_kind()                       L336
-// fn directive_body()                      L351
-// fn strip_line_comment()                  L364
-// fn parse_use_path()                      L368
-// fn parse_replace_entry()                 L373
-// fn parse_local_dir()                     L389
-// fn is_local_path()                       L403
-// fn trim_go_token()                       L414
-// fn push_unique_path()                    L418
-// ---------------------------------------------
+// enum GoWorkBlock                L37
+// struct ParsedGoWork             L43
+// pub struct GoWorkspaceCache     L49
+//   pub(super) fn build()         L54
+//   pub(super) fn resolve()       L80
+// fn push_import()               L124
+// fn parse_go_work()             L159
+// fn go_module_name()            L220
+// fn resolve_import()            L235
+// fn workspace_module_match()    L261
+// fn parse_import_line()         L288
+// fn import_names()              L312
+// fn classify_kind()             L328
+// fn directive_body()            L343
+// fn strip_line_comment()        L356
+// fn parse_use_path()            L360
+// fn parse_replace_entry()       L365
+// fn parse_local_dir()           L381
+// fn is_local_path()             L395
+// fn trim_go_token()             L406
+// fn push_unique_path()          L410
+// -----------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GoWorkBlock {
@@ -44,89 +45,80 @@ struct ParsedGoWork {
     replace_dirs: HashMap<String, PathBuf>,
 }
 
-pub(super) fn build_workspace_cache(root: &Path) -> GoWorkspaceCache {
-    let parsed = parse_go_work(root);
-    let mut modules_by_path = HashMap::new();
-
-    for module_dir in &parsed.use_dirs {
-        let Some(module_name) = go_module_name(root, module_dir) else {
-            continue;
-        };
-        modules_by_path
-            .entry(module_name)
-            .or_insert_with(|| module_dir.clone());
-    }
-
-    if let Some(module_name) = go_module_name(root, Path::new("")) {
-        modules_by_path
-            .entry(module_name)
-            .or_insert_with(PathBuf::new);
-    }
-
-    for (module_path, local_dir) in parsed.replace_dirs {
-        modules_by_path.insert(module_path, local_dir);
-    }
-
-    GoWorkspaceCache { modules_by_path }
+#[derive(Debug, Clone, Default)]
+pub struct GoWorkspaceCache {
+    pub modules_by_path: HashMap<String, PathBuf>,
 }
 
-pub(super) fn resolve(
-    root: &Path,
-    source_file: &Path,
-    source: &str,
-    go_workspace: &GoWorkspaceCache,
-) -> Vec<ResolvedImport> {
-    let mut imports = Vec::new();
-    let mut in_block = false;
+impl GoWorkspaceCache {
+    pub(super) fn build(root: &Path) -> Self {
+        let parsed = parse_go_work(root);
+        let mut modules_by_path = HashMap::new();
 
-    for (index, line) in source.lines().enumerate() {
-        let line_no = index + 1;
-        let no_comment = strip_line_comment(line);
-        if no_comment.is_empty() {
-            continue;
+        for module_dir in &parsed.use_dirs {
+            let Some(module_name) = go_module_name(root, module_dir) else {
+                continue;
+            };
+            modules_by_path
+                .entry(module_name)
+                .or_insert_with(|| module_dir.clone());
         }
 
-        if in_block {
-            if no_comment.starts_with(')') {
-                in_block = false;
+        if let Some(module_name) = go_module_name(root, Path::new("")) {
+            modules_by_path
+                .entry(module_name)
+                .or_insert_with(PathBuf::new);
+        }
+
+        for (module_path, local_dir) in parsed.replace_dirs {
+            modules_by_path.insert(module_path, local_dir);
+        }
+
+        Self { modules_by_path }
+    }
+
+    pub(super) fn resolve(
+        &self,
+        root: &Path,
+        source_file: &Path,
+        source: &str,
+    ) -> Vec<ResolvedImport> {
+        let mut imports = Vec::new();
+        let mut in_block = false;
+
+        for (index, line) in source.lines().enumerate() {
+            let line_no = index + 1;
+            let no_comment = strip_line_comment(line);
+            if no_comment.is_empty() {
                 continue;
             }
 
-            if let Some((alias, spec)) = parse_import_line(no_comment) {
-                push_import(
-                    root,
-                    source_file,
-                    go_workspace,
-                    line_no,
-                    alias,
-                    &spec,
-                    &mut imports,
-                );
+            if in_block {
+                if no_comment.starts_with(')') {
+                    in_block = false;
+                    continue;
+                }
+
+                if let Some((alias, spec)) = parse_import_line(no_comment) {
+                    push_import(root, source_file, self, line_no, alias, &spec, &mut imports);
+                }
+                continue;
             }
-            continue;
-        }
 
-        if no_comment.starts_with("import (") {
-            in_block = true;
-            continue;
-        }
+            if no_comment.starts_with("import (") {
+                in_block = true;
+                continue;
+            }
 
-        if let Some(rest) = no_comment.strip_prefix("import ") {
-            if let Some((alias, spec)) = parse_import_line(rest) {
-                push_import(
-                    root,
-                    source_file,
-                    go_workspace,
-                    line_no,
-                    alias,
-                    &spec,
-                    &mut imports,
-                );
+            if let Some(rest) = no_comment.strip_prefix("import ") {
+                if let Some((alias, spec)) = parse_import_line(rest) {
+                    push_import(root, source_file, self, line_no, alias, &spec, &mut imports);
+                }
             }
         }
+
+        imports
     }
-
-    imports
 }
 
 fn push_import(
