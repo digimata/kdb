@@ -20,6 +20,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - add LanguageResolver trait, restructure Go/Rust/Python resolvers
 - close iss-0049 (replace code-parsing regexes with tree-sitter)
 
+## [0.8.0] — 2026-02-25
+
+### Added
+
+- add `kdb refs <file> -s <symbol>` with import-resolved symbol reference indexing and declaration-site inclusion
+- add `kdb refs -s <symbol> -c <N>` text context rendering with highlighted match lines and per-reference blocks
+
+### Changed
+
+- keep `refs` mode parity for `--count` and `--json` in symbol mode while scoping `--context` to `--symbol`
+
 ## [0.7.1] — 2026-02-25
 
 ### Added
@@ -77,4 +88,3 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Other
 
 - bootstrap kdb v0.1 — CLI, LSP, and zed extension
-

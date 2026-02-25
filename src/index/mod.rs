@@ -14,12 +14,14 @@
 //! 4. **Resolution** — [`resolve_target_path`] resolves a link target relative to
 //!    its source file, handling both markdown and wikilink syntax.
 
+mod code_refs;
 pub mod deps;
 mod markdown;
 pub mod refs;
 
 use anyhow::{Context, Result};
 use globset::GlobSet;
+use rayon::prelude::*;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -31,7 +33,9 @@ use crate::resolve::{
     GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, WorkspacePackages,
     build_workspace_import_index,
 };
+use crate::symbols::SymbolKind;
 
+pub use code_refs::SymbolIndex;
 pub use markdown::{
     parse_markdown, parse_markdown_target, parse_wikilink_target, section_byte_bounds,
     section_line_bounds, slug_anchor,
@@ -43,47 +47,52 @@ pub use markdown::{
 
 // NOTE: index block managed by kdb fmt — do not update manually
 
-// -------------------------------------
+// -----------------------------------------
 // src/index/mod.rs
 //
-// pub mod deps                      L17
-// mod markdown                      L18
-// pub mod refs                      L19
-// pub struct VaultIndex             L93
-// pub struct CodeIndex             L111
-// pub struct ProjectIndex          L128
-// pub struct FileEntry             L137
-// pub struct Heading               L150
-// pub enum LinkKind                L166
-// pub struct LinkTarget            L175
-// pub struct Link                  L184
-// pub struct HeadingKey            L199
-// pub struct LinkRef               L208
-// pub struct ParsedDocument        L223
-// pub struct BrokenLink            L232
-// pub struct CheckReport           L247
-//   pub fn has_errors()            L256
-//   pub fn print()                 L261
-//   pub fn scoped_to()             L318
-// fn path_is_in_check_scope()      L327
-//   pub fn build()                 L345
-//   pub fn build()                 L358
-//   pub fn build_with_ignores()    L363
-//   pub fn build()                 L378
-//   pub fn build_with_ignores()    L386
-//   pub fn upsert_file()           L425
-//   pub fn reload_file()           L448
-//   pub fn remove_file()           L477
-//   pub fn check()                 L485
-//   fn populate_inbound()          L524
-//   fn resolve_link()              L577
-// enum ResolveError                L610
-//   fn message()                   L617
-// fn discover_markdown_files()     L632
-// fn resolve_target_file()         L650
-// pub fn resolve_target_path()     L663
-// pub fn resolve_file_target()     L691
-// -------------------------------------
+// mod code_refs                         L17
+// pub mod deps                          L18
+// mod markdown                          L19
+// pub mod refs                          L20
+// pub struct VaultIndex                L102
+// pub struct CodeIndex                 L120
+// pub struct SymbolKey                 L135
+// pub struct SymbolRef                 L150
+// pub struct ProjectIndex              L169
+// pub struct FileEntry                 L178
+// pub struct Heading                   L191
+// pub enum LinkKind                    L207
+// pub struct LinkTarget                L216
+// pub struct Link                      L225
+// pub struct HeadingKey                L240
+// pub struct LinkRef                   L249
+// pub struct ParsedDocument            L264
+// pub struct BrokenLink                L273
+// pub struct CheckReport               L288
+//   pub fn has_errors()                L297
+//   pub fn print()                     L302
+//   pub fn scoped_to()                 L359
+// fn path_is_in_check_scope()          L368
+//   pub fn build()                     L386
+//   pub fn build_with_symbol_refs()    L398
+//   pub fn build()                     L413
+//   pub fn build_with_ignores()        L418
+//   pub fn build_with_symbol_refs()    L428
+//   pub fn build()                     L443
+//   pub fn build_with_ignores()        L451
+//   pub fn upsert_file()               L495
+//   pub fn reload_file()               L518
+//   pub fn remove_file()               L547
+//   pub fn check()                     L555
+//   fn populate_inbound()              L594
+//   fn resolve_link()                  L647
+// enum ResolveError                    L680
+//   fn message()                       L687
+// fn discover_markdown_files()         L702
+// fn resolve_target_file()             L720
+// pub fn resolve_target_path()         L733
+// pub fn resolve_file_target()         L761
+// -----------------------------------------
 
 /// Complete index of a markdown vault.
 ///
@@ -117,6 +126,38 @@ pub struct CodeIndex {
     pub rust_workspace: RustWorkspaceCache,
     /// Per-code-file resolved imports used by `kdb deps` and code refs.
     pub code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
+    /// Declaration symbols and inbound references for `kdb refs -s`.
+    pub symbols: SymbolIndex,
+}
+
+/// Stable key for a symbol definition when indexing code references.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SymbolKey {
+    /// Relative path to the file where the symbol is defined.
+    pub file: PathBuf,
+    /// Symbol name.
+    pub name: String,
+    /// Optional parent context (e.g. class or impl type).
+    pub parent: Option<String>,
+    /// Symbol kind.
+    pub kind: SymbolKind,
+    /// 1-based definition line (disambiguates duplicate names).
+    pub line: usize,
+}
+
+/// A single inbound code reference row for `kdb refs -s`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SymbolRef {
+    /// Relative path to the file containing the reference.
+    pub source_file: PathBuf,
+    /// 1-based line number of the reference.
+    pub line: usize,
+    /// 1-based column number of the reference.
+    pub column: usize,
+    /// Trimmed source line used for display.
+    pub snippet: String,
+    /// Whether this row is the declaration site itself.
+    pub is_definition: bool,
 }
 
 /// Combined vault and code index for a project.
@@ -349,6 +390,20 @@ impl CodeIndex {
             go_workspace: import_index.go_workspace,
             rust_workspace: import_index.rust_workspace,
             code_imports: import_index.file_imports,
+            symbols: SymbolIndex::default(),
+        })
+    }
+
+    /// Build a code index and include symbol-reference maps for `kdb refs -s`.
+    pub fn build_with_symbol_refs(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
+        let import_index = build_workspace_import_index(root, ignore_patterns)?;
+        let symbols = SymbolIndex::build(root, &import_index.file_imports)?;
+        Ok(Self {
+            workspace_packages: import_index.workspace_packages,
+            go_workspace: import_index.go_workspace,
+            rust_workspace: import_index.rust_workspace,
+            code_imports: import_index.file_imports,
+            symbols,
         })
     }
 }
@@ -366,6 +421,16 @@ impl ProjectIndex {
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
         let vault = VaultIndex::build_with_ignores(&canonical, ignore_patterns)?;
         let code = CodeIndex::build(&canonical, ignore_patterns)?;
+        Ok(Self { vault, code })
+    }
+
+    /// Build a combined project index with code symbol refs enabled.
+    pub fn build_with_symbol_refs(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
+        let canonical = root
+            .canonicalize()
+            .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
+        let vault = VaultIndex::build_with_ignores(&canonical, ignore_patterns)?;
+        let code = CodeIndex::build_with_symbol_refs(&canonical, ignore_patterns)?;
         Ok(Self { vault, code })
     }
 }
@@ -389,23 +454,28 @@ impl VaultIndex {
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
         let ignore_set = build_ignore_globset(ignore_patterns)?;
 
+        let discovered = discover_markdown_files(&root, &ignore_set)?;
+        let parsed_files: Vec<_> = discovered
+            .par_iter()
+            .filter_map(|rel_path| {
+                let abs_path = root.join(rel_path);
+                let source = std::fs::read_to_string(&abs_path).ok()?;
+                let parsed = parse_markdown(&source);
+                Some((
+                    rel_path.clone(),
+                    FileEntry {
+                        rel_path: rel_path.clone(),
+                        abs_path,
+                        headings: parsed.headings,
+                        links: parsed.links,
+                    },
+                ))
+            })
+            .collect();
+
         let mut files = BTreeMap::new();
-        for rel_path in discover_markdown_files(&root, &ignore_set)? {
-            let abs_path = root.join(&rel_path);
-            let source = match std::fs::read_to_string(&abs_path) {
-                Ok(s) => s,
-                Err(_) => continue, // skip files with invalid UTF-8
-            };
-            let parsed = parse_markdown(&source);
-            files.insert(
-                rel_path.clone(),
-                FileEntry {
-                    rel_path,
-                    abs_path,
-                    headings: parsed.headings,
-                    links: parsed.links,
-                },
-            );
+        for (rel_path, entry) in parsed_files {
+            files.insert(rel_path, entry);
         }
 
         let mut index = Self {

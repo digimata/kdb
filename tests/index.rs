@@ -11,53 +11,54 @@ use tempfile::tempdir;
 // ----------------------------------------------------------------------------------
 // tests/index.rs
 //
-// fn write_file()                                                                L63
-// fn write_root_config()                                                         L71
-// fn parse_markdown_extracts_headings_and_internal_links()                       L76
-// fn parse_markdown_multiple_links_on_one_line_have_distinct_columns()          L109
-// fn parse_markdown_target_keeps_url_encoded_paths()                            L119
-// fn parse_markdown_deduplicates_heading_anchors()                              L131
-// fn parse_markdown_target_filters_external_and_non_markdown_links()            L142
-// fn parse_wikilink_target_supports_aliases_and_anchors()                       L173
-// fn parse_wikilink_target_supports_alias_and_anchor_together()                 L200
-// fn normalize_rel_path_rejects_escape_attempts()                               L212
-// fn resolve_target_path_handles_markdown_and_wikilink_rules()                  L222
-// fn vault_index_check_reports_broken_links_orphans_and_inbound_maps()          L263
-// fn vault_index_multiple_sources_to_same_target_have_inbound_count_gt_one()    L302
-// fn vault_index_single_file_is_reported_as_orphan()                            L318
-// fn vault_index_ignores_non_markdown_files()                                   L329
-// fn vault_index_build_with_ignores_skips_matching_paths()                      L342
-// fn vault_index_respects_root_gitignore_rules()                                L362
-// fn vault_index_respects_nested_gitignore_negation_rules()                     L375
-// fn vault_index_incremental_upsert_respects_ignore_patterns()                  L388
-// fn vault_index_build_populates_code_import_maps_for_typescript()              L407
-// fn vault_index_build_populates_workspace_package_map_and_imports()            L444
-// fn slug_anchor_normalizes_heading_text()                                      L496
-// fn parse_markdown_heading_with_inline_code()                                  L507
-// fn parse_markdown_link_inside_heading()                                       L515
-// fn parse_markdown_ignores_wikilinks_in_code_blocks()                          L524
-// fn parse_markdown_ignores_wikilinks_in_inline_code()                          L538
-// fn parse_markdown_frontmatter_does_not_create_headings()                      L556
-// fn parse_markdown_empty_file()                                                L564
-// fn parse_markdown_file_with_no_headings()                                     L571
-// fn parse_markdown_heading_with_special_chars()                                L578
-// fn parse_markdown_all_six_heading_levels()                                    L587
-// fn slug_anchor_all_special_characters()                                       L601
-// fn slug_anchor_unicode_characters()                                           L608
-// fn slug_anchor_mixed_separators()                                             L616
-// fn slug_anchor_trailing_separators()                                          L622
-// fn vault_index_file_linked_to_is_not_orphan()                                 L632
-// fn vault_index_circular_references_are_not_broken()                           L647
-// fn vault_index_self_referencing_links_do_not_count_as_inbound()               L662
-// fn vault_index_broken_heading_anchor()                                        L675
-// fn vault_index_wikilink_resolution()                                          L689
-// fn vault_index_deeply_nested_files()                                          L702
-// fn vault_index_empty_file_is_indexed()                                        L720
-// fn normalize_rel_path_current_dir_only()                                      L738
-// fn normalize_rel_path_deep_parent_traversal()                                 L746
-// fn resolve_target_path_absolute_path_rejected()                               L761
-// fn resolve_target_path_wikilink_with_explicit_md_extension()                  L774
-// fn resolve_target_path_source_at_root_level()                                 L788
+// fn write_file()                                                                L64
+// fn write_root_config()                                                         L72
+// fn parse_markdown_extracts_headings_and_internal_links()                       L77
+// fn parse_markdown_multiple_links_on_one_line_have_distinct_columns()          L110
+// fn parse_markdown_target_keeps_url_encoded_paths()                            L120
+// fn parse_markdown_deduplicates_heading_anchors()                              L132
+// fn parse_markdown_target_filters_external_and_non_markdown_links()            L143
+// fn parse_wikilink_target_supports_aliases_and_anchors()                       L174
+// fn parse_wikilink_target_supports_alias_and_anchor_together()                 L201
+// fn normalize_rel_path_rejects_escape_attempts()                               L213
+// fn resolve_target_path_handles_markdown_and_wikilink_rules()                  L223
+// fn vault_index_check_reports_broken_links_orphans_and_inbound_maps()          L264
+// fn vault_index_multiple_sources_to_same_target_have_inbound_count_gt_one()    L303
+// fn vault_index_single_file_is_reported_as_orphan()                            L319
+// fn vault_index_ignores_non_markdown_files()                                   L330
+// fn vault_index_build_with_ignores_skips_matching_paths()                      L343
+// fn vault_index_respects_root_gitignore_rules()                                L363
+// fn vault_index_respects_nested_gitignore_negation_rules()                     L376
+// fn vault_index_incremental_upsert_respects_ignore_patterns()                  L389
+// fn project_index_build_populates_code_import_maps_for_typescript()            L408
+// fn project_index_build_populates_workspace_package_map_and_imports()          L446
+// fn project_index_symbol_refs_match_imported_symbol_only()                     L499
+// fn slug_anchor_normalizes_heading_text()                                      L538
+// fn parse_markdown_heading_with_inline_code()                                  L549
+// fn parse_markdown_link_inside_heading()                                       L557
+// fn parse_markdown_ignores_wikilinks_in_code_blocks()                          L566
+// fn parse_markdown_ignores_wikilinks_in_inline_code()                          L580
+// fn parse_markdown_frontmatter_does_not_create_headings()                      L598
+// fn parse_markdown_empty_file()                                                L606
+// fn parse_markdown_file_with_no_headings()                                     L613
+// fn parse_markdown_heading_with_special_chars()                                L620
+// fn parse_markdown_all_six_heading_levels()                                    L629
+// fn slug_anchor_all_special_characters()                                       L643
+// fn slug_anchor_unicode_characters()                                           L650
+// fn slug_anchor_mixed_separators()                                             L658
+// fn slug_anchor_trailing_separators()                                          L664
+// fn vault_index_file_linked_to_is_not_orphan()                                 L674
+// fn vault_index_circular_references_are_not_broken()                           L689
+// fn vault_index_self_referencing_links_do_not_count_as_inbound()               L704
+// fn vault_index_broken_heading_anchor()                                        L717
+// fn vault_index_wikilink_resolution()                                          L731
+// fn vault_index_deeply_nested_files()                                          L744
+// fn vault_index_empty_file_is_indexed()                                        L762
+// fn normalize_rel_path_current_dir_only()                                      L780
+// fn normalize_rel_path_deep_parent_traversal()                                 L788
+// fn resolve_target_path_absolute_path_rejected()                               L803
+// fn resolve_target_path_wikilink_with_explicit_md_extension()                  L816
+// fn resolve_target_path_source_at_root_level()                                 L830
 // ----------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -492,6 +493,45 @@ fn project_index_build_populates_workspace_package_map_and_imports() {
             && import.resolved_path.as_deref() == Some(Path::new("packages/protocol/src/agent.ts"))
             && import.kind == ImportKind::Workspace
     }));
+}
+
+#[test]
+fn project_index_symbol_refs_match_imported_symbol_only() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "src/lib.rs",
+        "pub mod local;\npub mod target;\npub mod uses_target;\n",
+    );
+    write_file(temp.path(), "src/target.rs", "pub fn handle() {}\n");
+    write_file(
+        temp.path(),
+        "src/uses_target.rs",
+        "use crate::target::handle;\npub fn run() {\n    handle();\n}\n",
+    );
+    write_file(
+        temp.path(),
+        "src/local.rs",
+        "pub fn handle() {}\npub fn run() {\n    handle();\n}\n",
+    );
+
+    let pi = ProjectIndex::build_with_symbol_refs(temp.path(), &[])
+        .expect("build project index with symbol refs");
+    let rows =
+        kdb::index::refs::collect_symbol_refs(&pi.code, temp.path(), "src/target.rs", "handle")
+            .expect("collect symbol refs for target::handle");
+
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.iter().filter(|row| row.is_definition).count(), 1);
+    assert!(rows.iter().any(|row| {
+        row.source_file == PathBuf::from("src/uses_target.rs") && !row.is_definition
+    }));
+    assert!(
+        !rows
+            .iter()
+            .any(|row| { row.source_file == PathBuf::from("src/local.rs") && !row.is_definition })
+    );
 }
 
 #[test]

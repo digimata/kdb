@@ -1,7 +1,7 @@
 ---
 id: 28
 title: Code symbol references (refs -s)
-status: proposed
+status: in_progress
 priority: high
 labels:
   - feat
@@ -109,15 +109,30 @@ Current `CodeIndex::build()` does steps 1-2. Steps 3-5 are new.
 
 For a 10k-file monorepo where `root.rs` is imported by 15 files, this scans 15 files instead of 10k.
 
-### What we won't handle
+### What we won't handle (v1)
 
-- **Re-exports**: `pub use other::Foo` — requires multi-hop resolution
 - **Wildcard imports**: `use crate::*` — can't know which names are pulled in
 - **Dynamic references**: `getattr(obj, "handle")`, `obj[methodName]`
 - **Trait method dispatch**: which `handle()` is called on a trait object
 - **Type-based disambiguation**: two `handle()` functions with different parameter types
 
 These require a full type checker. Import-resolved references cover 95%+ of real-world agent navigation.
+
+### Sub-issue: Correctness evaluation (iss-0028.1)
+
+Test `refs -s` against real repos (zed, tokio, etc.). Compare results with rg and IDE find-references. Quantify recall gaps from re-exports, wildcards, and other known blind spots. Not critical — agents can grep/build as fallback — but want best first-shot coverage.
+
+### v2: Context lines (`-c`)
+
+Add `-c`/`--context <N>` flag (like `grep -C`) to show N lines of surrounding context for each reference. Read the source file and print N lines before/after each match line, with the match line indicated. Applies to text output mode only (JSON already has `snippet`; could add a `context_lines` array).
+
+### v2: Cross-file re-export following
+
+- **Re-exports**: `pub use other::Foo` (Rust), `export { Foo } from './foo'` (TS/JS barrel files), `__all__` re-exports (Python)
+- Extremely common in TS/JS codebases (barrel `index.ts` files) and Rust (`pub use` in `mod.rs`)
+- Requires multi-hop resolution: if A imports from B, and B re-exports from C, a reference in A should resolve to C's declaration
+- Implementation: walk re-export chains during reference resolution, capped at a reasonable depth (e.g. 5 hops)
+- High priority — users will hit this quickly in real codebases
 
 ### Open questions
 

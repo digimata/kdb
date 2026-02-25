@@ -7,69 +7,78 @@ use tempfile::tempdir;
 // ---------------------------------------------------------------------------------
 // tests/cli.rs
 //
-// fn write_file()                                                               L75
-// fn bin()                                                                      L83
-// fn write_root_config()                                                        L87
-// fn check_exits_zero_for_clean_vault()                                         L92
-// fn check_exits_one_for_broken_links()                                        L110
-// fn check_respects_index_ignore_patterns_from_config()                        L128
-// fn check_respects_gitignore_rules()                                          L155
-// fn check_orphan_only_shows_orphan_count_hint_without_listing()               L179
-// fn check_orphans_flag_lists_orphan_files()                                   L201
-// fn check_scopes_output_to_explicit_subtree_path()                            L223
-// fn check_scoped_subtree_still_validates_cross_subtree_links()                L248
-// fn check_errors_when_root_marker_missing()                                   L276
-// fn outline_prints_heading_tree()                                             L292
-// fn outline_reports_no_headings_for_plain_markdown()                          L315
-// fn outline_errors_for_nonexistent_file()                                     L336
-// fn fmt_generates_code_index_headers_for_supported_files()                    L352
-// fn fmt_warns_when_nonstandard_index_rows_are_removed()                       L374
-// fn fmt_scopes_to_explicit_file_path()                                        L397
-// fn fmt_respects_gitignore_rules()                                            L421
-// fn fmt_explicit_path_can_format_gitignored_file()                            L443
-// fn tree_prints_filtered_directory_structure()                                L464
-// fn tree_level_option_matches_tree_l_flag()                                   L494
-// fn tree_json_dirs_only_and_all_flags_are_supported()                         L514
-// fn tree_full_path_flag_prints_full_relative_paths()                          L540
-// fn tree_ignore_pattern_flag_excludes_matches()                               L558
-// fn tree_pattern_flag_includes_only_matching_subtrees()                       L579
-// fn symbols_prints_markdown_heading_symbols()                                 L603
-// fn symbols_supports_public_filter_for_code_files()                           L629
-// fn symbols_json_outputs_structured_rows()                                    L661
-// fn symbols_selector_prints_multiple_matching_bodies()                        L689
-// fn symbols_selector_supports_qualified_names()                               L727
-// fn symbols_selector_json_outputs_body_and_metadata()                         L761
-// fn symbols_selector_respects_public_filter()                                 L806
-// fn symbols_selector_extracts_markdown_sections_by_slug()                     L847
-// fn symbols_selector_markdown_json_outputs_body_and_metadata()                L881
-// fn symbols_selector_markdown_slug_not_found_errors()                         L926
-// fn refs_lists_inbound_references_for_file_target()                           L950
-// fn refs_lists_inbound_references_for_heading_target()                        L977
-// fn refs_count_prints_number_of_inbound_references()                         L1008
-// fn refs_json_outputs_structured_rows()                                      L1029
-// fn deps_lists_outbound_dependencies_for_file_target()                       L1056
-// fn deps_json_outputs_structured_rows()                                      L1089
-// fn deps_supports_rust_code_file_targets()                                   L1126
-// fn deps_supports_rust_nested_crate_roots_in_monorepos()                     L1153
-// fn deps_supports_rust_workspace_sibling_crate_imports()                     L1194
-// fn deps_supports_rust_workspace_renamed_path_dependencies()                 L1240
-// fn deps_supports_rust_custom_lib_path_mod_declarations()                    L1286
-// fn deps_supports_rust_custom_bin_path_mod_declarations()                    L1310
-// fn deps_supports_rust_custom_lib_path_cross_crate_fallback()                L1334
-// fn deps_supports_typescript_code_file_targets()                             L1375
-// fn deps_supports_typescript_tsconfig_path_aliases()                         L1403
-// fn deps_supports_typescript_workspace_package_imports()                     L1431
-// fn deps_supports_python_code_file_targets()                                 L1479
-// fn deps_supports_python_pyproject_src_layout_package_imports()              L1515
-// fn deps_supports_python_setup_py_src_layout_fallback()                      L1553
-// fn deps_supports_python_poetry_src_namespace_packages()                     L1578
-// fn deps_python_canonicalizes_resolved_file_case_on_case_insensitive_fs()    L1613
-// fn deps_supports_go_code_file_targets()                                     L1655
-// fn deps_supports_go_workspace_use_cross_module_imports()                    L1684
-// fn deps_supports_go_workspace_replace_local_path_overrides()                L1714
-// fn graph_is_stubbed_with_clear_message()                                    L1753
-// fn init_creates_kdb_directory_and_default_config()                          L1766
-// fn init_errors_if_kdb_directory_already_exists()                            L1788
+// fn write_file()                                                               L84
+// fn bin()                                                                      L92
+// fn write_root_config()                                                        L96
+// fn write_symbol_refs_rust_fixture()                                          L100
+// fn check_exits_zero_for_clean_vault()                                        L144
+// fn check_exits_one_for_broken_links()                                        L162
+// fn check_respects_index_ignore_patterns_from_config()                        L180
+// fn check_respects_gitignore_rules()                                          L207
+// fn check_orphan_only_shows_orphan_count_hint_without_listing()               L231
+// fn check_orphans_flag_lists_orphan_files()                                   L253
+// fn check_scopes_output_to_explicit_subtree_path()                            L275
+// fn check_scoped_subtree_still_validates_cross_subtree_links()                L300
+// fn check_errors_when_root_marker_missing()                                   L328
+// fn outline_prints_heading_tree()                                             L344
+// fn outline_reports_no_headings_for_plain_markdown()                          L367
+// fn outline_errors_for_nonexistent_file()                                     L388
+// fn fmt_generates_code_index_headers_for_supported_files()                    L404
+// fn fmt_warns_when_nonstandard_index_rows_are_removed()                       L426
+// fn fmt_scopes_to_explicit_file_path()                                        L449
+// fn fmt_respects_gitignore_rules()                                            L473
+// fn fmt_explicit_path_can_format_gitignored_file()                            L495
+// fn tree_prints_filtered_directory_structure()                                L516
+// fn tree_level_option_matches_tree_l_flag()                                   L546
+// fn tree_json_dirs_only_and_all_flags_are_supported()                         L566
+// fn tree_full_path_flag_prints_full_relative_paths()                          L592
+// fn tree_ignore_pattern_flag_excludes_matches()                               L610
+// fn tree_pattern_flag_includes_only_matching_subtrees()                       L631
+// fn symbols_prints_markdown_heading_symbols()                                 L655
+// fn symbols_supports_public_filter_for_code_files()                           L681
+// fn symbols_json_outputs_structured_rows()                                    L713
+// fn symbols_selector_prints_multiple_matching_bodies()                        L741
+// fn symbols_selector_supports_qualified_names()                               L779
+// fn symbols_selector_json_outputs_body_and_metadata()                         L813
+// fn symbols_selector_respects_public_filter()                                 L858
+// fn symbols_selector_extracts_markdown_sections_by_slug()                     L899
+// fn symbols_selector_markdown_json_outputs_body_and_metadata()                L933
+// fn symbols_selector_markdown_slug_not_found_errors()                         L978
+// fn refs_lists_inbound_references_for_file_target()                          L1002
+// fn refs_lists_inbound_references_for_heading_target()                       L1029
+// fn refs_count_prints_number_of_inbound_references()                         L1060
+// fn refs_json_outputs_structured_rows()                                      L1081
+// fn refs_symbol_lists_inbound_references_for_code_symbol()                   L1108
+// fn refs_symbol_count_prints_number_of_references()                          L1132
+// fn refs_symbol_json_outputs_structured_rows()                               L1152
+// fn refs_symbol_context_shows_surrounding_lines_in_text_output()             L1182
+// fn refs_symbol_context_zero_keeps_single_line_output()                      L1207
+// fn refs_markdown_context_flag_errors_without_symbol()                       L1230
+// fn refs_symbol_json_ignores_context_flag()                                  L1251
+// fn refs_symbol_count_ignores_context_flag()                                 L1278
+// fn deps_lists_outbound_dependencies_for_file_target()                       L1300
+// fn deps_json_outputs_structured_rows()                                      L1333
+// fn deps_supports_rust_code_file_targets()                                   L1370
+// fn deps_supports_rust_nested_crate_roots_in_monorepos()                     L1397
+// fn deps_supports_rust_workspace_sibling_crate_imports()                     L1438
+// fn deps_supports_rust_workspace_renamed_path_dependencies()                 L1484
+// fn deps_supports_rust_custom_lib_path_mod_declarations()                    L1530
+// fn deps_supports_rust_custom_bin_path_mod_declarations()                    L1554
+// fn deps_supports_rust_custom_lib_path_cross_crate_fallback()                L1578
+// fn deps_supports_typescript_code_file_targets()                             L1619
+// fn deps_supports_typescript_tsconfig_path_aliases()                         L1647
+// fn deps_supports_typescript_workspace_package_imports()                     L1675
+// fn deps_supports_python_code_file_targets()                                 L1723
+// fn deps_supports_python_pyproject_src_layout_package_imports()              L1759
+// fn deps_supports_python_setup_py_src_layout_fallback()                      L1797
+// fn deps_supports_python_poetry_src_namespace_packages()                     L1822
+// fn deps_python_canonicalizes_resolved_file_case_on_case_insensitive_fs()    L1857
+// fn deps_supports_go_code_file_targets()                                     L1899
+// fn deps_supports_go_workspace_use_cross_module_imports()                    L1928
+// fn deps_supports_go_workspace_replace_local_path_overrides()                L1958
+// fn graph_is_stubbed_with_clear_message()                                    L1997
+// fn init_creates_kdb_directory_and_default_config()                          L2010
+// fn init_errors_if_kdb_directory_already_exists()                            L2032
 // ---------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -86,6 +95,49 @@ fn bin() -> &'static str {
 
 fn write_root_config(root: &Path) {
     write_file(root, ".kdb/config.toml", "[project]\nname = \"fixture\"\n");
+}
+
+fn write_symbol_refs_rust_fixture(root: &Path) {
+    write_root_config(root);
+    write_file(
+        root,
+        "src/lib.rs",
+        "pub mod cmd;\npub mod lsp;\npub mod project;\n",
+    );
+    write_file(root, "src/project/mod.rs", "pub mod root;\n");
+    write_file(
+        root,
+        "src/project/root.rs",
+        concat!(
+            "use std::path::{Path, PathBuf};\n\n",
+            "pub fn find_root(start: &Path) -> Option<PathBuf> {\n",
+            "    Some(start.to_path_buf())\n",
+            "}\n",
+        ),
+    );
+    write_file(root, "src/lsp/mod.rs", "pub mod backend;\n");
+    write_file(
+        root,
+        "src/cmd.rs",
+        concat!(
+            "use std::path::Path;\n",
+            "use crate::project::root::find_root;\n\n",
+            "pub fn run() {\n",
+            "    let _ = find_root(Path::new(\".\"));\n",
+            "}\n",
+        ),
+    );
+    write_file(
+        root,
+        "src/lsp/backend.rs",
+        concat!(
+            "use std::path::Path;\n",
+            "use crate::project::root::find_root;\n\n",
+            "pub fn refresh() {\n",
+            "    let _ = find_root(Path::new(\"/tmp\"));\n",
+            "}\n",
+        ),
+    );
 }
 
 #[test]
@@ -1050,6 +1102,198 @@ fn refs_json_outputs_structured_rows() {
     assert!(rows.iter().all(|row| row["line"].is_number()));
     assert!(rows.iter().all(|row| row["column"].is_number()));
     assert!(rows.iter().all(|row| row["raw"].is_string()));
+}
+
+#[test]
+fn refs_symbol_lists_inbound_references_for_code_symbol() {
+    let temp = tempdir().expect("tempdir");
+    write_symbol_refs_rust_fixture(temp.path());
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("refs")
+        .arg("src/project/root.rs")
+        .arg("-s")
+        .arg("find_root")
+        .output()
+        .expect("run kdb refs -s");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("src/project/root.rs:"));
+    assert!(stdout.contains("pub fn find_root(start: &Path)"));
+    assert!(stdout.contains("src/cmd.rs:"));
+    assert!(stdout.contains("find_root(Path::new(\".\"))"));
+    assert!(stdout.contains("src/lsp/backend.rs:"));
+    assert!(stdout.contains("find_root(Path::new(\"/tmp\"))"));
+}
+
+#[test]
+fn refs_symbol_count_prints_number_of_references() {
+    let temp = tempdir().expect("tempdir");
+    write_symbol_refs_rust_fixture(temp.path());
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("refs")
+        .arg("src/project/root.rs")
+        .arg("-s")
+        .arg("find_root")
+        .arg("--count")
+        .output()
+        .expect("run kdb refs -s --count");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "3");
+}
+
+#[test]
+fn refs_symbol_json_outputs_structured_rows() {
+    let temp = tempdir().expect("tempdir");
+    write_symbol_refs_rust_fixture(temp.path());
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("refs")
+        .arg("src/project/root.rs")
+        .arg("-s")
+        .arg("find_root")
+        .arg("--json")
+        .output()
+        .expect("run kdb refs -s --json");
+
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("parse refs -s json");
+    let rows = json.as_array().expect("refs -s json array");
+    assert_eq!(rows.len(), 3);
+    assert!(rows.iter().any(|row| {
+        row["source_file"] == "src/project/root.rs" && row["is_definition"] == true
+    }));
+    assert!(
+        rows.iter()
+            .filter(|row| row["is_definition"] == false)
+            .all(|row| row["line"].is_number() && row["column"].is_number())
+    );
+    assert!(rows.iter().all(|row| row["snippet"].is_string()));
+}
+
+#[test]
+fn refs_symbol_context_shows_surrounding_lines_in_text_output() {
+    let temp = tempdir().expect("tempdir");
+    write_symbol_refs_rust_fixture(temp.path());
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("refs")
+        .arg("src/project/root.rs")
+        .arg("-s")
+        .arg("find_root")
+        .arg("-c")
+        .arg("1")
+        .output()
+        .expect("run kdb refs -s -c 1");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("src/cmd.rs:5:"));
+    assert!(stdout.contains("  4 | pub fn run() {"));
+    assert!(stdout.contains("> 5 |     let _ = find_root(Path::new(\".\"));"));
+    assert!(stdout.contains("  6 | }"));
+    assert!(stdout.contains("--"));
+}
+
+#[test]
+fn refs_symbol_context_zero_keeps_single_line_output() {
+    let temp = tempdir().expect("tempdir");
+    write_symbol_refs_rust_fixture(temp.path());
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("refs")
+        .arg("src/project/root.rs")
+        .arg("-s")
+        .arg("find_root")
+        .arg("-c")
+        .arg("0")
+        .output()
+        .expect("run kdb refs -s -c 0");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("src/project/root.rs:"));
+    assert!(stdout.contains("src/cmd.rs:"));
+    assert!(!stdout.contains(" | "));
+}
+
+#[test]
+fn refs_markdown_context_flag_errors_without_symbol() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), "docs/hooks.md", "# Hooks\n");
+    write_file(temp.path(), "a.md", "# A\n\n[Hooks](docs/hooks.md)\n");
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("refs")
+        .arg("docs/hooks.md")
+        .arg("-c")
+        .arg("1")
+        .output()
+        .expect("run kdb refs markdown -c 1");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--context is currently supported only with --symbol"));
+}
+
+#[test]
+fn refs_symbol_json_ignores_context_flag() {
+    let temp = tempdir().expect("tempdir");
+    write_symbol_refs_rust_fixture(temp.path());
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("refs")
+        .arg("src/project/root.rs")
+        .arg("-s")
+        .arg("find_root")
+        .arg("--json")
+        .arg("-c")
+        .arg("2")
+        .output()
+        .expect("run kdb refs -s --json -c 2");
+
+    assert!(output.status.success());
+    let json: Value = serde_json::from_slice(&output.stdout).expect("parse refs -s json");
+    let rows = json.as_array().expect("refs -s json array");
+    assert_eq!(rows.len(), 3);
+    assert!(rows.iter().all(|row| {
+        row.as_object()
+            .is_some_and(|obj| !obj.contains_key("context_lines"))
+    }));
+}
+
+#[test]
+fn refs_symbol_count_ignores_context_flag() {
+    let temp = tempdir().expect("tempdir");
+    write_symbol_refs_rust_fixture(temp.path());
+
+    let output = Command::new(bin())
+        .current_dir(temp.path())
+        .arg("refs")
+        .arg("src/project/root.rs")
+        .arg("-s")
+        .arg("find_root")
+        .arg("--count")
+        .arg("-c")
+        .arg("2")
+        .output()
+        .expect("run kdb refs -s --count -c 2");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "3");
 }
 
 #[test]

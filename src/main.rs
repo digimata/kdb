@@ -6,7 +6,7 @@ use std::path::PathBuf;
 //
 // struct Cli          L18
 // enum Command        L24
-// async fn main()    L120
+// async fn main()    L126
 // -----------------------
 
 #[derive(Debug, Parser)]
@@ -80,10 +80,16 @@ enum Command {
         #[arg(long = "public")]
         public_only: bool,
     },
-    /// Find inbound references to a markdown file or heading.
+    /// Find inbound references to a markdown target or code symbol.
     Refs {
         /// Symbol target expression (e.g. `notes.md#getting-started`).
         target: String,
+        /// Code symbol name for code reference mode.
+        #[arg(short = 's', long = "symbol")]
+        symbol: Option<String>,
+        /// Show N lines of context around each symbol reference (text mode only).
+        #[arg(short = 'c', long = "context")]
+        context: Option<usize>,
         /// Emit structured JSON output.
         #[arg(long)]
         json: bool,
@@ -152,9 +158,11 @@ async fn main() {
         } => kdb::cmd::symbols(path, symbol, json, public_only),
         Command::Refs {
             target,
+            symbol,
+            context,
             json,
             count,
-        } => kdb::cmd::refs(target, json, count),
+        } => kdb::cmd::refs(target, symbol, context, json, count),
         Command::Deps { target, json } => kdb::cmd::deps(target, json),
         Command::Graph { path } => kdb::cmd::graph(path),
         Command::Fmt { path } => kdb::cmd::format(path),

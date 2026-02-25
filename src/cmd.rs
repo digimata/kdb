@@ -30,9 +30,9 @@ use crate::tree;
 // pub fn tree()                     L199
 // pub fn symbols()                  L247
 // pub fn refs()                     L297
-// pub fn deps()                     L320
-// pub fn graph()                    L355
-// pub fn format()                   L369
+// pub fn deps()                     L354
+// pub fn graph()                    L389
+// pub fn format()                   L403
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -293,10 +293,44 @@ pub fn symbols(
     Ok(())
 }
 
-/// Find inbound markdown references to a file or specific heading.
-pub fn refs(target: String, as_json: bool, count_only: bool) -> Result<()> {
-    let target = index::refs::parse_target(&target)?;
+/// Find inbound markdown references or code symbol references.
+pub fn refs(
+    target: String,
+    symbol: Option<String>,
+    context_lines: Option<usize>,
+    as_json: bool,
+    count_only: bool,
+) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
+
+    if let Some(symbol_name) = symbol {
+        let index =
+            ProjectIndex::build_with_symbol_refs(&ctx.project.root, &ctx.project.ignore_patterns)?;
+        let inbound =
+            refs::collect_symbol_refs(&index.code, &ctx.project.root, &target, &symbol_name)?;
+
+        if count_only {
+            println!("{}", inbound.len());
+            return Ok(());
+        }
+
+        if as_json {
+            let output = serde_json::to_string_pretty(&inbound)
+                .context("failed to serialize symbol refs as JSON")?;
+            println!("{output}");
+        } else {
+            let options = refs::SymbolRefRenderOptions::new(context_lines.unwrap_or(0));
+            refs::print_symbol_refs_text(&ctx.project.root, &inbound, options)?;
+        }
+
+        return Ok(());
+    }
+
+    if context_lines.is_some() {
+        bail!("--context is currently supported only with --symbol");
+    }
+
+    let target = index::refs::parse_target(&target)?;
     let index = ctx.build_index()?;
     let inbound = refs::collect_inbound(&index, &ctx.project.root, target)?;
 
