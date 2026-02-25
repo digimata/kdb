@@ -2,7 +2,7 @@
 id: 34
 title: Performance profiling and benchmarks
 status: proposed
-priority: medium
+priority: high
 labels:
   - perf
 ---
