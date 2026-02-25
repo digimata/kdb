@@ -4,6 +4,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- centralize CodeLanguage for cross-module dispatch
+- introduce extractor context for symbol extraction
+- localize workspace caches by language
+- move tsjs workspace logic and parser into resolver struct
+- add LanguageResolver trait, restructure Go/Rust/Python resolvers
+- close iss-0049 (replace code-parsing regexes with tree-sitter)
+
 ## [0.7.1] — 2026-02-25
 
 ### Added
@@ -14,6 +25,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - update issue tracker, add changelog tooling, refresh docs
 - bump version to 0.7.1
+
+### Docs
+
+- regenerate changelog for v0.7.1
 
 ## [0.7.0] — 2026-02-24
 
