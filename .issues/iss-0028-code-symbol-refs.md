@@ -12,7 +12,7 @@ labels:
 
 ## Intent
 
-Find all references to a code symbol across the project using import-resolved precision. The core indexing architecture that extends VaultIndex with code symbol awareness.
+Find all references to a code symbol across the project using import-resolved precision.
 
 ## CLI
 
@@ -26,154 +26,122 @@ kdb refs <file> -s <name> --count     # just the count
 Example:
 
 ```
-$ kdb refs src/root.rs -s find_root
-src/root.rs:34:8            pub fn find_root(start: &Path) -> Result<PathBuf> {
-src/cmd.rs:74:18            root::find_root(&start)
-src/cmd.rs:92:18            root::find_root(&file_abs)
-src/cmd.rs:147:18           root::find_root(&file_abs)
-src/fmt/mod.rs:42:18        root::find_root(&start)
-tests/root.rs:15:10         find_root(&dir)
+$ kdb refs src/project/root.rs -s find_root
+src/project/root.rs:34:8            pub fn find_root(start: &Path) -> Result<PathBuf> {
+src/cmd.rs:58:26                    ProjectContext::discover(&start)
+src/lsp/backend.rs:42:18           root::find_root(&file_abs)
+tests/root.rs:15:10                 find_root(&dir)
 ```
 
 Definition site is included by default (like Zed's `include_declaration: true`).
 
-## Architecture
+## Design
 
-### Why not text search?
+### Why import-resolved?
 
-Text search (grep-style) gives false positives — it can't distinguish identifiers from strings, comments, or identically-named symbols in unrelated scopes. If `kdb refs -s` is just grep with nicer output, there's no reason to build it.
+Text search gives false positives — it can't distinguish identifiers from strings, comments, or identically-named symbols in unrelated scopes. Import resolution means: when file A imports `handle` from file B, and we see `handle(...)` in file A, we know it's a reference to B's `handle`, not some other `handle`.
 
-### Why not parse on every query?
+### Approach
 
-Parsing every file with tree-sitter on each `kdb refs -s` invocation works but throws away the work. For a 10k-file monorepo at ~1-5ms per parse, that's 10-50 seconds per query with no caching.
+Build on the existing `CodeIndex` and symbol extraction to add identifier usage tracking and reference resolution at index time.
 
-### Why not delegate to existing language servers?
+### What exists today
 
-We'd need to spawn and manage rust-analyzer, tsserver, pyright, and gopls — four separate servers with 5-30 second cold start times each, each with its own project configuration. That's the opposite of kdb's design as a single lightweight binary. And the agent can already use these through the editor's built-in find-all-references if the LSP is running.
+| Component | Location | What it provides |
+|---|---|---|
+| `CodeIndex` | `index/mod.rs` | Per-file `ResolvedImport` with resolved paths + imported names |
+| `Symbol` extraction | `symbols/extract/` | Tree-sitter-based extraction of declarations (name, parent, kind, span, visibility) |
+| `ResolvedImport` | `resolve/mod.rs` | `{ raw, resolved_path, kind, names, line }` — knows which names come from which files |
+| Language resolvers | `resolve/{go,python,rust,tsjs}.rs` | Workspace-aware import → file path resolution |
+| Markdown refs | `index/refs.rs` | `collect_inbound()` + `LinkRef` pattern — model for code refs |
+| `ProjectIndex` | `index/mod.rs` | Combined `{ vault, code }` wrapper |
 
-### Chosen approach: unified index
+### What's new
 
-Index code symbols and import-resolved references into VaultIndex at build time — the same architecture we already use for markdown headings and links. The index is language-indifferent and vault-wide — all languages stored homogeneously.
+**1. Identifier usage extraction** — for each code file, extract all identifier usages from the AST (not just declarations). A usage is: a name node in a call expression, type annotation, field access, etc. that isn't itself a declaration.
 
+**2. Reference resolution** — match identifier usages against the file's import map (`ResolvedImport.names` → `ResolvedImport.resolved_path`). If an identifier name matches an imported name, and the target file contains a symbol with that name, it's a confirmed reference.
+
+**3. `SymbolRef` storage** — new fields on `CodeIndex`:
+
+```rust
+/// Stored on CodeIndex
+pub code_symbols: BTreeMap<PathBuf, Vec<Symbol>>,
+pub symbol_refs: HashMap<SymbolKey, Vec<SymbolRef>>,
 ```
-VaultIndex
-├── files: HashMap<PathBuf, FileEntry>              # markdown (existing)
-│   ├── headings, links
-│
-├── code_files: HashMap<PathBuf, CodeFileEntry>      # code (new)
-│   ├── symbols: Vec<Symbol>                         # definitions (fn, struct, class, etc.)
-│   ├── imports: Vec<ResolvedImport>                 # import statements, resolved to file paths
-│   └── references: Vec<ResolvedReference>           # identifier usages, resolved via import map
-│
-├── file_inbound: HashMap<PathBuf, Vec<LinkRef>>     # markdown refs (existing)
-├── heading_inbound: HashMap<HeadingKey, Vec<LinkRef>>
-│
-└── symbol_refs: HashMap<SymbolKey, Vec<SymbolRef>>  # code refs (new)
+
+```rust
+pub struct SymbolKey {
+    pub file: PathBuf,           // definition file (rel path)
+    pub name: String,            // symbol name
+    pub parent: Option<String>,  // parent (struct/class for methods)
+    pub kind: SymbolKind,        // function, struct, class, etc.
+    pub line: usize,             // tie-breaker for overloaded names
+}
+
+pub struct SymbolRef {
+    pub source_file: PathBuf,    // file containing the reference
+    pub line: usize,             // 1-based line
+    pub column: usize,           // 1-based column
+    pub snippet: String,         // trimmed source line for display
+    pub is_definition: bool,     // true for the declaration site itself
+}
 ```
-
-Suggested key/row shapes (for clarity, not a hard API):
-
-- `SymbolKey` should uniquely identify a declaration within an index build.
-  - Minimal: `(def_file_rel_path, language, name, parent, kind, start_byte)`.
-  - `start_byte` (or `line`) is the tie-breaker for overloaded/duplicated names.
-- `SymbolRef` is one reference row. It should carry enough to print the stable text format.
-  - `(source_file_rel_path, line, col, snippet, is_definition)`.
-  - `is_definition` supports including the declaration site by default.
 
 ### Build pipeline
 
-1. Walk project, discover all files (existing)
-2. Parse `.md` files → headings + links (existing)
-3. Parse code files with tree-sitter → symbols + imports + identifier usages (new)
-4. Resolve imports → build per-file import map (new, uses iss-0026 resolution)
-5. Resolve identifier usages through import maps → populate `symbol_refs` (new)
-6. Build cross-reference maps (extend existing)
+Current `CodeIndex::build()` does steps 1-2. Steps 3-5 are new.
 
-Every query command is a view over this index:
-- `kdb symbols <file>` → `code_files[file].symbols`
-- `kdb symbols <file> -s name` → find symbol, slice source at its span
-- `kdb refs <file> -s name` → `symbol_refs[key]`
-- `kdb deps <file>` → `code_files[file].imports` (code) or `files[file].links` (markdown)
-- `kdb codemap` → iterate all entries
-- LSP → same index, cached and updated incrementally on file changes
+1. Walk project, discover code files (existing)
+2. Resolve imports per file → `code_imports` (existing)
+3. **Extract symbols per file** → `code_symbols` (reuse `symbols::extract_symbols`)
+4. **Extract identifier usages per file** (new tree-sitter pass)
+5. **Resolve usages through import maps** → populate `symbol_refs` (new)
 
-### Import-resolved references (the key precision mechanism)
+### Import-graph narrowing
 
-The difference between "smart grep" and actual reference finding is import resolution (iss-0026). When indexing a file:
+`kdb refs -s` doesn't need to scan every file. It only needs files that import from the target file. `code_imports` already has this data — invert the graph.
 
-1. Parse its import/use statements with tree-sitter
-2. Build a per-file import map: `HashMap<String, ResolvedPath>` (via iss-0026 resolvers)
-3. When we encounter an identifier in the AST, check the import map
-4. If it resolves → store as a confirmed reference to that specific symbol
-5. If it doesn't resolve (local variable, built-in, etc.) → don't store
-
-Example:
-
-```rust
-// src/api/auth.rs — defines pub fn handle()
-// src/api/users.rs — also defines pub fn handle()
-
-// src/router.rs
-use crate::api::auth;
-auth::handle(req)    // ← resolves to auth.rs::handle via import map ✓
-
-// src/api/users.rs
-handle(input)        // ← resolves to self::handle (local), NOT auth::handle ✗
-```
-
-### Import-graph narrowing for refs
-
-`kdb refs -s` doesn't need to scan every file in the project. It only needs files that *import from* the target file. The import graph (a byproduct of the index build) tells us exactly which files those are.
-
-**Flow:**
-
-1. Build the import graph: for each file, record which files it imports from → invert to get `file → Vec<importing_files>`
+1. From `code_imports`, build reverse map: `file → Vec<importing_files>`
 2. On `kdb refs src/root.rs -s find_root`:
-   - Look up reverse imports of `src/root.rs` → `[src/cmd.rs, src/fmt/mod.rs, tests/root.rs]`
-   - Only scan those files for `find_root` identifier references
-   - Skip the other 9,985 files entirely
+   - Look up reverse imports of `src/root.rs` → `[src/cmd.rs, tests/root.rs, ...]`
+   - Only search those files' identifier usages for `find_root`
 
-**Impact:** For a 10k-file monorepo where `root.rs` is imported by 15 files, refs scans 15 files instead of 10k. ~75ms instead of ~30s.
+For a 10k-file monorepo where `root.rs` is imported by 15 files, this scans 15 files instead of 10k.
 
-**Transitive imports:** For v1, only check direct importers. Transitive re-export tracking is a future enhancement.
+### What we won't handle
 
-### What we won't handle (and that's OK)
+- **Re-exports**: `pub use other::Foo` — requires multi-hop resolution
+- **Wildcard imports**: `use crate::*` — can't know which names are pulled in
+- **Dynamic references**: `getattr(obj, "handle")`, `obj[methodName]`
+- **Trait method dispatch**: which `handle()` is called on a trait object
+- **Type-based disambiguation**: two `handle()` functions with different parameter types
 
-- **Re-exports**: `pub use other_module::Foo` — following re-export chains requires multi-hop resolution
-- **Wildcard imports**: `use crate::api::*` — can't know which names are pulled in without full module analysis
-- **Dynamic references**: `getattr(obj, "handle")` in Python, `obj[methodName]` in JS
-- **Trait method dispatch**: Rust `impl Trait for Type` — knowing which `handle()` is called on a trait object requires type inference
-- **Type-based disambiguation**: two `handle` functions that take different types — requires the type checker
-
-These are language server territory. For agent navigation, import-resolved references cover 95%+ of real-world usage patterns.
-
-### Performance budget
-
-- Tree-sitter parse: ~1-5ms per file
-- 30 files (this repo): ~50-150ms — negligible
-- 1,000 files (medium project): ~1-5s — acceptable for CLI
-- 10,000 files (large monorepo): ~10-50s — needs lazy strategy for CLI; fine for LSP (cached)
-
-Memory note: storing refs can dominate. Avoid allocating paths/strings per row; use file-id interning and keep ref rows compact.
+These require a full type checker. Import-resolved references cover 95%+ of real-world agent navigation.
 
 ### Open questions
 
-- **What counts as a reference?** Calls only, or also type references, trait bounds, decorators/annotations, macro invocations, import specifiers, re-exports, doc-comment mentions?
-- **Cross-language refs:** do we ever attempt cross-language mapping (e.g. TS -> Rust via generated bindings), or keep refs strictly language-local?
-- **Scope awareness:** how far past import/use maps do we go? (locals shadowing imports, nested scopes, module/glob imports, re-export chains)
-- **Lazy vs full indexing:** should `VaultIndex::build()` always compute `symbol_refs`, or support build profiles (markdown-only, code-symbols-only, full)?
-
-## Dependencies
-
-- **iss-0024** (native symbol display): symbol model with spans
-- **iss-0026** (workspace module resolution): import maps for cross-package reference resolution
+- **What counts as a reference?** Start with: calls, type references, field/method access through imported names. Skip: doc comments, string literals, decorators (revisit later).
+- **Lazy vs eager indexing?** Should `CodeIndex::build()` always compute `symbol_refs`, or add a separate `CodeIndex::build_with_refs()` for commands that need it? Given that only `refs -s` needs it, lazy is likely better.
+- **Transitive imports?** v1: direct importers only. Re-export chains are a future enhancement.
 
 ## Changes
 
 | File | Change |
 |---|---|
 | `src/main.rs` | Add `-s`/`--symbol` flag to `Refs` subcommand |
-| `src/cmd.rs` | Branch on `-s` presence in `refs()` |
-| `src/index/mod.rs` | Extend VaultIndex with `code_files`, `symbol_refs` maps |
-| `src/index/code.rs` (new) | Code file indexing — tree-sitter parse, symbol + reference extraction |
-| `src/index/refs.rs` | Extend to query `symbol_refs` map for code references |
+| `src/cmd.rs` | Branch on `-s` in `refs()` — use `ProjectIndex` when `-s` is present |
+| `src/index/mod.rs` | Add `code_symbols`, `symbol_refs` fields to `CodeIndex`; add `SymbolKey`, `SymbolRef` structs |
+| `src/index/refs.rs` | Add `collect_symbol_refs()` query function |
+| `src/index/code_refs.rs` (new) | Identifier usage extraction + reference resolution logic |
+| `src/symbols/extract/*.rs` | May need to expose identifier usage extraction alongside declarations |
+| `tests/cli.rs` | Integration tests for `kdb refs -s` |
+| `tests/index.rs` | Unit tests for symbol ref resolution |
+
+## Dependencies
+
+All satisfied:
+
+- ~~iss-0024~~ (symbol extraction) — done, `symbols/extract/`
+- ~~iss-0026~~ (import resolution) — done, `resolve/`
+- ~~iss-0048~~ (CodeIndex split) — done, `CodeIndex` + `ProjectIndex`
