@@ -5,11 +5,11 @@ use super::{Extractor, Symbol, SymbolKind, extract_go_receiver_type, walk_depth_
 // -------------------------------
 // src/symbols/go.rs
 //
-// pub(super) fn extract()     L20
-// fn receiver_parent()       L123
-// fn is_top_level_spec()     L129
-// fn names_from_spec()       L144
-// fn is_exported_name()      L169
+// pub(super) fn extract()     L16
+// fn receiver_parent()       L101
+// fn is_top_level_spec()     L107
+// fn names_from_spec()       L122
+// fn is_exported_name()      L147
 // -------------------------------
 
 /// Extract Go functions, methods, named types, and top-level const/var symbols.

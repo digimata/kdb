@@ -8,10 +8,10 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 
-use crate::root;
+use super::root;
 
 // ----------------------------------
-// src/config.rs
+// src/project/config.rs
 //
 // pub fn load_index_ignores()    L24
 // fn parse_index_ignores()       L40

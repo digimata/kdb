@@ -9,32 +9,31 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::config;
 use crate::fmt;
 use crate::index::{self, VaultIndex, deps as md_deps, refs};
 use crate::lang::CodeLanguage;
-use crate::root;
+use crate::project;
 use crate::symbols;
 use crate::tree;
 
 // ------------------------
 // src/cmd.rs
 //
-// pub fn init()        L35
-// pub fn check()       L80
-// pub fn outline()    L125
-// pub fn tree()       L178
-// pub fn symbols()    L230
-// pub fn refs()       L298
-// pub fn deps()       L324
-// pub fn graph()      L361
-// pub fn fmt()        L375
+// pub fn init()        L34
+// pub fn check()       L83
+// pub fn outline()    L128
+// pub fn tree()       L181
+// pub fn symbols()    L233
+// pub fn refs()       L301
+// pub fn deps()       L327
+// pub fn graph()      L364
+// pub fn fmt()        L378
 // ------------------------
 
 /// Initialize a kdb project by creating `.kdb/config.toml`.
 pub fn init(path: Option<PathBuf>) -> Result<()> {
     let start = match path {
-        Some(path) => root::make_absolute(&path)?,
+        Some(path) => project::root::make_absolute(&path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
 
@@ -50,9 +49,13 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
         .canonicalize()
         .with_context(|| format!("failed to canonicalize {}", start.display()))?;
 
-    let marker_dir = root.join(root::ROOT_MARKER);
+    let marker_dir = root.join(project::root::ROOT_MARKER);
     if marker_dir.exists() {
-        bail!("{} already exists in {}", root::ROOT_MARKER, root.display());
+        bail!(
+            "{} already exists in {}",
+            project::root::ROOT_MARKER,
+            root.display()
+        );
     }
 
     fs::create_dir_all(&marker_dir)
@@ -64,7 +67,7 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
         .unwrap_or("kdb")
         .replace('"', "\\\"");
 
-    let config = root::config_path(&root);
+    let config = project::root::config_path(&root);
     let default_config = format!("[project]\nname = \"{project_name}\"\n");
     fs::write(&config, default_config)
         .with_context(|| format!("failed to write {}", config.display()))?;
@@ -79,12 +82,12 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
 /// or `Ok(false)` if the vault is clean.
 pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
     let explicit_start = match path.as_ref() {
-        Some(path) => root::make_absolute(path)?,
+        Some(path) => project::root::make_absolute(path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
 
-    let root = root::find_root(&explicit_start)?;
-    let ignore_patterns = config::load_index_ignores(&root)?;
+    let root = project::root::find_root(&explicit_start)?;
+    let ignore_patterns = project::config::load_index_ignores(&root)?;
     let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
     let mut report = index.check();
 
@@ -102,7 +105,7 @@ pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
                 )
             })
             .and_then(|path| {
-                index::normalize_rel_path(path).with_context(|| {
+                project::paths::normalize_rel_path(path).with_context(|| {
                     format!(
                         "scope path {} resolves outside kdb root {}",
                         scope_abs.display(),
@@ -123,12 +126,12 @@ pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
 /// Displays an indented outline of all headings, useful for quickly seeing the
 /// structure of a document from the terminal.
 pub fn outline(file: PathBuf) -> Result<()> {
-    let file_abs = root::make_absolute(&file)?;
+    let file_abs = project::root::make_absolute(&file)?;
     if !file_abs.is_file() {
         bail!("file not found: {}", file_abs.display());
     }
 
-    let root = root::find_root(&file_abs)?;
+    let root = project::root::find_root(&file_abs)?;
     let file_abs = file_abs
         .canonicalize()
         .with_context(|| format!("failed to canonicalize {}", file.display()))?;
@@ -143,7 +146,7 @@ pub fn outline(file: PathBuf) -> Result<()> {
             )
         })
         .and_then(|path| {
-            index::normalize_rel_path(path).with_context(|| {
+            project::paths::normalize_rel_path(path).with_context(|| {
                 format!(
                     "file path {} resolves outside kdb root {}",
                     file_abs.display(),
@@ -152,7 +155,7 @@ pub fn outline(file: PathBuf) -> Result<()> {
             })
         })?;
 
-    let ignore_patterns = config::load_index_ignores(&root)?;
+    let ignore_patterns = project::config::load_index_ignores(&root)?;
     let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
     let file_entry = index.files.get(&rel_path).with_context(|| {
         format!(
@@ -187,21 +190,21 @@ pub fn tree(
 ) -> Result<()> {
     let has_explicit_path = path.is_some();
     let explicit_start = match path.as_ref() {
-        Some(path) => root::make_absolute(path)?,
+        Some(path) => project::root::make_absolute(path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
     if !explicit_start.exists() {
         bail!("path does not exist: {}", explicit_start.display());
     }
 
-    let root = root::find_root(&explicit_start)?;
+    let root = project::root::find_root(&explicit_start)?;
     let tree_start = if has_explicit_path {
         explicit_start
     } else {
         root.clone()
     };
 
-    let ignore_patterns = config::load_index_ignores(&root)?;
+    let ignore_patterns = project::config::load_index_ignores(&root)?;
     let tree = tree::build_tree(
         &root,
         &tree_start,
@@ -233,12 +236,12 @@ pub fn symbols(
     as_json: bool,
     public_only: bool,
 ) -> Result<()> {
-    let file_abs = root::make_absolute(&path)?;
+    let file_abs = project::root::make_absolute(&path)?;
     if !file_abs.is_file() {
         bail!("file not found: {}", file_abs.display());
     }
 
-    let root = root::find_root(&file_abs)?;
+    let root = project::root::find_root(&file_abs)?;
     let file_abs = file_abs
         .canonicalize()
         .with_context(|| format!("failed to canonicalize {}", path.display()))?;
@@ -253,7 +256,7 @@ pub fn symbols(
             )
         })
         .and_then(|path| {
-            index::normalize_rel_path(path).with_context(|| {
+            project::paths::normalize_rel_path(path).with_context(|| {
                 format!(
                     "file path {} resolves outside kdb root {}",
                     file_abs.display(),
@@ -299,8 +302,8 @@ pub fn refs(target: String, as_json: bool, count_only: bool) -> Result<()> {
     let target = index::refs::parse_target(&target)?;
 
     let start = env::current_dir().context("failed to read current directory")?;
-    let root = root::find_root(&start)?;
-    let ignore_patterns = config::load_index_ignores(&root)?;
+    let root = project::root::find_root(&start)?;
+    let ignore_patterns = project::config::load_index_ignores(&root)?;
     let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
     let inbound = refs::collect_inbound(&index, &root, target)?;
 
@@ -323,7 +326,7 @@ pub fn refs(target: String, as_json: bool, count_only: bool) -> Result<()> {
 /// List outbound dependencies for a markdown or supported code file.
 pub fn deps(target: String, as_json: bool) -> Result<()> {
     let start = env::current_dir().context("failed to read current directory")?;
-    let root = root::find_root(&start)?;
+    let root = project::root::find_root(&start)?;
     let source_file = index::resolve_file_target(&root, &target)?;
     let is_markdown = source_file
         .extension()
@@ -337,7 +340,7 @@ pub fn deps(target: String, as_json: bool) -> Result<()> {
         );
     }
 
-    let ignore_patterns = config::load_index_ignores(&root)?;
+    let ignore_patterns = project::config::load_index_ignores(&root)?;
     let index = VaultIndex::build_with_ignores(&root, &ignore_patterns)?;
 
     let outbound = if is_markdown {
@@ -375,20 +378,20 @@ pub fn graph(path: Option<PathBuf>) -> Result<()> {
 pub fn fmt(path: Option<PathBuf>) -> Result<()> {
     let has_explicit_path = path.is_some();
     let explicit_start = match path.as_ref() {
-        Some(path) => root::make_absolute(path)?,
+        Some(path) => project::root::make_absolute(path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
     if !explicit_start.exists() {
         bail!("path does not exist: {}", explicit_start.display());
     }
 
-    let root = root::find_root(&explicit_start)?;
+    let root = project::root::find_root(&explicit_start)?;
     let fmt_target = if has_explicit_path {
         explicit_start
     } else {
         root.clone()
     };
-    let ignore_patterns = config::load_index_ignores(&root)?;
+    let ignore_patterns = project::config::load_index_ignores(&root)?;
     let report = fmt::format_path(&root, &fmt_target, &ignore_patterns)?;
     println!(
         "kdb fmt: updated {} of {} files",

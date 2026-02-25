@@ -22,9 +22,11 @@ use anyhow::{Context, Result};
 use globset::GlobSet;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
-use crate::discovery::{build_ignore_globset, discover_files, path_is_ignored};
+use crate::project::discover::discover_files;
+use crate::project::ignore::{ALWAYS_IGNORED_DIRS, build_ignore_globset, path_is_ignored};
+use crate::project::paths::normalize_rel_path;
 use crate::resolve::{
     GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, build_workspace_import_index,
 };
@@ -69,12 +71,10 @@ pub use markdown::{
 //   fn resolve_link()              L523
 // enum ResolveError                L556
 //   fn message()                   L563
-// const IGNORED_DIRS               L586
-// fn discover_markdown_files()     L599
-// fn resolve_target_file()         L617
-// pub fn resolve_target_path()     L630
-// pub fn resolve_file_target()     L658
-// pub fn normalize_rel_path()      L682
+// fn discover_markdown_files()     L578
+// fn resolve_target_file()         L596
+// pub fn resolve_target_path()     L609
+// pub fn resolve_file_target()     L637
 // -------------------------------------
 
 /// Complete index of a markdown vault.
@@ -575,29 +575,8 @@ impl ResolveError {
 // File discovery
 // ---------------------------------------------------------------------------
 
-/// Recursively discover all `.md` files under `root`.
-///
-/// Returns a sorted list of paths relative to `root`. Symlinks are not
-/// followed and paths that resolve outside the root are rejected. Both built-in
-/// ignored directories and user-defined ignore patterns are respected.
-/// Directories to skip during discovery. These are common build artifacts,
-/// version control, and dependency directories that never contain useful
-/// knowledge-base markdown.
-const IGNORED_DIRS: &[&str] = &[
-    "node_modules",
-    ".git",
-    "target",
-    "dist",
-    "build",
-    ".next",
-    ".cache",
-    "vendor",
-    "__pycache__",
-    ".venv",
-];
-
 fn discover_markdown_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>> {
-    let paths = discover_files(root, root, ignore_set, IGNORED_DIRS)?;
+    let paths = discover_files(root, root, ignore_set, ALWAYS_IGNORED_DIRS)?;
     Ok(paths
         .into_iter()
         .filter(|rel| {
@@ -675,25 +654,3 @@ pub fn resolve_file_target(root: &Path, file: &str) -> Result<PathBuf> {
     normalize_rel_path(path).with_context(|| format!("target path resolves outside root: {file}"))
 }
 
-/// Normalize a relative path by resolving `.` and `..` components.
-///
-/// Returns `None` if the path would escape above the root (i.e. more `..`
-/// components than depth), or if it contains absolute path components.
-pub fn normalize_rel_path(path: &Path) -> Option<PathBuf> {
-    let mut normalized = PathBuf::new();
-
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::Normal(part) => normalized.push(part),
-            Component::ParentDir => {
-                if !normalized.pop() {
-                    return None;
-                }
-            }
-            Component::RootDir | Component::Prefix(_) => return None,
-        }
-    }
-
-    Some(normalized)
-}

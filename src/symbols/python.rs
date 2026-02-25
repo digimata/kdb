@@ -7,12 +7,12 @@ use super::{
 // --------------------------------------
 // src/symbols/python.rs
 //
-// pub(super) fn extract()            L21
-// fn function_kind_and_display()     L73
-// fn symbol_kind_for_context()      L129
-// fn decorators_for()               L137
-// fn is_async_function()            L169
-// fn is_public_name()               L177
+// pub(super) fn extract()            L19
+// fn function_kind_and_display()     L59
+// fn symbol_kind_for_context()      L115
+// fn decorators_for()               L123
+// fn is_async_function()            L155
+// fn is_public_name()               L163
 // --------------------------------------
 
 /// Extract Python classes, methods, and module-level functions.

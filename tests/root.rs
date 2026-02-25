@@ -1,4 +1,4 @@
-use kdb::root::{config_path, find_root};
+use kdb::project::root::{config_path, find_root};
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;

@@ -1,7 +1,7 @@
 ---
 id: 47
 title: ProjectContext + Shared Project Utilities
-status: proposed
+status: done
 priority: high
 labels:
   - refactor

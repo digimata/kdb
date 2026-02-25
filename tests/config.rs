@@ -1,4 +1,4 @@
-use kdb::config::load_index_ignores;
+use kdb::project::config::load_index_ignores;
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;

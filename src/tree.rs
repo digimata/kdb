@@ -7,42 +7,26 @@ use std::cmp::Ordering;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::index::normalize_rel_path;
+use crate::project::ignore::{ALWAYS_IGNORED_DIRS, build_ignore_globset};
+use crate::project::paths::normalize_rel_path;
 
 // -----------------------------------
 // src/tree.rs
 //
-// const ALWAYS_IGNORED_DIRS       L33
-// pub struct TreeOptions          L49
-// pub struct TreeNode             L60
-// pub enum TreeNodeKind           L70
-// pub fn build_tree()             L77
-// pub fn render_text()           L140
-// fn build_node()                L146
-// fn append_children_lines()     L273
-// fn build_ignore_globset()      L288
-// fn build_optional_globset()    L301
-// fn explode_patterns()          L321
-// fn is_ignored_path()           L334
-// fn path_matches()              L376
-// fn display_rel_path()          L388
-// struct ChildEntry              L396
+// pub struct TreeOptions          L33
+// pub struct TreeNode             L44
+// pub enum TreeNodeKind           L54
+// pub fn build_tree()             L61
+// pub fn render_text()           L124
+// fn build_node()                L130
+// fn append_children_lines()     L257
+// fn build_optional_globset()    L272
+// fn explode_patterns()          L292
+// fn is_ignored_path()           L305
+// fn path_matches()              L347
+// fn display_rel_path()          L359
+// struct ChildEntry              L367
 // -----------------------------------
-
-/// Directories that are always excluded from tree output.
-const ALWAYS_IGNORED_DIRS: &[&str] = &[
-    ".kdb",
-    ".git",
-    "target",
-    "node_modules",
-    "dist",
-    "build",
-    ".next",
-    ".cache",
-    "vendor",
-    "__pycache__",
-    ".venv",
-];
 
 /// Options that control `kdb tree` filtering and shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -283,19 +267,6 @@ fn append_children_lines(node: &TreeNode, prefix: &str, out: &mut Vec<String>) {
         };
         append_children_lines(child, &child_prefix, out);
     }
-}
-
-fn build_ignore_globset(ignore_patterns: &[String]) -> Result<GlobSet> {
-    let mut builder = GlobSetBuilder::new();
-    for pattern in ignore_patterns {
-        let glob = GlobBuilder::new(pattern)
-            .literal_separator(true)
-            .build()
-            .with_context(|| format!("invalid ignore pattern `{pattern}`"))?;
-        builder.add(glob);
-    }
-
-    builder.build().context("failed to compile ignore patterns")
 }
 
 fn build_optional_globset(patterns: &[String], literal_separator: bool) -> Result<Option<GlobSet>> {

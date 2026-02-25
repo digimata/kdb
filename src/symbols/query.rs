@@ -2,9 +2,9 @@ use anyhow::{Context, Result, bail};
 use std::fs;
 use std::path::Path;
 
-use crate::config;
 use crate::index::{VaultIndex, parse_markdown, section_byte_bounds, section_line_bounds};
 use crate::lang::CodeLanguage;
+use crate::project::config;
 
 use super::render::{self, SymbolBodyRow, SymbolRow};
 use super::{Symbol, extract_symbol_body, extract_symbols};

@@ -1,56 +1,21 @@
 //! Shared file discovery helpers built on the `ignore` crate.
 
-use anyhow::{Context, Result};
-use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+use anyhow::Result;
+use globset::GlobSet;
 use ignore::{DirEntry, WalkBuilder, WalkState};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use crate::index::normalize_rel_path;
+use super::ignore::path_is_ignored;
+use super::paths::normalize_rel_path;
 
-// -------------------------------------
-// src/discovery.rs
+// -------------------------------
+// src/project/discover.rs
 //
-// pub fn build_ignore_globset()     L22
-// pub fn path_is_ignored()          L38
-// pub fn discover_files()           L60
-// fn rel_path_from_root()          L134
-// fn should_visit_entry()          L139
-// -------------------------------------
-
-/// Compile user-supplied ignore glob patterns into a `GlobSet`.
-pub fn build_ignore_globset(ignore_patterns: &[String]) -> Result<GlobSet> {
-    let mut builder = GlobSetBuilder::new();
-    for pattern in ignore_patterns {
-        let glob = GlobBuilder::new(pattern)
-            .literal_separator(true)
-            .build()
-            .with_context(|| format!("invalid ignore pattern `{pattern}`"))?;
-        builder.add(glob);
-    }
-
-    builder.build().context("failed to compile ignore patterns")
-}
-
-/// Check whether `rel_path` matches any pattern in the ignore set.
-///
-/// For directories, this also tests the path with a trailing slash.
-pub fn path_is_ignored(ignore_set: &GlobSet, rel_path: &Path, is_dir: bool) -> bool {
-    let slash = rel_path.to_string_lossy().replace('\\', "/");
-    if slash.is_empty() {
-        return false;
-    }
-
-    if ignore_set.is_match(&slash) {
-        return true;
-    }
-
-    if is_dir {
-        return ignore_set.is_match(format!("{slash}/"));
-    }
-
-    false
-}
+// pub fn discover_files()     L25
+// fn rel_path_from_root()     L99
+// fn should_visit_entry()    L104
+// -------------------------------
 
 /// Discover files under `scope` and return sorted relative paths from `root`.
 ///

@@ -23,50 +23,49 @@ use tower_lsp::lsp_types::{
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use crate::config;
 use crate::index::VaultIndex;
 use crate::lang::CodeLanguage;
-use crate::root;
+use crate::project;
 
 use super::{completion, definition, diagnostics, formatting, hover, symbols};
 
 // --------------------------------------------------------
 // src/lsp/backend.rs
 //
-// pub async fn serve()                                 L76
-// pub(super) struct Backend                            L98
-//   pub(super) fn new()                               L115
-//   fn set_watched_files_support()                    L125
-//   async fn build_index()                            L130
-//   async fn ensure_index_loaded()                    L138
-//   pub(super) async fn ensure_index()                L152
-//   pub(super) async fn with_index()                  L167
-//   pub(super) fn markdown_rel_path()                 L179
-//   pub(super) fn code_rel_path()                     L195
-//   pub(super) async fn document_text()               L211
-//   pub(super) async fn set_document_text()           L219
-//   pub(super) async fn clear_document_text()         L224
-//   pub(super) async fn open_document_uris()          L229
-//   pub(super) async fn sync_document_into_index()    L242
-//   pub(super) async fn sync_document_from_disk()     L257
-//   async fn register_markdown_watcher()              L271
-//   async fn sync_watched_files_into_index()          L311
-//   async fn initialize()                             L360
-//   async fn initialized()                            L399
-//   async fn shutdown()                               L410
-//   async fn did_open()                               L414
-//   async fn did_change()                             L425
-//   async fn did_close()                              L435
-//   async fn did_change_watched_files()               L442
-//   async fn document_symbol()                        L448
-//   async fn goto_definition()                        L455
-//   async fn completion()                             L462
-//   async fn hover()                                  L466
-//   async fn formatting()                             L470
-// pub(super) fn is_markdown_path()                    L479
-// pub(super) fn relative_path()                       L489
-// pub(super) fn path_to_slash()                       L520
-// pub(super) fn position_to_byte_offset()             L528
+// pub async fn serve()                                 L75
+// pub(super) struct Backend                            L97
+//   pub(super) fn new()                               L114
+//   fn set_watched_files_support()                    L124
+//   async fn build_index()                            L129
+//   async fn ensure_index_loaded()                    L137
+//   pub(super) async fn ensure_index()                L151
+//   pub(super) async fn with_index()                  L166
+//   pub(super) fn markdown_rel_path()                 L178
+//   pub(super) fn code_rel_path()                     L194
+//   pub(super) async fn document_text()               L210
+//   pub(super) async fn set_document_text()           L218
+//   pub(super) async fn clear_document_text()         L223
+//   pub(super) async fn open_document_uris()          L228
+//   pub(super) async fn sync_document_into_index()    L241
+//   pub(super) async fn sync_document_from_disk()     L256
+//   async fn register_markdown_watcher()              L270
+//   async fn sync_watched_files_into_index()          L310
+//   async fn initialize()                             L359
+//   async fn initialized()                            L398
+//   async fn shutdown()                               L409
+//   async fn did_open()                               L413
+//   async fn did_change()                             L424
+//   async fn did_close()                              L434
+//   async fn did_change_watched_files()               L441
+//   async fn document_symbol()                        L447
+//   async fn goto_definition()                        L454
+//   async fn completion()                             L461
+//   async fn hover()                                  L465
+//   async fn formatting()                             L469
+// pub(super) fn is_markdown_path()                    L478
+// pub(super) fn relative_path()                       L488
+// pub(super) fn path_to_slash()                       L519
+// pub(super) fn position_to_byte_offset()             L527
 // --------------------------------------------------------
 
 /// Start the LSP server on stdin/stdout.
@@ -79,7 +78,7 @@ pub async fn serve(path: Option<PathBuf>) -> Result<()> {
         None => std::env::current_dir().context("failed to read current directory")?,
     };
 
-    let root = root::find_root(&start)?;
+    let root = project::root::find_root(&start)?;
     let root_for_backend = root.clone();
 
     let (service, socket) =
@@ -129,7 +128,7 @@ impl Backend {
 
     async fn build_index(&self) -> Result<VaultIndex> {
         let root = self.root.clone();
-        let ignore_patterns = config::load_index_ignores(&root)?;
+        let ignore_patterns = project::config::load_index_ignores(&root)?;
         task::spawn_blocking(move || VaultIndex::build_with_ignores(&root, &ignore_patterns))
             .await
             .context("failed to join vault index build task")?
@@ -183,7 +182,7 @@ impl Backend {
         }
 
         let rel = abs.strip_prefix(&self.root).ok()?;
-        let rel = crate::index::normalize_rel_path(rel)?;
+        let rel = crate::project::paths::normalize_rel_path(rel)?;
         if !is_markdown_path(&rel) {
             return None;
         }
@@ -199,7 +198,7 @@ impl Backend {
         }
 
         let rel = abs.strip_prefix(&self.root).ok()?;
-        let rel = crate::index::normalize_rel_path(rel)?;
+        let rel = crate::project::paths::normalize_rel_path(rel)?;
         if CodeLanguage::from_path(&rel).is_none() {
             return None;
         }

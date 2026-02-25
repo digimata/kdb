@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::index::normalize_rel_path;
+use crate::project::paths::normalize_rel_path;
 
 // --------------------------------------------
 // src/deps/utils.rs

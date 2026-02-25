@@ -8,58 +8,59 @@ use walkdir::WalkDir;
 
 use super::{ImportKind, LanguageResolver, ResolvedImport, normalize_identifier, resolve_file};
 
-// ----------------------------------------
+// --------------------------------------------
 // src/resolve/rust.rs
 //
-// enum SourceImport                    L53
-// struct RustImportCollector           L60
-//   fn new()                           L66
-//   fn collect()                       L73
-//   fn parse_tree()                    L98
-//   fn walk_depth_first()             L105
-//   fn parse_mod_item()               L128
-//   fn parse_use_declaration()        L155
-//   fn use_path_from_text()           L176
-//   fn first_named_child_of_kind()    L191
-// fn collect_source_imports()         L198
-// pub(crate) fn collect_mod_and_use() L203
-// struct ParsedManifest               L219
-//   fn parse()                        L229
-//   fn src_root()                     L282
-// struct LocalDependency              L290
-// pub struct RustWorkspaceCrate       L298
-// pub struct RustWorkspaceCache       L307
-//   pub(super) fn build()             L312
-// pub(crate) struct RustResolver      L393
-//   fn resolve_source()               L404
-//   fn resolve()  [trait]             L451
-// struct CrateContext                 L457
-//   fn from_workspace()               L467
-//   fn resolve_mod_decl()             L502
-//   fn resolve_use()                  L524
-// fn discover_manifest_paths()        L607
-// fn parse_crate_root_files()         L649
-// fn push_manifest_entry_path()       L673
-// fn default_crate_root_files()       L682
-// fn normalize_manifest_path()        L690
-// fn collect_dependency_sections()    L698
-// fn parse_local_dependency()         L730
-// fn resolve_dependency_root()        L783
-// fn crate_root_for_name()            L807
-// fn crate_import_name()              L819
-// fn parse_use_prefix()               L824
-// fn find_crate_root()                L839
-// fn classify_use_kind()              L858
-// fn rust_module_path()               L878
-// fn rust_crate_entry_path()          L895
-// fn rust_file_candidates()           L911
-// fn looks_like_module_segment()      L919
-// fn source_segments()                L927
-// fn imported_names()                 L949
-// fn split_brace_group()              L988
-// fn last_segment()                  L1001
-// fn dedupe_names()                  L1014
-// ----------------------------------------
+// enum SourceImport                        L66
+// struct RustImportCollector               L71
+//   fn new()                               L77
+//   fn collect()                           L84
+//   fn parse_tree()                       L109
+//   fn walk_depth_first()                 L116
+//   fn parse_mod_item()                   L141
+//   fn parse_use_declaration()            L168
+//   fn use_path_from_text()               L189
+//   fn first_named_child_of_kind()        L204
+// fn collect_source_imports()             L212
+// pub(crate) fn collect_mod_and_use()     L217
+// struct ParsedManifest                   L233
+//   fn parse()                            L242
+//   fn src_root()                         L283
+// struct LocalDependency                  L292
+// pub struct RustWorkspaceCrate           L302
+// pub struct RustWorkspaceCache           L312
+//   pub(super) fn build()                 L319
+// pub(crate) struct RustResolver          L391
+//   pub(super) fn new()                   L398
+//   fn resolve_source()                   L404
+//   fn resolve()                          L451
+// struct CrateContext                     L459
+//   fn from_workspace()                   L470
+//   fn resolve_mod_decl()                 L507
+//   fn resolve_use()                      L534
+// fn discover_manifest_paths()            L616
+// fn parse_crate_root_files()             L668
+// fn push_manifest_entry_path()           L693
+// fn default_crate_root_files()           L703
+// fn normalize_manifest_path()            L712
+// fn collect_dependency_sections()        L722
+// fn parse_local_dependency()             L755
+// fn resolve_dependency_root()            L811
+// fn crate_root_for_name()                L836
+// fn crate_import_name()                  L850
+// fn parse_use_prefix()                   L855
+// fn find_crate_root()                    L869
+// fn classify_use_kind()                  L889
+// fn rust_module_path()                   L912
+// fn rust_crate_entry_path()              L930
+// fn rust_file_candidates()               L947
+// fn looks_like_module_segment()          L956
+// fn source_segments()                    L965
+// fn imported_names()                     L989
+// fn split_brace_group()                 L1027
+// fn last_segment()                      L1040
+// fn dedupe_names()                      L1057
+// --------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum SourceImport {
@@ -631,7 +632,7 @@ fn discover_manifest_paths(root: &Path, ignore_set: &GlobSet) -> Vec<PathBuf> {
             }
 
             let name = entry.file_name().to_string_lossy();
-            if super::IGNORED_DIRS.contains(&name.as_ref()) {
+            if super::ALWAYS_IGNORED_DIRS.contains(&name.as_ref()) {
                 return false;
             }
 

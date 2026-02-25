@@ -4,9 +4,9 @@ use std::path::PathBuf;
 // -----------------------
 // src/main.rs
 //
-// struct Cli          L14
-// enum Command        L20
-// async fn main()    L116
+// struct Cli          L18
+// enum Command        L24
+// async fn main()    L120
 // -----------------------
 
 #[derive(Debug, Parser)]

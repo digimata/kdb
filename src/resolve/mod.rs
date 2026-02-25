@@ -1,7 +1,7 @@
 //! Workspace-aware code import resolution.
 
 use anyhow::{Context, Result};
-use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+use globset::GlobSet;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::ErrorKind;
@@ -9,6 +9,37 @@ use std::path::{Component, Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::lang::CodeLanguage;
+// ---------------------------------------------
+// src/resolve/mod.rs
+//
+// mod go                                    L44
+// mod python                                L45
+// mod rust                                  L46
+// mod tsjs                                  L47
+// pub type WorkspacePackages                L61
+// pub struct WorkspaceCaches                L65
+//   pub fn build()                          L74
+// pub enum ImportKind                       L87
+// pub struct ResolvedImport                 L97
+// pub(crate) trait LanguageResolver        L110
+// pub struct WorkspaceImportIndex          L117
+// pub fn build_workspace_import_index()    L127
+// pub fn resolve_imports_for_language()    L172
+// fn discover_code_files()                 L199
+// pub(super) fn sanitize_specifier()       L256
+// pub(super) fn normalize_identifier()     L275
+// pub(super) fn resolve_with_exts()        L305
+// pub(super) fn resolve_file()             L333
+// fn canonicalize_existing_rel_path()      L342
+// pub(super) fn list_go_package_files()    L381
+// pub(super) fn slash_path()               L416
+// pub(super) fn to_root_relative()         L421
+// fn rel_path_from_root()                  L426
+// ---------------------------------------------
+
+pub(super) use crate::project::ignore::ALWAYS_IGNORED_DIRS;
+pub(super) use crate::project::ignore::{build_ignore_globset, path_is_ignored};
+pub(super) use crate::project::paths::normalize_rel_path;
 
 mod go;
 mod python;
@@ -17,38 +48,6 @@ mod tsjs;
 
 pub use go::GoWorkspaceCache;
 pub use python::PythonWorkspaceCache;
-// ---------------------------------------------
-// src/resolve/mod.rs
-//
-// mod go                                    L13
-// mod python                                L14
-// mod rust                                  L15
-// mod tsjs                                  L16
-// pub type WorkspacePackages                L62
-// pub struct WorkspaceCaches                L66
-//   pub fn build()                          L75
-// pub enum ImportKind                       L88
-// pub struct ResolvedImport                 L98
-// pub(crate) trait LanguageResolver        L111
-// pub struct WorkspaceImportIndex          L117
-// pub fn build_workspace_import_index()    L125
-// pub fn resolve_imports_for_language()    L170
-// const IGNORED_DIRS                       L197
-// fn build_ignore_globset()                L211
-// fn discover_code_files()                 L224
-// pub(super) fn sanitize_specifier()       L279
-// pub(super) fn normalize_identifier()     L296
-// pub(super) fn resolve_with_exts()        L324
-// pub(super) fn resolve_file()             L350
-// fn canonicalize_existing_rel_path()      L359
-// pub(super) fn list_go_package_files()    L397
-// pub(super) fn normalize_rel_path()       L431
-// pub(super) fn slash_path()               L450
-// pub(super) fn to_root_relative()         L454
-// fn rel_path_from_root()                  L459
-// fn path_is_ignored()                     L464
-// ---------------------------------------------
-
 pub(crate) use rust::collect_mod_and_use;
 pub use rust::{RustWorkspaceCache, RustWorkspaceCrate};
 pub(crate) use tsjs::collect_specifiers;
@@ -197,33 +196,6 @@ pub fn resolve_imports_for_language(
     }
 }
 
-const IGNORED_DIRS: &[&str] = &[
-    "node_modules",
-    ".git",
-    "target",
-    "dist",
-    "build",
-    ".next",
-    ".cache",
-    "vendor",
-    "__pycache__",
-    ".venv",
-    ".kdb",
-];
-
-fn build_ignore_globset(ignore_patterns: &[String]) -> Result<GlobSet> {
-    let mut builder = GlobSetBuilder::new();
-    for pattern in ignore_patterns {
-        let glob = GlobBuilder::new(pattern)
-            .literal_separator(true)
-            .build()
-            .with_context(|| format!("invalid ignore pattern `{pattern}`"))?;
-        builder.add(glob);
-    }
-
-    builder.build().context("failed to compile ignore patterns")
-}
-
 fn discover_code_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
 
@@ -243,7 +215,7 @@ fn discover_code_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>
             }
 
             let name = entry.file_name().to_string_lossy();
-            if IGNORED_DIRS.contains(&name.as_ref()) {
+            if ALWAYS_IGNORED_DIRS.contains(&name.as_ref()) {
                 return false;
             }
 
@@ -440,27 +412,6 @@ pub(super) fn list_go_package_files(root: &Path, dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Normalize a relative path by resolving `.` and `..` components, returning
-/// `None` if the path escapes the root.
-pub(super) fn normalize_rel_path(path: &Path) -> Option<PathBuf> {
-    let mut normalized = PathBuf::new();
-
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::Normal(part) => normalized.push(part),
-            Component::ParentDir => {
-                if !normalized.pop() {
-                    return None;
-                }
-            }
-            Component::RootDir | Component::Prefix(_) => return None,
-        }
-    }
-
-    Some(normalized)
-}
-
 /// Convert a path to a forward-slash string for glob matching.
 pub(super) fn slash_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
@@ -475,21 +426,4 @@ pub(super) fn to_root_relative(root: &Path, abs_path: &Path) -> Option<PathBuf> 
 fn rel_path_from_root(root: &Path, path: &Path) -> Option<PathBuf> {
     let rel = path.strip_prefix(root).ok()?;
     normalize_rel_path(rel)
-}
-
-fn path_is_ignored(ignore_set: &GlobSet, rel_path: &Path, is_dir: bool) -> bool {
-    let slash = slash_path(rel_path);
-    if slash.is_empty() {
-        return false;
-    }
-
-    if ignore_set.is_match(&slash) {
-        return true;
-    }
-
-    if is_dir {
-        return ignore_set.is_match(format!("{slash}/"));
-    }
-
-    false
 }

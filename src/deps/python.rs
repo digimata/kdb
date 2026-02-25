@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::index::deps::Dependency;
-use crate::index::normalize_rel_path;
+use crate::project::paths::normalize_rel_path;
 
 use super::utils::resolve_file;
 

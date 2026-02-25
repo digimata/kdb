@@ -11,7 +11,7 @@ use walkdir::WalkDir;
 use crate::lang::CodeLanguage;
 
 use super::{
-    IGNORED_DIRS, ImportKind, LanguageResolver, ResolvedImport, WorkspacePackages,
+    ALWAYS_IGNORED_DIRS, ImportKind, LanguageResolver, ResolvedImport, WorkspacePackages,
     normalize_identifier, normalize_rel_path, path_is_ignored, resolve_file, resolve_with_exts,
     sanitize_specifier, slash_path, to_root_relative,
 };
@@ -579,7 +579,7 @@ pub(super) fn discover_workspace_packages(root: &Path, ignore_set: &GlobSet) -> 
             }
 
             let name = entry.file_name().to_string_lossy();
-            if IGNORED_DIRS.contains(&name.as_ref()) {
+            if ALWAYS_IGNORED_DIRS.contains(&name.as_ref()) {
                 return false;
             }
 

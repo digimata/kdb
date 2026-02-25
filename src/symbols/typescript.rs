@@ -5,26 +5,26 @@ use super::{Extractor, Symbol, SymbolKind, walk_depth_first};
 // -------------------------------------
 // src/symbols/typescript.rs
 //
-// pub(super) fn extract()           L34
-// fn member_parent()               L230
-// fn declaration_span_node()       L252
-// fn variable_span_node()          L267
-// fn declaration_display_kind()    L283
-// fn class_display_kind()          L307
-// fn function_display_kind()       L323
-// fn member_display_kind()         L348
-// fn property_display_kind()       L365
-// fn is_module_level_variable()    L380
-// fn declaration_keyword()         L396
-// fn signature_until_name()        L423
-// fn signature_head()              L446
-// fn is_exported()                 L465
-// fn has_export_ancestor()         L476
-// fn is_default_export()           L490
-// fn is_private_member()           L516
-// fn normalize_whitespace()        L537
-// fn ends_with_token()             L541
-// fn contains_token()              L545
+// pub(super) fn extract()           L31
+// fn member_parent()               L194
+// fn declaration_span_node()       L220
+// fn variable_span_node()          L235
+// fn declaration_display_kind()    L251
+// fn class_display_kind()          L276
+// fn function_display_kind()       L292
+// fn member_display_kind()         L317
+// fn property_display_kind()       L334
+// fn is_module_level_variable()    L349
+// fn declaration_keyword()         L365
+// fn signature_until_name()        L392
+// fn signature_head()              L419
+// fn is_exported()                 L438
+// fn has_export_ancestor()         L449
+// fn is_default_export()           L463
+// fn is_private_member()           L489
+// fn normalize_whitespace()        L510
+// fn ends_with_token()             L514
+// fn contains_token()              L518
 // -------------------------------------
 
 /// Extract JavaScript/TypeScript symbols used by code indexing and symbol listing.

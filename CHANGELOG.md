@@ -8,6 +8,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- introduce `src/project/` module with `ProjectContext`, consolidating root discovery, config loading, ignore handling, path normalization, and file discovery
 - centralize CodeLanguage for cross-module dispatch
 - introduce extractor context for symbol extraction
 - localize workspace caches by language
