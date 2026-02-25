@@ -340,65 +340,6 @@ fn check_errors_when_root_marker_missing() {
     assert!(stderr.contains("could not find .kdb"));
 }
 
-#[test]
-fn outline_prints_heading_tree() {
-    let temp = tempdir().expect("tempdir");
-    write_root_config(temp.path());
-    write_file(
-        temp.path(),
-        "docs/page.md",
-        "# Root\n\n## Child\n\n### Leaf\n",
-    );
-
-    let output = Command::new(bin())
-        .arg("outline")
-        .arg(temp.path().join("docs/page.md"))
-        .output()
-        .expect("run kdb outline");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("- Root"));
-    assert!(stdout.contains("  - Child"));
-    assert!(stdout.contains("    - Leaf"));
-}
-
-#[test]
-fn outline_reports_no_headings_for_plain_markdown() {
-    let temp = tempdir().expect("tempdir");
-    write_root_config(temp.path());
-    write_file(
-        temp.path(),
-        "notes/plain.md",
-        "just text\nwithout headings\n",
-    );
-
-    let output = Command::new(bin())
-        .arg("outline")
-        .arg(temp.path().join("notes/plain.md"))
-        .output()
-        .expect("run kdb outline");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("(no headings)"));
-}
-
-#[test]
-fn outline_errors_for_nonexistent_file() {
-    let temp = tempdir().expect("tempdir");
-    write_root_config(temp.path());
-
-    let output = Command::new(bin())
-        .arg("outline")
-        .arg(temp.path().join("missing.md"))
-        .output()
-        .expect("run kdb outline");
-
-    assert_eq!(output.status.code(), Some(1));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("file not found"));
-}
 
 #[test]
 fn fmt_generates_code_index_headers_for_supported_files() {

@@ -19,20 +19,19 @@ use crate::tree;
 // --------------------------------------
 // src/cmd.rs
 //
-// pub struct CmdContext              L39
-//   pub fn from_path()               L50
-//   pub fn build_index()             L60
-//   pub fn build_project_index()     L65
-//   pub fn rel_path()                L73
-// pub fn init()                     L100
-// pub fn check()                    L149
-// pub fn outline()                  L169
-// pub fn tree()                     L199
-// pub fn symbols()                  L247
-// pub fn refs()                     L297
-// pub fn deps()                     L354
-// pub fn graph()                    L389
-// pub fn format()                   L403
+// pub struct CmdContext              L38
+//   pub fn from_path()               L49
+//   pub fn build_index()             L59
+//   pub fn build_project_index()     L64
+//   pub fn rel_path()                L72
+// pub fn init()                      L99
+// pub fn check()                    L148
+// pub fn tree()                     L165
+// pub fn symbols()                  L213
+// pub fn refs()                     L263
+// pub fn deps()                     L320
+// pub fn graph()                    L355
+// pub fn format()                   L369
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -160,39 +159,6 @@ pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
 
     report.print(list_orphans);
     Ok(report.has_errors())
-}
-
-/// Print the heading tree for a single markdown file.
-///
-/// Displays an indented outline of all headings, useful for quickly seeing the
-/// structure of a document from the terminal.
-pub fn outline(file: PathBuf) -> Result<()> {
-    let file_abs = project::root::make_absolute(&file)?;
-    if !file_abs.is_file() {
-        bail!("file not found: {}", file_abs.display());
-    }
-
-    let ctx = CmdContext::from_path(Some(&file))?;
-    let rel_path = ctx.rel_path(&file_abs)?;
-    let index = ctx.build_index()?;
-    let file_entry = index.files.get(&rel_path).with_context(|| {
-        format!(
-            "file {} is not an indexed markdown file",
-            rel_path.display()
-        )
-    })?;
-
-    if file_entry.headings.is_empty() {
-        println!("(no headings)");
-        return Ok(());
-    }
-
-    for heading in &file_entry.headings {
-        let indent = "  ".repeat(usize::from(heading.level.saturating_sub(1)));
-        println!("{indent}- {}", heading.title);
-    }
-
-    Ok(())
 }
 
 /// Print a filtered project tree for a path under the current kdb root.

@@ -35,11 +35,6 @@ enum Command {
         /// Optional file or directory path to scope check output to.
         path: Option<PathBuf>,
     },
-    /// Print the heading outline for a markdown file.
-    Outline {
-        /// File path to outline.
-        file: PathBuf,
-    },
     /// Print a filtered directory tree for the project.
     Tree {
         /// Maximum display depth (same as `tree -L`).
@@ -137,7 +132,6 @@ async fn main() {
             }
             Err(error) => Err(error),
         },
-        Command::Outline { file } => kdb::cmd::outline(file),
         Command::Tree {
             level,
             all,
