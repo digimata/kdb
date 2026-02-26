@@ -1,7 +1,7 @@
 ---
 id: 11
 title: Install Script and Prebuilt Binaries
-status: done
+status: in_progress
 priority: high
 labels:
   - feat
@@ -13,27 +13,25 @@ labels:
 Provide a one-liner install for people who don't have Rust/cargo:
 
 ```
-curl -fsSL https://kdb.sh/install | bash
+curl -fsSL https://kdb.kernl.sh/install | bash
 ```
 
-(or from GitHub raw URL until we have a domain)
+## Done
 
-## Requirements
+- [x] GitHub Release workflow — CI builds on tag push, 4 targets, checksums
+- [x] Install script — platform detection, download, checksum verify, install to `~/.local/bin`
+- [x] Binaries served from GitHub Releases
 
-### GitHub Release Workflow
+## Remaining: Host at kdb.kernl.sh
 
-- CI builds binaries on tag push (e.g. `v0.1.0`)
-- Targets: macOS arm64, macOS x86_64, Linux x86_64, Linux arm64
-- Uploads binaries as release assets
+The install script and binary downloads need to be served from `kdb.kernl.sh`:
 
-### Install Script
+- **`kdb.kernl.sh/install`** — serve `install.sh` so `curl -fsSL https://kdb.kernl.sh/install | bash` works
+- **Binary downloads** — either proxy to GitHub Releases or host directly
+- **Version endpoint** — `kdb.kernl.sh/latest` or similar, returns latest version tag (needed by iss-0054 self-update)
+- **Update install.sh** — point download URLs at `kdb.kernl.sh` instead of GitHub
 
-- Detects OS and architecture
-- Downloads the correct binary from the latest GitHub release
-- Places it in a sensible location (`~/.local/bin`, `/usr/local/bin`, or similar)
-- Verifies checksum
+### Open questions
 
-### README
-
-- Update install section with the curl one-liner as primary method
-- Keep `cargo install --path .` as from-source fallback
+- What's hosting the `kernl.sh` domain? (Cloudflare, Vercel, S3+CloudFront, etc.)
+- Proxy to GitHub releases vs mirror the binaries?
