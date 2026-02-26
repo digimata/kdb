@@ -1,7 +1,7 @@
 ---
 id: 47
 title: "Benchmark AI agent performance with and without kdb"
-status: proposed
+status: in_progress
 priority: medium
 labels:
   - research
