@@ -8,7 +8,7 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0028 — Code Symbol References (`refs -s`)](iss-0028-code-symbol-refs.md) | feat | in_progress | high |
 | [0039 — `refs -s` Recall Gaps (tracking)](iss-0039-refs-recall-gaps.md) | tracking | in_progress | high |
 | [0039.1 — Python Symbol Binding](iss-0039.1-python-symbol-binding.md) | bug | done | high |
-| [0039.2 — Go Namespace Access](iss-0039.2-go-namespace-access.md) | bug | proposed | high |
+| [0039.2 — Go Namespace Access](iss-0039.2-go-namespace-access.md) | bug | done | high |
 | [0039.3 — Usage Scanner Gaps](iss-0039.3-usage-scanner-gaps.md) | bug | proposed | medium |
 | [0039.4 — Alias Tracking](iss-0039.4-alias-tracking.md) | bug | done | medium |
 | [0039.5 — Re-export Following](iss-0039.5-reexport-following.md) | enhancement | proposed | high |
