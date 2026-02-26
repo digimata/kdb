@@ -7,78 +7,79 @@ use tempfile::tempdir;
 // ---------------------------------------------------------------------------------
 // tests/cli.rs
 //
-// fn write_file()                                                               L84
-// fn bin()                                                                      L92
-// fn write_root_config()                                                        L96
-// fn write_symbol_refs_rust_fixture()                                          L100
-// fn check_exits_zero_for_clean_vault()                                        L144
-// fn check_exits_one_for_broken_links()                                        L162
-// fn check_respects_index_ignore_patterns_from_config()                        L180
-// fn check_respects_gitignore_rules()                                          L207
-// fn check_orphan_only_shows_orphan_count_hint_without_listing()               L231
-// fn check_orphans_flag_lists_orphan_files()                                   L253
-// fn check_scopes_output_to_explicit_subtree_path()                            L275
-// fn check_scoped_subtree_still_validates_cross_subtree_links()                L300
-// fn check_errors_when_root_marker_missing()                                   L328
-// fn outline_prints_heading_tree()                                             L344
-// fn outline_reports_no_headings_for_plain_markdown()                          L367
-// fn outline_errors_for_nonexistent_file()                                     L388
-// fn fmt_generates_code_index_headers_for_supported_files()                    L404
-// fn fmt_warns_when_nonstandard_index_rows_are_removed()                       L426
-// fn fmt_scopes_to_explicit_file_path()                                        L449
-// fn fmt_respects_gitignore_rules()                                            L473
-// fn fmt_explicit_path_can_format_gitignored_file()                            L495
-// fn tree_prints_filtered_directory_structure()                                L516
-// fn tree_level_option_matches_tree_l_flag()                                   L546
-// fn tree_json_dirs_only_and_all_flags_are_supported()                         L566
-// fn tree_full_path_flag_prints_full_relative_paths()                          L592
-// fn tree_ignore_pattern_flag_excludes_matches()                               L610
-// fn tree_pattern_flag_includes_only_matching_subtrees()                       L631
-// fn symbols_prints_markdown_heading_symbols()                                 L655
-// fn symbols_supports_public_filter_for_code_files()                           L681
-// fn symbols_json_outputs_structured_rows()                                    L713
-// fn symbols_selector_prints_multiple_matching_bodies()                        L741
-// fn symbols_selector_supports_qualified_names()                               L779
-// fn symbols_selector_json_outputs_body_and_metadata()                         L813
-// fn symbols_selector_respects_public_filter()                                 L858
-// fn symbols_selector_extracts_markdown_sections_by_slug()                     L899
-// fn symbols_selector_markdown_json_outputs_body_and_metadata()                L933
-// fn symbols_selector_markdown_slug_not_found_errors()                         L978
-// fn refs_lists_inbound_references_for_file_target()                          L1002
-// fn refs_lists_inbound_references_for_heading_target()                       L1029
-// fn refs_count_prints_number_of_inbound_references()                         L1060
-// fn refs_json_outputs_structured_rows()                                      L1081
-// fn refs_symbol_lists_inbound_references_for_code_symbol()                   L1108
-// fn refs_symbol_count_prints_number_of_references()                          L1132
-// fn refs_symbol_json_outputs_structured_rows()                               L1152
-// fn refs_symbol_context_shows_surrounding_lines_in_text_output()             L1182
-// fn refs_symbol_context_zero_keeps_single_line_output()                      L1207
-// fn refs_markdown_context_flag_errors_without_symbol()                       L1230
-// fn refs_symbol_json_ignores_context_flag()                                  L1251
-// fn refs_symbol_count_ignores_context_flag()                                 L1278
-// fn deps_lists_outbound_dependencies_for_file_target()                       L1300
-// fn deps_json_outputs_structured_rows()                                      L1333
-// fn deps_supports_rust_code_file_targets()                                   L1370
-// fn deps_supports_rust_nested_crate_roots_in_monorepos()                     L1397
-// fn deps_supports_rust_workspace_sibling_crate_imports()                     L1438
-// fn deps_supports_rust_workspace_renamed_path_dependencies()                 L1484
-// fn deps_supports_rust_custom_lib_path_mod_declarations()                    L1530
-// fn deps_supports_rust_custom_bin_path_mod_declarations()                    L1554
-// fn deps_supports_rust_custom_lib_path_cross_crate_fallback()                L1578
-// fn deps_supports_typescript_code_file_targets()                             L1619
-// fn deps_supports_typescript_tsconfig_path_aliases()                         L1647
-// fn deps_supports_typescript_workspace_package_imports()                     L1675
-// fn deps_supports_python_code_file_targets()                                 L1723
-// fn deps_supports_python_pyproject_src_layout_package_imports()              L1759
-// fn deps_supports_python_setup_py_src_layout_fallback()                      L1797
-// fn deps_supports_python_poetry_src_namespace_packages()                     L1822
-// fn deps_python_canonicalizes_resolved_file_case_on_case_insensitive_fs()    L1857
-// fn deps_supports_go_code_file_targets()                                     L1899
-// fn deps_supports_go_workspace_use_cross_module_imports()                    L1928
-// fn deps_supports_go_workspace_replace_local_path_overrides()                L1958
-// fn graph_is_stubbed_with_clear_message()                                    L1997
-// fn init_creates_kdb_directory_and_default_config()                          L2010
-// fn init_errors_if_kdb_directory_already_exists()                            L2032
+// fn write_file()                                                               L85
+// fn bin()                                                                      L93
+// fn write_root_config()                                                        L97
+// fn write_symbol_refs_rust_fixture()                                          L101
+// fn check_exits_zero_for_clean_vault()                                        L145
+// fn check_exits_one_for_broken_links()                                        L163
+// fn check_respects_index_ignore_patterns_from_config()                        L181
+// fn check_respects_gitignore_rules()                                          L208
+// fn check_orphan_only_shows_orphan_count_hint_without_listing()               L232
+// fn check_orphans_flag_lists_orphan_files()                                   L254
+// fn check_scopes_output_to_explicit_subtree_path()                            L276
+// fn check_scoped_subtree_still_validates_cross_subtree_links()                L301
+// fn check_errors_when_root_marker_missing()                                   L329
+// fn fmt_generates_code_index_headers_for_supported_files()                    L345
+// fn fmt_warns_when_nonstandard_index_rows_are_removed()                       L367
+// fn fmt_scopes_to_explicit_file_path()                                        L390
+// fn fmt_respects_gitignore_rules()                                            L414
+// fn fmt_explicit_path_can_format_gitignored_file()                            L436
+// fn tree_prints_filtered_directory_structure()                                L457
+// fn tree_level_option_matches_tree_l_flag()                                   L487
+// fn tree_json_dirs_only_and_all_flags_are_supported()                         L507
+// fn tree_full_path_flag_prints_full_relative_paths()                          L533
+// fn tree_ignore_pattern_flag_excludes_matches()                               L551
+// fn tree_pattern_flag_includes_only_matching_subtrees()                       L572
+// fn symbols_prints_markdown_heading_symbols()                                 L596
+// fn symbols_supports_public_filter_for_code_files()                           L622
+// fn symbols_json_outputs_structured_rows()                                    L654
+// fn symbols_selector_prints_multiple_matching_bodies()                        L682
+// fn symbols_selector_shows_line_number_gutter()                               L723
+// fn symbols_selector_accepts_multiple_selectors()                             L756
+// fn symbols_selector_includes_doc_comments()                                  L791
+// fn symbols_selector_includes_attributes_with_docs()                          L826
+// fn symbols_selector_supports_qualified_names()                               L855
+// fn symbols_selector_json_outputs_body_and_metadata()                         L889
+// fn symbols_selector_respects_public_filter()                                 L934
+// fn symbols_selector_extracts_markdown_sections_by_slug()                     L975
+// fn symbols_selector_markdown_json_outputs_body_and_metadata()               L1009
+// fn symbols_selector_markdown_slug_not_found_errors()                        L1054
+// fn refs_lists_inbound_references_for_file_target()                          L1078
+// fn refs_lists_inbound_references_for_heading_target()                       L1105
+// fn refs_count_prints_number_of_inbound_references()                         L1136
+// fn refs_json_outputs_structured_rows()                                      L1157
+// fn refs_symbol_lists_inbound_references_for_code_symbol()                   L1184
+// fn refs_symbol_count_prints_number_of_references()                          L1208
+// fn refs_symbol_json_outputs_structured_rows()                               L1228
+// fn refs_symbol_context_shows_surrounding_lines_in_text_output()             L1258
+// fn refs_symbol_context_zero_keeps_single_line_output()                      L1283
+// fn refs_markdown_context_flag_errors_without_symbol()                       L1306
+// fn refs_symbol_json_ignores_context_flag()                                  L1327
+// fn refs_symbol_count_ignores_context_flag()                                 L1354
+// fn deps_lists_outbound_dependencies_for_file_target()                       L1376
+// fn deps_json_outputs_structured_rows()                                      L1409
+// fn deps_supports_rust_code_file_targets()                                   L1446
+// fn deps_supports_rust_nested_crate_roots_in_monorepos()                     L1473
+// fn deps_supports_rust_workspace_sibling_crate_imports()                     L1514
+// fn deps_supports_rust_workspace_renamed_path_dependencies()                 L1560
+// fn deps_supports_rust_custom_lib_path_mod_declarations()                    L1606
+// fn deps_supports_rust_custom_bin_path_mod_declarations()                    L1630
+// fn deps_supports_rust_custom_lib_path_cross_crate_fallback()                L1654
+// fn deps_supports_typescript_code_file_targets()                             L1695
+// fn deps_supports_typescript_tsconfig_path_aliases()                         L1723
+// fn deps_supports_typescript_workspace_package_imports()                     L1751
+// fn deps_supports_python_code_file_targets()                                 L1799
+// fn deps_supports_python_pyproject_src_layout_package_imports()              L1835
+// fn deps_supports_python_setup_py_src_layout_fallback()                      L1873
+// fn deps_supports_python_poetry_src_namespace_packages()                     L1898
+// fn deps_python_canonicalizes_resolved_file_case_on_case_insensitive_fs()    L1933
+// fn deps_supports_go_code_file_targets()                                     L1975
+// fn deps_supports_go_workspace_use_cross_module_imports()                    L2004
+// fn deps_supports_go_workspace_replace_local_path_overrides()                L2034
+// fn graph_is_stubbed_with_clear_message()                                    L2073
+// fn init_creates_kdb_directory_and_default_config()                          L2086
+// fn init_errors_if_kdb_directory_already_exists()                            L2108
 // ---------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -882,6 +883,19 @@ fn symbols_selector_supports_qualified_names() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("pub fn open(&self) -> i32"));
     assert!(!stdout.contains("pub fn open() -> i32"));
+
+    // Dot syntax works the same as :: syntax
+    let dot_output = Command::new(bin())
+        .arg("symbols")
+        .arg(temp.path().join("src/lib.rs"))
+        .arg("-s")
+        .arg("Backend.open")
+        .output()
+        .expect("run kdb symbols -s Backend.open");
+
+    assert!(dot_output.status.success());
+    let dot_stdout = String::from_utf8_lossy(&dot_output.stdout);
+    assert_eq!(stdout, dot_stdout);
 }
 
 #[test]

@@ -14,15 +14,15 @@ use super::{Symbol, extract_symbols};
 //
 // pub fn collect_rows()                L29
 // pub fn collect_body_rows()           L79
-// fn collect_code_body_rows()         L111
-// fn collect_markdown_body_rows()     L152
-// fn is_markdown_file()               L198
-// fn normalize_markdown_selector()    L204
-// struct SymbolSelector               L219
-//   fn parse()                        L225
-//   fn matches()                      L252
-//   fn display()                      L263
-// fn normalize_selector_name()        L271
+// fn collect_code_body_rows()         L118
+// fn collect_markdown_body_rows()     L162
+// fn is_markdown_file()               L208
+// fn normalize_markdown_selector()    L214
+// struct SymbolSelector               L229
+//   fn parse()                        L236
+//   fn matches()                      L268
+//   fn display()                      L279
+// fn normalize_selector_name()        L287
 // ----------------------------------------
 
 /// Collect symbol rows for a single file (headings for markdown, declarations for code).
@@ -232,13 +232,19 @@ struct SymbolSelector {
 }
 
 impl SymbolSelector {
+    /// Parse a qualified selector like `Parent::name`, `Parent.name`, or bare `name`.
     fn parse(selector: &str) -> Result<Self> {
         let trimmed = selector.trim();
         if trimmed.is_empty() {
             bail!("symbol selector cannot be empty");
         }
 
-        if let Some((parent, name)) = trimmed.rsplit_once("::") {
+        // Try `::` first (Rust convention), then `.` (TS/JS/Python/Go convention).
+        let split = trimmed
+            .rsplit_once("::")
+            .or_else(|| trimmed.rsplit_once('.'));
+
+        if let Some((parent, name)) = split {
             let parent = parent.trim();
             let name = normalize_selector_name(name);
             if parent.is_empty() || name.is_empty() {
