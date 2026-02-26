@@ -12,6 +12,8 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0039.3 — Usage Scanner Gaps](iss-0039.3-usage-scanner-gaps.md) | bug | done | medium |
 | [0039.4 — Alias Tracking](iss-0039.4-alias-tracking.md) | bug | done | medium |
 | [0039.5 — Re-export Following](iss-0039.5-reexport-following.md) | enhancement | proposed | high |
+| [0039.6 — Namespace Access](iss-0039.6-namespace-access.md) | bug | done | medium |
+| [0039.7 — Wildcard Imports](iss-0039.7-wildcard-imports.md) | enhancement | proposed | low |
 | [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | chore | proposed | high |
 | [0016 — Codemap](iss-0016-codemap.md) | feat | proposed | high |
 | [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | high |
@@ -25,6 +27,7 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0001 — KDB Workspaces](iss-0001-kdb-workspaces.md) | feat | proposed | medium |
 | [0002 — Templates](iss-0002-templates.md) | feat | proposed | medium |
 | [0008 — Installable KDB Packages](iss-0008-installable-packages.md) | feat | proposed | medium |
+| [0040 — C# Language Support](iss-0040-csharp-language-support.md) | feat | proposed | medium |
 | [0004 — Canvas Support](iss-0004-canvas-support.md) | feat | proposed | low |
 
 Labels: `feat` · `bug` · `refactor` · `chore`

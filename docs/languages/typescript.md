@@ -33,7 +33,7 @@ export * from './utils';
 | T4 | Namespace import | `import * as bar from './bar'; bar.foo()` | fail — namespace not decomposed |
 | T5 | Barrel re-export | `index.ts` does `export { foo } from './inner'` | fail — re-export not followed |
 | T6 | Default re-export | `export { default as foo } from './inner'` | fail — re-export not followed |
-| T7 | Dynamic import | `const m = await import('./bar'); m.foo()` | fail — dynamic import not resolved |
+| T7 | Dynamic import | `const m = await import('./bar'); m.foo()` | out of scope — runtime construct |
 | T8 | CommonJS require | `const { foo } = require('./bar')` | pass |
 | T9 | Type import | `import type { Foo } from './bar'; let x: Foo` | pass |
 | T10 | Destructured usage | `const { a, b } = foo()` where `foo` is imported | pass |

@@ -14,7 +14,7 @@
 //! 4. **Resolution** — [`resolve_target_path`] resolves a link target relative to
 //!    its source file, handling both markdown and wikilink syntax.
 
-mod code_refs;
+mod code;
 pub mod deps;
 mod markdown;
 pub mod refs;
@@ -35,7 +35,7 @@ use crate::resolve::{
 };
 use crate::symbols::SymbolKind;
 
-pub use code_refs::SymbolIndex;
+pub use code::SymbolIndex;
 pub use markdown::{
     parse_markdown, parse_markdown_target, parse_wikilink_target, section_byte_bounds,
     section_line_bounds, slug_anchor,
@@ -50,7 +50,7 @@ pub use markdown::{
 // -----------------------------------------
 // src/index/mod.rs
 //
-// mod code_refs                         L17
+// mod code                              L17
 // pub mod deps                          L18
 // mod markdown                          L19
 // pub mod refs                          L20

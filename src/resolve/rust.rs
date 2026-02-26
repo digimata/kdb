@@ -6,63 +6,68 @@ use toml::Value as TomlValue;
 use tree_sitter::{Node, Parser};
 use walkdir::WalkDir;
 
+use crate::lang::CodeLanguage;
 use crate::symbols::walk_depth_first;
 
 use super::{
-    ImportKind, ImportNames, LanguageResolver, ResolvedImport, normalize_identifier, resolve_file,
+    ImportKind, ImportNames, LanguageResolver, ReexportBinding, ResolvedImport,
+    exported_symbol_names, normalize_identifier, resolve_file,
 };
 
 // --------------------------------------------
 // src/resolve/rust.rs
 //
-// enum SourceImport                        L67
-// struct RustImportCollector               L72
-//   fn new()                               L78
-//   fn collect()                           L85
-//   fn parse_tree()                       L110
-//   fn parse_mod_item()                   L117
-//   fn parse_use_declaration()            L144
-//   fn use_path_from_text()               L165
-//   fn first_named_child_of_kind()        L180
-// fn collect_source_imports()             L188
-// pub(crate) fn collect_mod_and_use()     L193
-// struct ParsedManifest                   L209
-//   fn parse()                            L218
-//   fn src_root()                         L259
-// struct LocalDependency                  L268
-// pub struct RustWorkspaceCrate           L278
-// pub struct RustWorkspaceCache           L288
-//   pub(super) fn build()                 L295
-// pub(crate) struct RustResolver          L366
-//   pub(super) fn new()                   L373
-//   fn resolve_source()                   L379
-//   fn resolve()                          L426
-// struct CrateContext                     L434
-//   fn from_workspace()                   L445
-//   fn resolve_mod_decl()                 L482
-//   fn resolve_use()                      L504
-// fn discover_manifest_paths()            L581
-// fn parse_crate_root_files()             L633
-// fn push_manifest_entry_path()           L658
-// fn default_crate_root_files()           L668
-// fn normalize_manifest_path()            L677
-// fn collect_dependency_sections()        L687
-// fn parse_local_dependency()             L720
-// fn resolve_dependency_root()            L776
-// fn crate_root_for_name()                L801
-// fn crate_import_name()                  L815
-// fn parse_use_prefix()                   L820
-// fn find_crate_root()                    L834
-// fn classify_use_kind()                  L854
-// fn rust_module_path()                   L877
-// fn rust_crate_entry_path()              L895
-// fn rust_file_candidates()               L912
-// fn looks_like_module_segment()          L921
-// fn source_segments()                    L930
-// fn imported_names()                     L954
-// fn split_brace_group()                  L992
-// fn last_segment()                      L1005
-// fn dedupe_names()                      L1022
+// enum SourceImport                        L74
+// struct RustImportCollector               L79
+//   fn new()                               L85
+//   fn collect()                           L92
+//   fn parse_tree()                       L117
+//   fn parse_mod_item()                   L124
+//   fn parse_use_declaration()            L151
+//   fn parse_use_path()                   L163
+//   fn use_path_from_text()               L175
+//   fn first_named_child_of_kind()        L190
+// fn collect_source_imports()             L198
+// pub(crate) fn collect_mod_and_use()     L203
+// pub(crate) fn collect_reexports()       L218
+// fn is_public_use_declaration()          L265
+// struct ParsedManifest                   L280
+//   fn parse()                            L289
+//   fn src_root()                         L330
+// struct LocalDependency                  L339
+// pub struct RustWorkspaceCrate           L349
+// pub struct RustWorkspaceCache           L359
+//   pub(super) fn build()                 L366
+// pub(crate) struct RustResolver          L437
+//   pub(super) fn new()                   L444
+//   fn resolve_source()                   L450
+//   fn resolve()                          L507
+// struct CrateContext                     L515
+//   fn from_workspace()                   L526
+//   fn resolve_mod_decl()                 L563
+//   fn resolve_use()                      L585
+// fn discover_manifest_paths()            L662
+// fn parse_crate_root_files()             L714
+// fn push_manifest_entry_path()           L739
+// fn default_crate_root_files()           L749
+// fn normalize_manifest_path()            L758
+// fn collect_dependency_sections()        L768
+// fn parse_local_dependency()             L801
+// fn resolve_dependency_root()            L857
+// fn crate_root_for_name()                L882
+// fn crate_import_name()                  L896
+// fn parse_use_prefix()                   L901
+// fn find_crate_root()                    L915
+// fn classify_use_kind()                  L935
+// fn rust_module_path()                   L958
+// fn rust_crate_entry_path()              L976
+// fn rust_file_candidates()               L993
+// fn looks_like_module_segment()         L1002
+// fn source_segments()                   L1011
+// fn imported_names()                    L1035
+// fn split_brace_group()                 L1090
+// fn last_segment()                      L1103
+// fn dedupe_names()                      L1120
 // --------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -144,16 +149,7 @@ impl<'src> RustImportCollector<'src> {
     }
 
     fn parse_use_declaration(&self, node: Node<'_>) -> Option<SourceImport> {
-        let path = node
-            .child_by_field_name("argument")
-            .and_then(|argument| {
-                argument
-                    .utf8_text(self.source_bytes)
-                    .ok()
-                    .map(str::trim)
-                    .map(ToString::to_string)
-            })
-            .or_else(|| self.use_path_from_text(node))?;
+        let path = self.parse_use_path(node)?;
         if path.is_empty() {
             return None;
         }
@@ -162,6 +158,18 @@ impl<'src> RustImportCollector<'src> {
             path,
             line: node.start_position().row as usize + 1,
         })
+    }
+
+    fn parse_use_path(&self, node: Node<'_>) -> Option<String> {
+        node.child_by_field_name("argument")
+            .and_then(|argument| {
+                argument
+                    .utf8_text(self.source_bytes)
+                    .ok()
+                    .map(str::trim)
+                    .map(ToString::to_string)
+            })
+            .or_else(|| self.use_path_from_text(node))
     }
 
     fn use_path_from_text(&self, node: Node<'_>) -> Option<String> {
@@ -204,6 +212,67 @@ pub(crate) fn collect_mod_and_use(source: &str) -> (Vec<String>, Vec<String>) {
     }
 
     (mods, uses)
+}
+
+/// Collect public `use` re-export bindings (`pub use ...`) from Rust source.
+pub(crate) fn collect_reexports(source: &str) -> Vec<ReexportBinding> {
+    let collector = RustImportCollector::new(source);
+    let Some(tree) = collector.parse_tree() else {
+        return Vec::new();
+    };
+
+    let mut bindings = Vec::new();
+    walk_depth_first(tree.root_node(), |node| {
+        if node.kind() != "use_declaration"
+            || !is_public_use_declaration(node, collector.source_bytes)
+        {
+            return;
+        }
+
+        let Some(path) = collector.parse_use_path(node) else {
+            return;
+        };
+        let line = node.start_position().row as usize + 1;
+        let ImportNames {
+            locals, aliases, ..
+        } = imported_names(&path);
+        for exported_name in locals {
+            let definition_name = aliases
+                .get(&exported_name)
+                .cloned()
+                .unwrap_or_else(|| exported_name.clone());
+            bindings.push(ReexportBinding {
+                raw_specifier: path.clone(),
+                exported_name,
+                definition_name,
+                line,
+            });
+        }
+    });
+
+    let mut seen = HashSet::new();
+    bindings.retain(|binding| {
+        seen.insert((
+            binding.line,
+            binding.raw_specifier.clone(),
+            binding.exported_name.clone(),
+            binding.definition_name.clone(),
+        ))
+    });
+    bindings
+}
+
+fn is_public_use_declaration(node: Node<'_>, source: &[u8]) -> bool {
+    let Ok(text) = node.utf8_text(source) else {
+        return false;
+    };
+    let trimmed = text.trim_start();
+    let Some(rest) = trimmed.strip_prefix("pub") else {
+        return false;
+    };
+    rest.chars()
+        .next()
+        .is_some_and(|ch| ch.is_whitespace() || ch == '(')
 }
 
 /// Parsed contents of a `Cargo.toml` manifest.
@@ -408,11 +477,21 @@ impl<'a> RustResolver<'a> {
                         .and_then(|value| crate_context.resolve_use(self.root, source_file, value));
                     let kind = classify_use_kind(prefix.as_deref(), resolved_path.is_some());
 
+                    let mut names = imported_names(&path);
+                    if names.locals.is_empty() {
+                        if let Some(ref resolved) = resolved_path {
+                            if path.contains('*') {
+                                names.locals =
+                                    exported_symbol_names(self.root, resolved, CodeLanguage::Rust);
+                            }
+                        }
+                    }
+
                     imports.push(ResolvedImport {
                         raw: path.clone(),
                         resolved_path,
                         kind,
-                        names: imported_names(&path),
+                        names,
                         line,
                     });
                 }

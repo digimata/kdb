@@ -12,9 +12,9 @@ use crate::lang::CodeLanguage;
 use crate::symbols::{raw_node_text, walk_depth_first};
 
 use super::{
-    ALWAYS_IGNORED_DIRS, ImportKind, ImportNames, LanguageResolver, ResolvedImport,
-    WorkspacePackages, normalize_identifier, normalize_rel_path, path_is_ignored, resolve_file,
-    resolve_with_exts, sanitize_specifier, slash_path, to_root_relative,
+    ALWAYS_IGNORED_DIRS, ImportKind, ImportNames, LanguageResolver, ReexportBinding,
+    ResolvedImport, WorkspacePackages, normalize_identifier, normalize_rel_path, path_is_ignored,
+    resolve_file, resolve_with_exts, sanitize_specifier, slash_path, to_root_relative,
 };
 
 // ---------------------------------------------------
@@ -510,7 +510,9 @@ impl ImportBindings {
             .and_then(|value| value.strip_prefix("as "))
             .and_then(normalize_identifier)
         {
-            return ImportNames::new(vec![alias]);
+            let mut names = ImportNames::new(vec![alias]);
+            names.is_namespace = true;
+            return names;
         }
 
         ImportNames::new(
@@ -530,6 +532,74 @@ impl ImportBindings {
         }
         deduped
     }
+}
+
+/// Collect re-exported symbol bindings from `export { ... } from '...'` forms.
+pub(crate) fn collect_reexports(source_file: &Path, source: &str) -> Vec<ReexportBinding> {
+    let Some(tree) = TsjsResolver::parse_tree(source_file, source) else {
+        return Vec::new();
+    };
+
+    let source_bytes = source.as_bytes();
+    let mut bindings = Vec::new();
+    walk_depth_first(tree.root_node(), |node| {
+        if node.kind() != "export_statement" {
+            return;
+        }
+
+        let Some(raw_specifier) = node
+            .child_by_field_name("source")
+            .and_then(|value| ImportPattern::string_literal_value(value, source_bytes))
+        else {
+            return;
+        };
+
+        let line = node.start_position().row as usize + 1;
+        walk_depth_first(node, |child| {
+            if child.kind() != "export_specifier" {
+                return;
+            }
+
+            let Some((definition_name, exported_name)) =
+                export_specifier_names(child, source_bytes)
+            else {
+                return;
+            };
+
+            bindings.push(ReexportBinding {
+                raw_specifier: raw_specifier.clone(),
+                exported_name,
+                definition_name,
+                line,
+            });
+        });
+    });
+
+    let mut seen = HashSet::new();
+    bindings.retain(|binding| {
+        seen.insert((
+            binding.line,
+            binding.raw_specifier.clone(),
+            binding.exported_name.clone(),
+            binding.definition_name.clone(),
+        ))
+    });
+    bindings
+}
+
+fn export_specifier_names(node: Node<'_>, source: &[u8]) -> Option<(String, String)> {
+    let raw = node.utf8_text(source).ok()?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    let (definition_raw, exported_raw) = raw
+        .split_once(" as ")
+        .map(|(left, right)| (left.trim(), right.trim()))
+        .unwrap_or((raw, raw));
+    let definition_name = normalize_identifier(definition_raw)?;
+    let exported_name = normalize_identifier(exported_raw)?;
+    Some((definition_name, exported_name))
 }
 
 pub(crate) fn collect_specifiers(source_file: &Path, source: &str) -> Vec<String> {

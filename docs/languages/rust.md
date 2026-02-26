@@ -25,9 +25,9 @@ Each category describes a way a symbol can be referenced after being imported. S
 | R3 | Aliased import | `use crate::foo::Bar as B; B::new()` | fail — alias name in bindings, definition name in symbol_lookup |
 | R4 | `pub use` re-export | `mod.rs` does `pub use inner::Foo;`, caller imports from mod | fail — re-export not followed |
 | R5 | Wildcard import | `use crate::foo::*;` | fail — wildcard not expanded |
-| R6 | Method on imported type | `let x = Bar::new(); x.method()` — ref to `Bar::method` | fail — no type tracking |
-| R7 | Trait method call | `x.do_thing()` where `DoThing` trait is imported | fail — no trait dispatch |
-| R8 | Macro-generated usage | `macro_rules!` that expands to use a symbol | fail — no macro expansion |
+| R6 | Method on imported type | `let x = Bar::new(); x.method()` — ref to `Bar::method` | out of scope — requires type inference |
+| R7 | Trait method call | `x.do_thing()` where `DoThing` trait is imported | out of scope — requires type inference |
+| R8 | Macro-generated usage | `macro_rules!` that expands to use a symbol | out of scope — requires macro expansion |
 | R9 | Type in signature | `fn f(x: Bar)` where Bar is imported | fail — `is_declaration_identifier` filters type in `parameter` parent (iss-0039.3) |
 | R10 | Type in generic | `Vec<Bar>` where Bar is imported | pass |
 

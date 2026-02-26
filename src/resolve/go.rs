@@ -368,7 +368,12 @@ fn import_names(alias: Option<&str>, spec: &str) -> ImportNames {
     let default_name = spec.rsplit('/').next().and_then(normalize_identifier);
 
     if let Some(alias) = alias {
-        if alias != "_" && alias != "." {
+        if alias == "." {
+            let mut names = ImportNames::new(default_name.into_iter().collect());
+            names.is_namespace = true;
+            return names;
+        }
+        if alias != "_" {
             let local = normalize_identifier(alias);
             let mut result = ImportNames::new(local.clone().into_iter().collect());
             if let (Some(local), Some(def)) = (&local, &default_name) {

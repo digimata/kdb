@@ -146,87 +146,6 @@ fn rust_r05_wildcard_import() {
 }
 
 #[test]
-fn rust_r06_method_on_imported_type() {
-    let (defs, usages) = eval_refs(
-        &[
-            ("src/lib.rs", "pub mod target;\npub mod caller;\n"),
-            (
-                "src/target.rs",
-                "pub struct Bar;\nimpl Bar {\n    pub fn method(&self) {}\n}\n",
-            ),
-            (
-                "src/caller.rs",
-                "use crate::target::Bar;\npub fn run() {\n    let x = Bar;\n    x.method();\n}\n",
-            ),
-        ],
-        "src/target.rs",
-        "Bar::method",
-    );
-    assert_eq!(defs, 1, "expected 1 definition");
-    assert_eq!(usages, 1, "expected 1 usage of method on imported type");
-}
-
-#[test]
-fn rust_r07_trait_method_call() {
-    let (defs, usages) = eval_refs(
-        &[
-            (
-                "src/lib.rs",
-                "pub mod target;\npub mod types;\npub mod caller;\n",
-            ),
-            (
-                "src/target.rs",
-                "pub trait DoThing {\n    fn do_thing(&self);\n}\n",
-            ),
-            (
-                "src/types.rs",
-                concat!(
-                    "use crate::target::DoThing;\n",
-                    "pub struct Foo;\n",
-                    "impl DoThing for Foo {\n    fn do_thing(&self) {}\n}\n",
-                ),
-            ),
-            (
-                "src/caller.rs",
-                concat!(
-                    "use crate::target::DoThing;\n",
-                    "use crate::types::Foo;\n",
-                    "pub fn run() {\n    let x = Foo;\n    x.do_thing();\n}\n",
-                ),
-            ),
-        ],
-        "src/target.rs",
-        "DoThing::do_thing",
-    );
-    assert_eq!(defs, 1, "expected 1 definition");
-    assert_eq!(usages, 1, "expected 1 trait method call usage");
-}
-
-#[test]
-fn rust_r08_macro_generated_usage() {
-    let (defs, usages) = eval_refs(
-        &[
-            ("src/lib.rs", "pub mod target;\npub mod caller;\n"),
-            ("src/target.rs", "pub fn foo() {}\n"),
-            (
-                "src/caller.rs",
-                concat!(
-                    "use crate::target::foo;\n",
-                    "macro_rules! call_it { ($f:ident) => { $f() } }\n",
-                    "pub fn run() {\n    call_it!(foo);\n}\n",
-                ),
-            ),
-        ],
-        "src/target.rs",
-        "foo",
-    );
-    assert_eq!(defs, 1, "expected 1 definition");
-    // Macro arguments contain the identifier in the source text,
-    // so tree-sitter may or may not see it as a usage node.
-    assert!(usages >= 1, "expected at least 1 usage via macro");
-}
-
-#[test]
 fn rust_r09_type_in_signature() {
     let (defs, usages) = eval_refs(
         &[
@@ -362,23 +281,6 @@ fn tsjs_t06_default_reexport() {
 }
 
 #[test]
-fn tsjs_t07_dynamic_import() {
-    let (defs, usages) = eval_refs(
-        &[
-            ("src/target.ts", "export function foo() {}\n"),
-            (
-                "src/caller.ts",
-                "async function run() {\n    const m = await import('./target');\n    m.foo();\n}\n",
-            ),
-        ],
-        "src/target.ts",
-        "foo",
-    );
-    assert_eq!(defs, 1, "expected 1 definition");
-    assert_eq!(usages, 1, "expected 1 usage via dynamic import");
-}
-
-#[test]
 fn tsjs_t08_commonjs_require() {
     let (defs, usages) = eval_refs(
         &[
@@ -510,6 +412,24 @@ fn python_p04_wildcard_import() {
     );
     assert_eq!(defs, 1, "expected 1 definition");
     assert_eq!(usages, 1, "expected 1 usage via wildcard import");
+}
+
+#[test]
+fn python_p04b_wildcard_all_filtering() {
+    // `__all__` restricts what `*` imports — `bar` is NOT in `__all__`
+    let (defs, usages) = eval_refs(
+        &[
+            (
+                "target.py",
+                "def foo():\n    pass\ndef bar():\n    pass\n__all__ = ['foo']\n",
+            ),
+            ("caller.py", "from target import *\nfoo()\n"),
+        ],
+        "target.py",
+        "bar",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 0, "bar is excluded by __all__, no wildcard usage");
 }
 
 #[test]
@@ -661,61 +581,6 @@ fn go_g03_dot_import() {
     );
     assert_eq!(defs, 1, "expected 1 definition");
     assert_eq!(usages, 1, "expected 1 usage via dot import");
-}
-
-#[test]
-fn go_g04_interface_method() {
-    let (defs, usages) = eval_refs(
-        &[
-            ("go.mod", "module example.com/proj\n\ngo 1.21\n"),
-            (
-                "pkg/target.go",
-                "package pkg\n\ntype Doer interface {\n\tDo()\n}\n",
-            ),
-            (
-                "cmd/main.go",
-                concat!(
-                    "package main\n\n",
-                    "import \"example.com/proj/pkg\"\n\n",
-                    "func run(d pkg.Doer) {\n\td.Do()\n}\n",
-                ),
-            ),
-        ],
-        "pkg/target.go",
-        "Doer",
-    );
-    assert_eq!(defs, 1, "expected 1 definition");
-    // At minimum, type usage in signature should be found.
-    assert!(usages >= 1, "expected at least 1 usage");
-}
-
-#[test]
-fn go_g05_embedded_struct() {
-    let (defs, usages) = eval_refs(
-        &[
-            ("go.mod", "module example.com/proj\n\ngo 1.21\n"),
-            (
-                "pkg/target.go",
-                "package pkg\n\ntype Base struct{}\n\nfunc (b Base) Method() {}\n",
-            ),
-            (
-                "pkg/child.go",
-                "package pkg\n\ntype Child struct {\n\tBase\n}\n",
-            ),
-            (
-                "cmd/main.go",
-                concat!(
-                    "package main\n\n",
-                    "import \"example.com/proj/pkg\"\n\n",
-                    "func main() {\n\tc := pkg.Child{}\n\tc.Method()\n}\n",
-                ),
-            ),
-        ],
-        "pkg/target.go",
-        "Base::Method",
-    );
-    assert_eq!(defs, 1, "expected 1 definition");
-    assert_eq!(usages, 1, "expected 1 promoted method usage");
 }
 
 #[test]

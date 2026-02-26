@@ -1,5 +1,5 @@
 use globset::GlobSet;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml::Value as TomlValue;
@@ -8,9 +8,12 @@ use walkdir::WalkDir;
 
 use crate::symbols::walk_depth_first;
 
+use crate::lang::CodeLanguage;
+
 use super::{
-    ImportKind, ImportNames, LanguageResolver, ResolvedImport, normalize_identifier,
-    normalize_rel_path, resolve_file, to_root_relative,
+    ImportKind, ImportNames, LanguageResolver, ReexportBinding, ResolvedImport,
+    exported_symbol_names, normalize_identifier, normalize_rel_path, resolve_file,
+    to_root_relative,
 };
 
 // ------------------------------------------
@@ -165,6 +168,7 @@ impl<'a> PythonImportResolver<'a> {
             let def = module_binding_name(module_name, None);
 
             let mut names = ImportNames::new(local.clone().into_iter().collect());
+            names.is_namespace = true;
             if let (Some(local), Some(def)) = (&local, &def) {
                 if local != def {
                     names.aliases.insert(local.clone(), def.clone());
@@ -210,6 +214,17 @@ impl<'a> PythonImportResolver<'a> {
         let module_paths = self.module_paths(module);
         for (name, local_name) in parse_names(imported) {
             if name == "*" {
+                if let Some(ref resolved) = parent_resolved {
+                    let wildcard_names = python_wildcard_names(self.root, resolved);
+                    let kind = classify_kind(module, true);
+                    imports.push(ResolvedImport {
+                        raw: format!("{module}.*"),
+                        resolved_path: Some(resolved.clone()),
+                        kind,
+                        names: ImportNames::new(wildcard_names),
+                        line: line_no,
+                    });
+                }
                 continue;
             }
 
@@ -327,6 +342,114 @@ impl<'a> PythonImportResolver<'a> {
 
         resolve_file(self.root, &module_path.join("__init__.py"))
     }
+}
+
+/// Extract names from `__all__ = [...]` in a Python source file.
+///
+/// Returns `Some(names)` when `__all__` is found, `None` otherwise.
+/// Only handles the common `__all__ = ["name", ...]` form.
+fn extract_python_all(source: &str) -> Option<Vec<String>> {
+    for line in source.lines() {
+        let trimmed = line.trim();
+        let rest = trimmed
+            .strip_prefix("__all__")
+            .map(str::trim)?
+            .strip_prefix('=')?
+            .trim();
+
+        let body = rest
+            .trim_start_matches('[')
+            .trim_start_matches('(')
+            .trim_end_matches(']')
+            .trim_end_matches(')')
+            .trim();
+
+        let names: Vec<String> = body
+            .split(',')
+            .filter_map(|item| {
+                let name = item.trim().trim_matches('"').trim_matches('\'').trim();
+                if name.is_empty() {
+                    None
+                } else {
+                    Some(name.to_string())
+                }
+            })
+            .collect();
+
+        return Some(names);
+    }
+
+    None
+}
+
+/// Resolve exported names for a Python wildcard import.
+///
+/// If the target defines `__all__`, uses that list. Otherwise falls back
+/// to public top-level symbols from `extract_symbols`.
+fn python_wildcard_names(root: &Path, resolved_path: &Path) -> Vec<String> {
+    let abs_path = root.join(resolved_path);
+    let source = match fs::read_to_string(&abs_path) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    if let Some(names) = extract_python_all(&source) {
+        return names;
+    }
+
+    exported_symbol_names(root, resolved_path, CodeLanguage::Python)
+}
+
+/// Collect `__init__.py` re-export bindings from `from X import Y` statements.
+pub(crate) fn collect_reexports(source_file: &Path, source: &str) -> Vec<ReexportBinding> {
+    let is_init = source_file
+        .file_name()
+        .and_then(|value| value.to_str())
+        .is_some_and(|name| name == "__init__.py");
+    if !is_init {
+        return Vec::new();
+    }
+
+    let mut bindings = Vec::new();
+    for (index, line) in source.lines().enumerate() {
+        let line_no = index + 1;
+        let no_comment = line.split('#').next().unwrap_or(line).trim();
+        let Some(rest) = no_comment.strip_prefix("from ") else {
+            continue;
+        };
+        let Some((module, imported)) = rest.split_once(" import ") else {
+            continue;
+        };
+
+        let module = module.trim();
+        for (name, local_name) in parse_names(imported) {
+            if name == "*" {
+                continue;
+            }
+
+            let Some(exported_name) = normalize_identifier(&local_name) else {
+                continue;
+            };
+            let definition_name = normalize_identifier(&name).unwrap_or(name.clone());
+            bindings.push(ReexportBinding {
+                raw_specifier: format!("{module}.{name}"),
+                exported_name,
+                definition_name,
+                line: line_no,
+            });
+        }
+    }
+
+    let mut seen = HashSet::new();
+    bindings.retain(|binding| {
+        seen.insert((
+            binding.line,
+            binding.raw_specifier.clone(),
+            binding.exported_name.clone(),
+            binding.definition_name.clone(),
+        ))
+    });
+    bindings
 }
 
 fn discover_python_project_roots(root: &Path, ignore_set: &GlobSet) -> Vec<PathBuf> {

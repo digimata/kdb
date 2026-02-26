@@ -20,8 +20,8 @@ Go has no re-export mechanism — every exported name lives in exactly one packa
 | G1 | Package import | `import "pkg"; pkg.Foo()` | fail — `import_names` returns pkg alias, not symbol names (iss-0039.2) |
 | G2 | Aliased import | `import p "pkg"; p.Foo()` | fail — alias name in bindings, definition name in symbol_lookup |
 | G3 | Dot import | `import . "pkg"; Foo()` | fail — dot import not expanded |
-| G4 | Interface method | calling a method defined on an interface | fail — no type tracking |
-| G5 | Embedded struct | promoted method from embedded struct | fail — no type tracking |
+| G4 | Interface method | calling a method defined on an interface | out of scope — requires type inference |
+| G5 | Embedded struct | promoted method from embedded struct | out of scope — requires type inference |
 | G6 | Type usage | `var x pkg.Foo` | fail — same namespace gap as G1 (iss-0039.2) |
 | G7 | Composite literal | `pkg.Foo{field: val}` | fail — same namespace gap as G1 (iss-0039.2) |
 

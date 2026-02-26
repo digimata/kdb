@@ -15,19 +15,19 @@ Tracking issue for recall gaps discovered by the correctness eval suite (`tests/
 
 `refs -s` does **name resolution** — tracing imported symbol names from definition to usage across files. It does not do type inference, macro expansion, or runtime analysis. The scorecard below reflects only the categories that are in scope.
 
-## Scorecard (baseline)
+## Scorecard
 
 6 tests excluded as out of scope (see below). In-scope total: **31**.
 
-| Language | Pass | Fail | Ignored | In-scope | Recall |
-|---|---|---|---|---|---|
-| Rust | 3 | 1 | 3 | 7 | 43% |
-| TS/JS | 5 | 1 | 4 | 10 | 50% |
-| Python | 0 | 5 | 4 | 9 | 0% |
-| Go | 0 | 3 | 2 | 5 | 0% |
-| **Total** | **8** | **10** | **13** | **31** | **26%** |
+| Language | Pass | Fail | In-scope | Recall |
+|---|---|---|---|---|
+| Rust | 5 | 2 | 7 | 71% |
+| TS/JS | 7 | 3 | 10 | 70% |
+| Python | 5 | 4 | 9 | 56% |
+| Go | 4 | 1 | 5 | 80% |
+| **Total** | **22** | **9** | **31** | **71%** |
 
-Target after all sub-issues resolved: **29/31 (94%)**.
+Target after all sub-issues resolved: **31/31 (100%)**.
 
 ## Sub-issues
 
@@ -38,15 +38,8 @@ Target after all sub-issues resolved: **29/31 (94%)**.
 | [0039.3 — Usage scanner gaps](iss-0039.3-usage-scanner-gaps.md) | Parameter type filter (R9) + JSX identifier kind (T11) | R9, T11 | medium |
 | [0039.4 — Alias tracking](iss-0039.4-alias-tracking.md) | Alias name in bindings, definition name in symbol_lookup | R3, T3, P3, G2 | medium |
 | [0039.5 — Re-export following](iss-0039.5-reexport-following.md) | `pub use`, barrel files, `__init__.py` not followed | R4, T5, T6, P5 | high |
-
-## Remaining in-scope gaps
-
-Low priority — rare in practice. Not yet broken out into sub-issues.
-
-| Category | Gap | Tests |
-|---|---|---|
-| Wildcard imports | `use X::*` / `from X import *` not expanded | R5, P4 |
-| Namespace access | `import X; X.foo()` (Python), `import . "pkg"` (Go dot import) | P2, G3 |
+| [0039.6 — Namespace access](iss-0039.6-namespace-access.md) | `X.name` qualified access not decomposed | T4, P2, G3 | medium |
+| [0039.7 — Wildcard imports](iss-0039.7-wildcard-imports.md) | `use X::*` / `from X import *` not expanded | R5, P4 | low |
 
 ## Out of scope
 

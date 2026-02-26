@@ -10,6 +10,7 @@ use std::path::{Component, Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::lang::CodeLanguage;
+use crate::symbols::extract_symbols;
 // NOTE: index block managed by kdb fmt — do not update manually
 
 // ----------------------------------------------------
@@ -51,9 +52,10 @@ mod tsjs;
 
 pub use go::GoWorkspaceCache;
 pub use python::PythonWorkspaceCache;
-pub(crate) use rust::collect_mod_and_use;
+pub(crate) use python::collect_reexports as collect_python_reexports;
 pub use rust::{RustWorkspaceCache, RustWorkspaceCrate};
-pub(crate) use tsjs::collect_specifiers;
+pub(crate) use rust::{collect_mod_and_use, collect_reexports as collect_rust_reexports};
+pub(crate) use tsjs::{collect_reexports as collect_tsjs_reexports, collect_specifiers};
 
 pub(crate) use go::GoResolver;
 pub(crate) use python::PythonResolver;
@@ -103,6 +105,9 @@ pub enum ImportKind {
 pub struct ImportNames {
     pub locals: Vec<String>,
     pub aliases: HashMap<String, String>,
+    /// True when this import brings all exported names into scope (e.g. Go dot
+    /// import, TS namespace import, Python module import).
+    pub is_namespace: bool,
 }
 
 impl ImportNames {
@@ -111,6 +116,7 @@ impl ImportNames {
         Self {
             locals,
             aliases: HashMap::new(),
+            is_namespace: false,
         }
     }
 }
@@ -126,6 +132,18 @@ pub struct ResolvedImport {
     pub line: usize,
 }
 
+/// A single re-exported symbol binding discovered in a source file.
+///
+/// `raw_specifier` and `line` identify the corresponding import/export
+/// statement so callers can reuse already-resolved import paths.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct ReexportBinding {
+    pub raw_specifier: String,
+    pub exported_name: String,
+    pub definition_name: String,
+    pub line: usize,
+}
+
 /// Contract for language-specific import resolution.
 ///
 /// Each language resolver takes a source file path and its contents, and
@@ -134,6 +152,22 @@ pub struct ResolvedImport {
 pub(crate) trait LanguageResolver {
     /// Resolve all imports in `source` as seen from `source_file`.
     fn resolve(&self, source_file: &Path, source: &str) -> Vec<ResolvedImport>;
+}
+
+/// Extract one-hop re-export bindings for a source file.
+pub(crate) fn extract_reexport_bindings(
+    source_file: &Path,
+    source: &str,
+    language: CodeLanguage,
+) -> Vec<ReexportBinding> {
+    match language {
+        CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
+            collect_tsjs_reexports(source_file, source)
+        }
+        CodeLanguage::Rust => collect_rust_reexports(source),
+        CodeLanguage::Python => collect_python_reexports(source_file, source),
+        CodeLanguage::Go => Vec::new(),
+    }
 }
 
 /// Result of scanning all code files for imports.
@@ -219,6 +253,33 @@ pub fn resolve_imports_for_language(
             resolver.resolve(source_file, source)
         }
     }
+}
+
+/// Extract public top-level symbol names from a resolved target file.
+///
+/// Used by wildcard import expansion to populate `ImportNames::locals`
+/// with every exported name from the target module.
+pub(super) fn exported_symbol_names(
+    root: &Path,
+    resolved_path: &Path,
+    language: CodeLanguage,
+) -> Vec<String> {
+    let abs_path = root.join(resolved_path);
+    let source = match fs::read_to_string(&abs_path) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    let symbols = match extract_symbols(language, &source) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    symbols
+        .into_iter()
+        .filter(|sym| sym.is_public && sym.parent.is_none())
+        .map(|sym| sym.name)
+        .collect()
 }
 
 fn discover_code_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>> {

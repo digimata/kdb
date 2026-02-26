@@ -4,16 +4,17 @@ use std::path::PathBuf;
 // -----------------------
 // src/main.rs
 //
-// struct Cli          L18
-// enum Command        L24
-// async fn main()    L126
+// struct Cli          L19
+// enum Command        L25
+// async fn main()    L122
 // -----------------------
 
 #[derive(Debug, Parser)]
 #[command(
     name = "kdb",
     version,
-    about = "Code intelligence CLI and LSP for knowledge bases"
+    about = "Code intelligence CLI and LSP for knowledge bases",
+    after_help = "pls report bugs: https://github.com/dremnik/kdb/issues"
 )]
 struct Cli {
     #[command(subcommand)]
