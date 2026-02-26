@@ -12,20 +12,21 @@ use super::{Symbol, SymbolKind};
 // -----------------------------------------
 // src/symbols/display.rs
 //
-// pub struct SymbolRow                  L31
-//   fn from()                           L59
-// pub struct SymbolBodyRow              L78
-// pub fn kind_label()                  L102
-// pub fn is_callable_kind()            L123
-// pub fn format_symbol_display()       L135
-// pub fn extract_symbol_body()         L163
-// pub fn extract_body_with_docs()      L180
-// fn is_doc_comment_line()             L233
-// fn is_attribute_line()               L247
-// pub fn code_symbol_body_row()        L252
-// pub fn markdown_symbol_body_row()    L267
-// pub fn print_text()                  L287
-// pub fn print_bodies_text()           L300
+// pub struct SymbolRow                  L34
+//   fn from()                           L62
+// pub struct SymbolBodyRow              L81
+// pub fn kind_label()                  L105
+// pub fn is_callable_kind()            L126
+// pub fn format_symbol_display()       L138
+// pub fn extract_symbol_body()         L166
+// pub fn extract_body_with_docs()      L183
+// fn is_doc_comment_line()             L236
+// fn is_attribute_line()               L250
+// pub fn code_symbol_body_row()        L255
+// pub fn markdown_symbol_body_row()    L270
+// pub fn print_text()                  L290
+// pub fn print_multi_text()            L303
+// pub fn print_bodies_text()           L328
 // -----------------------------------------
 
 /// A formatted symbol row ready for display.

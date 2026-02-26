@@ -24,27 +24,41 @@ use crate::resolve::{
 };
 use crate::symbols::{Symbol, SymbolKind, extract_symbols};
 
-// ---------------------------------------------------------------------------
+// ------------------------------------------------
 // src/index/cache.rs
 //
-// struct IndexCache                              L47
-//   fn load()                                    L59
-//   fn save()                                    L91
-//   fn gc()                                     L119
-// struct CachedFileFacts                        L139
-// enum CachedFileKind                           L149
-// struct CachedHeading                          L162
-// struct CachedLink                             L175
-// struct CachedSymbol                           L197
-// struct CachedImport                           L217
-// struct CachedImportNames                      L230
-// fn file_key()                                 L244
-// fn manifest_key()                             L258
-// fn now_millis()                               L276
-// pub(crate) struct IncrementalBuildResult       L283
-// pub(crate) fn incremental_build()             L295
-// fn discover_code_files()                      L398
-// ---------------------------------------------------------------------------
+// const CACHE_FILE                             L63
+// const CACHE_VERSION                          L64
+// const GC_MAX_AGE_MILLIS                      L65
+// struct IndexCache                            L69
+//   fn load()                                  L80
+//   fn save()                                  L92
+//   fn gc()                                   L107
+// struct CachedFileFacts                      L119
+// enum CachedFileKind                         L130
+// struct CachedHeading                        L143
+// struct CachedLink                           L153
+// struct CachedSymbol                         L164
+// struct CachedImport                         L178
+// struct CachedImportNames                    L188
+// fn file_key()                               L199
+// fn manifest_key()                           L212
+// fn now_millis()                             L231
+// pub(crate) struct IncrementalBuildResult    L243
+// pub(crate) fn incremental_build()           L258
+// fn to_heading()                             L460
+// fn to_link()                                L470
+// fn to_symbol()                              L487
+// fn to_import()                              L501
+// fn from_heading()                           L519
+// fn from_link()                              L529
+// fn from_symbol()                            L543
+// fn from_import()                            L557
+// fn symbol_kind_to_u8()                      L575
+// fn symbol_kind_from_u8()                    L597
+// fn import_kind_to_u8()                      L620
+// fn import_kind_from_u8()                    L629
+// ------------------------------------------------
 
 const CACHE_FILE: &str = "index.bin";
 const CACHE_VERSION: &str = env!("CARGO_PKG_VERSION");

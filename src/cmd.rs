@@ -33,7 +33,7 @@ use crate::tree;
 // pub fn deps()                     L365
 // pub fn graph()                    L400
 // pub fn index()                    L414
-// pub fn format()                   L456
+// pub fn format()                   L457
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.

@@ -14,6 +14,61 @@
 //! 4. **Resolution** — [`resolve_target_path`] resolves a link target relative to
 //!    its source file, handling both markdown and wikilink syntax.
 
+// ------------------------------------------------------------
+// src/index/mod.rs
+//
+// pub(crate) mod cache                                     L72
+// mod code                                                 L73
+// pub mod deps                                             L74
+// mod markdown                                             L75
+// pub mod refs                                             L76
+// mod scanner                                              L77
+// mod scope                                                L78
+// pub struct VaultIndex                                   L113
+// pub struct CodeIndex                                    L131
+// pub struct SymbolKey                                    L146
+// pub struct SymbolRef                                    L161
+// pub struct ProjectIndex                                 L180
+// pub struct FileEntry                                    L189
+// pub struct Heading                                      L202
+// pub enum LinkKind                                       L218
+// pub struct LinkTarget                                   L227
+// pub struct Link                                         L236
+// pub struct HeadingKey                                   L251
+// pub struct LinkRef                                      L260
+// pub struct ParsedDocument                               L275
+// pub struct BrokenLink                                   L284
+// pub struct CheckReport                                  L299
+//   pub fn has_errors()                                   L308
+//   pub fn print()                                        L313
+//   pub fn scoped_to()                                    L370
+// fn path_is_in_check_scope()                             L379
+//   pub fn build()                                        L397
+//   pub(crate) fn build_from_cached()                     L409
+//   pub(crate) fn build_from_cached_with_symbol_refs()    L423
+//   pub fn build_with_symbol_refs()                       L441
+//   pub fn build()                                        L456
+//   pub fn build_with_ignores()                           L461
+//   pub fn build_cached()                                 L471
+//   pub fn build_cached_with_symbol_refs()                L484
+//   pub fn build_with_symbol_refs()                       L505
+//   pub fn build()                                        L520
+//   pub fn build_with_ignores()                           L528
+//   pub(crate) fn build_from_entries()                    L570
+//   pub fn upsert_file()                                  L593
+//   pub fn reload_file()                                  L616
+//   pub fn remove_file()                                  L645
+//   pub fn check()                                        L653
+//   fn populate_inbound()                                 L692
+//   fn resolve_link()                                     L745
+// enum ResolveError                                       L778
+//   fn message()                                          L785
+// fn discover_markdown_files()                            L800
+// fn resolve_target_file()                                L818
+// pub fn resolve_target_path()                            L831
+// pub fn resolve_file_target()                            L859
+// ------------------------------------------------------------
+
 pub(crate) mod cache;
 mod code;
 pub mod deps;
@@ -49,55 +104,6 @@ pub use markdown::{
 // ---------------------------------------------------------------------------
 
 // NOTE: index block managed by kdb fmt — do not update manually
-
-// -----------------------------------------
-// src/index/mod.rs
-//
-// mod code                              L17
-// pub mod deps                          L18
-// mod markdown                          L19
-// pub mod refs                          L20
-// mod scanner                           L21
-// mod scope                             L22
-// pub struct VaultIndex                L106
-// pub struct CodeIndex                 L124
-// pub struct SymbolKey                 L139
-// pub struct SymbolRef                 L154
-// pub struct ProjectIndex              L173
-// pub struct FileEntry                 L182
-// pub struct Heading                   L195
-// pub enum LinkKind                    L211
-// pub struct LinkTarget                L220
-// pub struct Link                      L229
-// pub struct HeadingKey                L244
-// pub struct LinkRef                   L253
-// pub struct ParsedDocument            L268
-// pub struct BrokenLink                L277
-// pub struct CheckReport               L292
-//   pub fn has_errors()                L301
-//   pub fn print()                     L306
-//   pub fn scoped_to()                 L363
-// fn path_is_in_check_scope()          L372
-//   pub fn build()                     L390
-//   pub fn build_with_symbol_refs()    L402
-//   pub fn build()                     L417
-//   pub fn build_with_ignores()        L422
-//   pub fn build_with_symbol_refs()    L432
-//   pub fn build()                     L447
-//   pub fn build_with_ignores()        L455
-//   pub fn upsert_file()               L499
-//   pub fn reload_file()               L522
-//   pub fn remove_file()               L551
-//   pub fn check()                     L559
-//   fn populate_inbound()              L598
-//   fn resolve_link()                  L651
-// enum ResolveError                    L684
-//   fn message()                       L691
-// fn discover_markdown_files()         L706
-// fn resolve_target_file()             L724
-// pub fn resolve_target_path()         L737
-// pub fn resolve_file_target()         L765
-// -----------------------------------------
 
 /// Complete index of a markdown vault.
 ///

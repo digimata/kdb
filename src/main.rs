@@ -5,8 +5,8 @@ use std::path::PathBuf;
 // src/main.rs
 //
 // struct Cli          L19
-// enum Command        L25
-// async fn main()    L122
+// enum Command        L28
+// async fn main()    L131
 // -----------------------
 
 #[derive(Debug, Parser)]

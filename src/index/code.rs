@@ -13,42 +13,44 @@ use super::scanner::{UsageScanner, scan_all_qualified_symbols};
 use super::scope::{ExportedNames, FollowedReexport, GlobSource, ModuleScope, ReexportTarget};
 use super::{SymbolKey, SymbolRef};
 
-// -----------------------------------------
+// ----------------------------------------------
 // src/index/code.rs
 //
-// pub struct SymbolIndex                L55
-//   pub(super) fn build()               L64
-// struct CodeFileFacts                  L73
-//   fn new()                            L82
-//   fn snippet_for_line()               L93
-//   fn column_from_byte()              L100
-// struct Indexer                       L113
-//   fn new()                           L134
-//   fn build()                         L148
-//   fn load_code_files()               L169
-//   fn extract_symbols()               L212
-//   fn build_symbol_lookup()           L233
-//   fn build_reexport_lookup()         L246
-//   fn resolve_reexport_target()       L296
-//   fn build_module_scopes()           L335
-//   fn precompute_qualified_cache()    L360
-//   fn resolution_loop()               L376
-//   fn resolve_reexports()             L391
-//   fn expand_qualified_access()       L431
-//   fn propagate_glob_imports()        L487
-//   fn is_module_file()                L522
-//   fn exported_names()                L534
-//   fn follow_reexport_target()        L565
-//   fn symbol_exists()                 L610
-//   fn symbol_keys()                   L617
-//   fn seed_definition_refs()          L628
-//   fn link_usage_refs()               L650
-//   fn link_go_same_package_refs()     L677
-//   fn insert_usage_refs()             L755
-//   fn insert_usage_row()              L779
-//   fn normalize_symbol_refs()         L804
-// fn symbol_key()                      L811
-// -----------------------------------------
+// pub struct SymbolIndex                     L57
+//   pub(super) fn build()                    L66
+//   pub(crate) fn build_with_preloaded()     L77
+// struct CodeFileFacts                       L87
+//   fn new()                                 L96
+//   fn snippet_for_line()                   L107
+//   fn column_from_byte()                   L114
+// struct Indexer                            L127
+//   fn new()                                L150
+//   fn new_with_symbols()                   L166
+//   fn build()                              L185
+//   fn load_code_files()                    L208
+//   fn extract_symbols()                    L251
+//   fn build_symbol_lookup()                L272
+//   fn build_reexport_lookup()              L285
+//   fn resolve_reexport_target()            L335
+//   fn build_module_scopes()                L374
+//   fn precompute_qualified_cache()         L399
+//   fn resolution_loop()                    L415
+//   fn resolve_reexports()                  L430
+//   fn expand_qualified_access()            L470
+//   fn propagate_glob_imports()             L526
+//   fn is_module_file()                     L561
+//   fn exported_names()                     L573
+//   fn follow_reexport_target()             L604
+//   fn symbol_exists()                      L649
+//   fn symbol_keys()                        L656
+//   fn seed_definition_refs()               L667
+//   fn link_usage_refs()                    L689
+//   fn link_go_same_package_refs()          L716
+//   fn insert_usage_refs()                  L794
+//   fn insert_usage_row()                   L818
+//   fn normalize_symbol_refs()              L843
+// fn symbol_key()                           L850
+// ----------------------------------------------
 
 /// Declaration symbols and inbound references built for `kdb refs -s`.
 #[derive(Debug, Clone, Default)]
