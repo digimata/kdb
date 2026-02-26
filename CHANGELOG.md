@@ -4,6 +4,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] — 2026-02-25
+
+### Changed
+
+- replace single-pass reference resolution with fixed-point resolution loop (iss-0041)
+- split `code.rs` into `code.rs`, `scope.rs`, and `scanner.rs` for maintainability
+
+### Added
+
+- `ModuleScope` per-file binding map enriched via `resolve_reexports()`, `expand_qualified_access()`, and `propagate_glob_imports()` before usage scanning
+- compound patterns (grouped import → module → re-export) now resolve correctly
+
 ## [0.9.0] — 2026-02-25
 
 ### Added

@@ -3,67 +3,50 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use tree_sitter::Node;
 
 use crate::lang::CodeLanguage;
 use crate::resolve::{ReexportBinding, ResolvedImport, extract_reexport_bindings};
-use crate::symbols::{Symbol, extract_symbols, parse_tree, raw_node_text, walk_depth_first};
+use crate::symbols::{Symbol, extract_symbols};
 
+use super::scanner::{UsageScanner, scan_qualified_symbols};
+use super::scope::{ExportedNames, FollowedReexport, GlobSource, ModuleScope, ReexportTarget};
 use super::{SymbolKey, SymbolRef};
 
-// -----------------------------------------
+// ----------------------------------------
 // src/index/code.rs
 //
-// pub struct SymbolIndex                L70
-//   pub(super) fn build()               L79
-// struct CodeFileFacts                  L88
-//   fn new()                            L95
-//   fn snippet_for_line()              L104
-//   fn column_from_byte()              L111
-// struct IdentifierUsage               L124
-// struct ImportedBindings              L132
-//   fn from_imports()                  L142
-//   fn expand_namespace_symbols()      L181
-//   fn is_empty()                      L198
-//   fn names()                         L202
-//   fn targets()                       L206
-//   fn definition_name()               L211
-// struct ReexportTarget                L217
-// struct FollowedReexport              L223
-// struct Indexer                       L229
-//   fn new()                           L240
-//   fn build()                         L252
-//   fn load_code_files()               L266
-//   fn extract_symbols()               L292
-//   fn build_symbol_lookup()           L306
-//   fn build_reexport_lookup()         L319
-//   fn resolve_reexport_target()       L364
-//   fn follow_reexport_target()        L397
-//   fn symbol_exists()                 L428
-//   fn symbol_keys()                   L435
-//   fn seed_definition_refs()          L442
-//   fn link_usage_refs()               L464
-//   fn insert_usage_refs()             L488
-//   fn insert_usage_row()              L514
-//   fn normalize_symbol_refs()         L547
-// struct UsageScanner                  L555
-//   fn new()                           L562
-//   fn collect()                       L570
-//   fn qualified_usage_for_node()      L616
-//   fn member_expression_usage()       L641
-//   fn go_qualified_usage()            L672
-//   fn is_part_of_qualified_usage()    L692
-//   fn is_usage_identifier()           L703
-// fn go_qualified_nodes()              L715
-// fn is_go_qualified_binding_node()    L729
-// fn is_member_object_node()           L747
-// fn is_import_identifier()            L759
-// fn is_import_node()                  L770
-// fn is_declaration_identifier()       L788
-// fn node_is_field()                   L847
-// fn same_node()                       L853
-// fn symbol_key()                      L859
-// -----------------------------------------
+// pub struct SymbolIndex               L53
+//   pub(super) fn build()              L62
+// struct CodeFileFacts                 L71
+//   fn new()                           L78
+//   fn snippet_for_line()              L87
+//   fn column_from_byte()              L94
+// struct Indexer                      L107
+//   fn new()                          L119
+//   fn build()                        L132
+//   fn load_code_files()              L153
+//   fn extract_symbols()              L179
+//   fn build_symbol_lookup()          L193
+//   fn build_reexport_lookup()        L206
+//   fn resolve_reexport_target()      L251
+//   fn build_module_scopes()          L290
+//   fn resolution_loop()              L314
+//   fn resolve_reexports()            L328
+//   fn expand_qualified_access()      L368
+//   fn propagate_glob_imports()       L410
+//   fn is_module_file()               L445
+//   fn exported_names()               L457
+//   fn follow_reexport_target()       L488
+//   fn symbol_exists()                L533
+//   fn symbol_keys()                  L540
+//   fn seed_definition_refs()         L551
+//   fn link_usage_refs()              L573
+//   fn link_go_same_package_refs()    L597
+//   fn insert_usage_refs()            L665
+//   fn insert_usage_row()             L689
+//   fn normalize_symbol_refs()        L714
+// fn symbol_key()                     L721
+// ----------------------------------------
 
 /// Declaration symbols and inbound references built for `kdb refs -s`.
 #[derive(Debug, Clone, Default)]
@@ -120,119 +103,15 @@ impl CodeFileFacts {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct IdentifierUsage {
-    name: String,
-    binding_name: Option<String>,
-    line: usize,
-    column: usize,
-}
-
-#[derive(Debug, Clone, Default)]
-struct ImportedBindings {
-    by_name: HashMap<String, Vec<PathBuf>>,
-    /// Maps local alias → definition name across all imports for this file.
-    aliases: HashMap<String, String>,
-    /// Target files from namespace/dot imports whose exported symbols are
-    /// directly in scope (Go dot imports).
-    namespace_targets: Vec<PathBuf>,
-}
-
-impl ImportedBindings {
-    fn from_imports(imports: &[ResolvedImport]) -> Self {
-        let mut by_name: HashMap<String, BTreeSet<PathBuf>> = HashMap::new();
-        let mut aliases = HashMap::new();
-        let mut namespace_targets = BTreeSet::new();
-
-        for import in imports {
-            let Some(target_file) = import.resolved_path.as_ref() else {
-                continue;
-            };
-            if import.names.is_namespace {
-                namespace_targets.insert(target_file.clone());
-            }
-            for name in &import.names.locals {
-                if name.is_empty() {
-                    continue;
-                }
-                by_name
-                    .entry(name.clone())
-                    .or_default()
-                    .insert(target_file.clone());
-            }
-            aliases.extend(import.names.aliases.clone());
-        }
-
-        let by_name = by_name
-            .into_iter()
-            .map(|(name, targets)| (name, targets.into_iter().collect()))
-            .collect();
-
-        Self {
-            by_name,
-            aliases,
-            namespace_targets: namespace_targets.into_iter().collect(),
-        }
-    }
-
-    /// Expand namespace imports by adding all symbols from target files into
-    /// `by_name`. Handles Go dot imports where unqualified identifiers
-    /// reference the imported package's symbols.
-    fn expand_namespace_symbols(
-        &mut self,
-        symbol_lookup: &HashMap<PathBuf, HashMap<String, Vec<SymbolKey>>>,
-    ) {
-        for target in &self.namespace_targets {
-            let Some(symbols_by_name) = symbol_lookup.get(target) else {
-                continue;
-            };
-            for name in symbols_by_name.keys() {
-                self.by_name
-                    .entry(name.clone())
-                    .or_default()
-                    .push(target.clone());
-            }
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.by_name.is_empty()
-    }
-
-    fn names(&self) -> HashSet<String> {
-        self.by_name.keys().cloned().collect()
-    }
-
-    fn targets(&self, name: &str) -> Option<&[PathBuf]> {
-        self.by_name.get(name).map(Vec::as_slice)
-    }
-
-    /// Return the definition name for a local alias, if one exists.
-    fn definition_name(&self, local: &str) -> Option<&str> {
-        self.aliases.get(local).map(String::as_str)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct ReexportTarget {
-    target_file: PathBuf,
-    definition_name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct FollowedReexport {
-    target_file: PathBuf,
-    lookup_name: String,
-}
-
 #[derive(Debug)]
 struct Indexer<'a> {
     root: &'a Path,
-    code_imports: &'a BTreeMap<PathBuf, Vec<ResolvedImport>>,
-    code_files: BTreeMap<PathBuf, CodeFileFacts>,
-    code_symbols: BTreeMap<PathBuf, Vec<Symbol>>,
+    imports: &'a BTreeMap<PathBuf, Vec<ResolvedImport>>,
+    files: BTreeMap<PathBuf, CodeFileFacts>,
+    symbols: BTreeMap<PathBuf, Vec<Symbol>>,
     symbol_lookup: HashMap<PathBuf, HashMap<String, Vec<SymbolKey>>>,
     reexport_lookup: HashMap<PathBuf, HashMap<String, Vec<ReexportTarget>>>,
+    module_scopes: HashMap<PathBuf, ModuleScope>,
     symbol_refs: HashMap<SymbolKey, Vec<SymbolRef>>,
 }
 
@@ -240,11 +119,12 @@ impl<'a> Indexer<'a> {
     fn new(root: &'a Path, code_imports: &'a BTreeMap<PathBuf, Vec<ResolvedImport>>) -> Self {
         Self {
             root,
-            code_imports,
-            code_files: BTreeMap::new(),
-            code_symbols: BTreeMap::new(),
+            imports: code_imports,
+            files: BTreeMap::new(),
+            symbols: BTreeMap::new(),
             symbol_lookup: HashMap::new(),
             reexport_lookup: HashMap::new(),
+            module_scopes: HashMap::new(),
             symbol_refs: HashMap::new(),
         }
     }
@@ -254,18 +134,24 @@ impl<'a> Indexer<'a> {
         self.extract_symbols()?;
         self.build_symbol_lookup();
         self.build_reexport_lookup();
+        self.build_module_scopes();
+        self.resolution_loop();
         self.seed_definition_refs();
         self.link_usage_refs()?;
         self.link_go_same_package_refs()?;
         self.normalize_symbol_refs();
         Ok(SymbolIndex {
-            symbols: self.code_symbols,
+            symbols: self.symbols,
             refs: self.symbol_refs,
         })
     }
 
+    // -----------------------------------------------------------------------
+    // Phase 1: Load and extract
+    // -----------------------------------------------------------------------
+
     fn load_code_files(&mut self) -> Result<()> {
-        for rel_path in self.code_imports.keys() {
+        for rel_path in self.imports.keys() {
             let Some(language) = CodeLanguage::from_path(rel_path) else {
                 continue;
             };
@@ -284,14 +170,14 @@ impl<'a> Indexer<'a> {
                 }
             };
 
-            self.code_files
+            self.files
                 .insert(rel_path.clone(), CodeFileFacts::new(language, source));
         }
         Ok(())
     }
 
     fn extract_symbols(&mut self) -> Result<()> {
-        for (file, facts) in &self.code_files {
+        for (file, facts) in &self.files {
             let mut symbols = extract_symbols(facts.language, &facts.source)
                 .with_context(|| format!("failed to extract symbols for {}", file.display()))?;
             symbols.sort_by(|left, right| {
@@ -299,13 +185,13 @@ impl<'a> Indexer<'a> {
                     .cmp(&right.line)
                     .then_with(|| left.name.cmp(&right.name))
             });
-            self.code_symbols.insert(file.clone(), symbols);
+            self.symbols.insert(file.clone(), symbols);
         }
         Ok(())
     }
 
     fn build_symbol_lookup(&mut self) {
-        for (file, symbols) in &self.code_symbols {
+        for (file, symbols) in &self.symbols {
             let mut by_name: HashMap<String, Vec<SymbolKey>> = HashMap::new();
             for symbol in symbols {
                 by_name
@@ -320,8 +206,8 @@ impl<'a> Indexer<'a> {
     fn build_reexport_lookup(&mut self) {
         let mut by_file = HashMap::new();
 
-        for (file, facts) in &self.code_files {
-            let Some(imports) = self.code_imports.get(file) else {
+        for (file, facts) in &self.files {
+            let Some(imports) = self.imports.get(file) else {
                 continue;
             };
 
@@ -395,35 +281,253 @@ impl<'a> Indexer<'a> {
             })
     }
 
+    // -----------------------------------------------------------------------
+    // Phase 2: Module scopes and resolution loop
+    // -----------------------------------------------------------------------
+
+    /// Build per-file module scopes from resolved imports and expand namespace
+    /// symbols (Go dot imports).
+    fn build_module_scopes(&mut self) {
+        for (source_file, imports) in self.imports {
+            let mut scope = ModuleScope::from_imports(imports);
+
+            // Expand namespace imports (Go dot imports) by adding all symbols
+            // from target files into bindings.
+            for target in &scope.namespace_targets.clone() {
+                let Some(symbols_by_name) = self.symbol_lookup.get(target) else {
+                    continue;
+                };
+                for name in symbols_by_name.keys() {
+                    scope
+                        .bindings
+                        .entry(name.clone())
+                        .or_default()
+                        .insert(target.clone());
+                }
+            }
+
+            self.module_scopes.insert(source_file.clone(), scope);
+        }
+    }
+
+    /// Fixed-point resolution loop — enriches module scopes until stable.
+    fn resolution_loop(&mut self) {
+        loop {
+            let mut changed = false;
+            changed |= self.resolve_reexports();
+            changed |= self.expand_qualified_access();
+            changed |= self.propagate_glob_imports();
+            if !changed {
+                break;
+            }
+        }
+    }
+
+    /// For each binding in each scope, if the target file doesn't define the
+    /// symbol, try following the re-export chain and update the binding.
+    fn resolve_reexports(&mut self) -> bool {
+        let mut changed = false;
+
+        let scope_files: Vec<PathBuf> = self.module_scopes.keys().cloned().collect();
+        for source_file in scope_files {
+            let scope = &self.module_scopes[&source_file];
+            let entries: Vec<(String, Vec<PathBuf>)> = scope
+                .bindings
+                .iter()
+                .map(|(name, targets)| (name.clone(), targets.iter().cloned().collect()))
+                .collect();
+
+            for (name, targets) in entries {
+                let lookup_name = self.module_scopes[&source_file]
+                    .definition_name(&name)
+                    .unwrap_or(&name)
+                    .to_string();
+
+                for target_file in &targets {
+                    if self.symbol_exists(target_file, &lookup_name) {
+                        continue;
+                    }
+                    if let Some(followed) = self.follow_reexport_target(target_file, &lookup_name) {
+                        let scope = self.module_scopes.get_mut(&source_file).unwrap();
+                        let inserted = scope
+                            .bindings
+                            .entry(name.clone())
+                            .or_default()
+                            .insert(followed.target_file);
+                        changed |= inserted;
+                    }
+                }
+            }
+        }
+
+        changed
+    }
+
+    /// For bindings pointing to module files, scan the source for qualified
+    /// access patterns and create new bindings for accessed symbols.
+    fn expand_qualified_access(&mut self) -> bool {
+        let mut changed = false;
+
+        // Collect (source_file, binding_name, target_file) triples where the
+        // target looks like a module file. Two-phase to avoid borrow conflicts.
+        let mut module_bindings = Vec::new();
+        for (source_file, scope) in &self.module_scopes {
+            for (name, targets) in &scope.bindings {
+                for target in targets {
+                    if self.is_module_file(target, name) {
+                        module_bindings.push((source_file.clone(), name.clone(), target.clone()));
+                    }
+                }
+            }
+        }
+
+        for (source_file, binding_name, module_file) in module_bindings {
+            let Some(facts) = self.files.get(&source_file) else {
+                continue;
+            };
+
+            let accessed = scan_qualified_symbols(facts.language, &facts.source, &binding_name);
+
+            let scope = self.module_scopes.get_mut(&source_file).unwrap();
+            for symbol_name in accessed {
+                if scope.bindings.contains_key(&symbol_name) {
+                    continue;
+                }
+                let inserted = scope
+                    .bindings
+                    .entry(symbol_name)
+                    .or_default()
+                    .insert(module_file.clone());
+                changed |= inserted;
+            }
+        }
+
+        changed
+    }
+
+    /// For each glob source in each scope, look up exported names from the
+    /// target file and add them to the importing scope.
+    fn propagate_glob_imports(&mut self) -> bool {
+        let mut changed = false;
+
+        let glob_work: Vec<(PathBuf, Vec<GlobSource>)> = self
+            .module_scopes
+            .iter()
+            .filter(|(_, scope)| !scope.glob_sources.is_empty())
+            .map(|(file, scope)| (file.clone(), scope.glob_sources.clone()))
+            .collect();
+
+        for (source_file, glob_sources) in glob_work {
+            for glob in &glob_sources {
+                let exported = self.exported_names(&glob.target_file);
+                let names: Vec<String> = match &glob.all_filter {
+                    Some(all) => all.iter().filter(|n| exported.has(n)).cloned().collect(),
+                    None => exported.public_names(),
+                };
+
+                let scope = self.module_scopes.get_mut(&source_file).unwrap();
+                for name in names {
+                    let inserted = scope
+                        .bindings
+                        .entry(name)
+                        .or_default()
+                        .insert(glob.target_file.clone());
+                    changed |= inserted;
+                }
+            }
+        }
+
+        changed
+    }
+
+    /// Heuristic: target is a module entry point or the binding name doesn't
+    /// appear as a symbol in the target file.
+    fn is_module_file(&self, target: &Path, binding_name: &str) -> bool {
+        let file_name = target.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if matches!(
+            file_name,
+            "mod.rs" | "__init__.py" | "index.ts" | "index.js" | "index.tsx"
+        ) {
+            return true;
+        }
+        !self.symbol_exists(target, binding_name)
+    }
+
+    /// Build the exported names for a file from symbol_lookup + reexport_lookup.
+    fn exported_names(&self, file: &Path) -> ExportedNames {
+        let defined: HashSet<String> = self
+            .symbol_lookup
+            .get(file)
+            .map(|by_name| by_name.keys().cloned().collect())
+            .unwrap_or_default();
+
+        let reexported: HashMap<String, ReexportTarget> = self
+            .reexport_lookup
+            .get(file)
+            .map(|by_name| {
+                by_name
+                    .iter()
+                    .flat_map(|(name, targets)| targets.first().map(|t| (name.clone(), t.clone())))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        ExportedNames {
+            defined,
+            reexported,
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Re-export chain following
+    // -----------------------------------------------------------------------
+
+    /// Follow re-export chains across files until the actual symbol definition
+    /// is found. Uses a visited set for cycle detection instead of an arbitrary
+    /// depth limit.
     fn follow_reexport_target(
         &self,
         intermediary_file: &Path,
         lookup_name: &str,
     ) -> Option<FollowedReexport> {
-        let candidates = self
-            .reexport_lookup
-            .get(intermediary_file)
-            .and_then(|by_name| by_name.get(lookup_name))?;
+        let mut current_file = intermediary_file.to_path_buf();
+        let mut current_name = lookup_name.to_string();
+        let mut visited = HashSet::new();
 
-        for candidate in candidates {
-            if self.symbol_exists(&candidate.target_file, &candidate.definition_name) {
-                return Some(FollowedReexport {
-                    target_file: candidate.target_file.clone(),
-                    lookup_name: candidate.definition_name.clone(),
-                });
+        loop {
+            if !visited.insert((current_file.clone(), current_name.clone())) {
+                return None; // cycle detected
             }
 
-            if candidate.definition_name != lookup_name
-                && self.symbol_exists(&candidate.target_file, lookup_name)
-            {
-                return Some(FollowedReexport {
-                    target_file: candidate.target_file.clone(),
-                    lookup_name: lookup_name.to_string(),
-                });
+            let candidates = self
+                .reexport_lookup
+                .get(&current_file)
+                .and_then(|by_name| by_name.get(&current_name))?;
+
+            for candidate in candidates {
+                if self.symbol_exists(&candidate.target_file, &candidate.definition_name) {
+                    return Some(FollowedReexport {
+                        target_file: candidate.target_file.clone(),
+                        lookup_name: candidate.definition_name.clone(),
+                    });
+                }
+
+                if candidate.definition_name != current_name
+                    && self.symbol_exists(&candidate.target_file, &current_name)
+                {
+                    return Some(FollowedReexport {
+                        target_file: candidate.target_file.clone(),
+                        lookup_name: current_name.clone(),
+                    });
+                }
             }
+
+            // Symbol not found at this level — follow the first candidate
+            // deeper into the re-export chain.
+            let first = &candidates[0];
+            current_file = first.target_file.clone();
+            current_name = first.definition_name.clone();
         }
-
-        None
     }
 
     fn symbol_exists(&self, file: &Path, name: &str) -> bool {
@@ -440,9 +544,13 @@ impl<'a> Indexer<'a> {
             .cloned()
     }
 
+    // -----------------------------------------------------------------------
+    // Phase 3: Seed definitions and link usages
+    // -----------------------------------------------------------------------
+
     fn seed_definition_refs(&mut self) {
-        for (file, symbols) in &self.code_symbols {
-            let Some(facts) = self.code_files.get(file) else {
+        for (file, symbols) in &self.symbols {
+            let Some(facts) = self.files.get(file) else {
                 continue;
             };
 
@@ -463,25 +571,23 @@ impl<'a> Indexer<'a> {
     }
 
     fn link_usage_refs(&mut self) -> Result<()> {
-        let import_entries = self
-            .code_imports
+        let scope_entries: Vec<(PathBuf, ModuleScope)> = self
+            .module_scopes
             .iter()
-            .map(|(source_file, imports)| (source_file.clone(), imports.clone()))
-            .collect::<Vec<_>>();
+            .map(|(file, scope)| (file.clone(), scope.clone()))
+            .collect();
 
-        for (source_file, imports) in import_entries {
-            let Some(facts) = self.code_files.get(&source_file).cloned() else {
+        for (source_file, scope) in scope_entries {
+            let Some(facts) = self.files.get(&source_file).cloned() else {
                 continue;
             };
-            let mut bindings = ImportedBindings::from_imports(&imports);
-            bindings.expand_namespace_symbols(&self.symbol_lookup);
-            if bindings.is_empty() {
+            if scope.is_empty() {
                 continue;
             }
 
-            let scanner = UsageScanner::new(facts.language, &facts.source, bindings.names());
+            let scanner = UsageScanner::new(facts.language, &facts.source, scope.names());
             let usages = scanner.collect()?;
-            self.insert_usage_refs(&source_file, &facts, &bindings, usages);
+            self.insert_usage_refs(&source_file, &facts, &scope, usages);
         }
         Ok(())
     }
@@ -491,7 +597,7 @@ impl<'a> Indexer<'a> {
     fn link_go_same_package_refs(&mut self) -> Result<()> {
         // Group Go files by parent directory (= Go package boundary).
         let mut packages: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
-        for (file, facts) in &self.code_files {
+        for (file, facts) in &self.files {
             if facts.language != CodeLanguage::Go {
                 continue;
             }
@@ -512,7 +618,7 @@ impl<'a> Indexer<'a> {
             }
 
             for source_file in files {
-                let Some(facts) = self.code_files.get(source_file).cloned() else {
+                let Some(facts) = self.files.get(source_file).cloned() else {
                     continue;
                 };
 
@@ -537,17 +643,19 @@ impl<'a> Indexer<'a> {
                     continue;
                 }
 
-                let imported_names: HashSet<String> = by_name.keys().cloned().collect();
-                let bindings = ImportedBindings {
-                    by_name,
+                let scope = ModuleScope {
+                    bindings: by_name
+                        .into_iter()
+                        .map(|(name, targets)| (name, targets.into_iter().collect()))
+                        .collect(),
                     aliases: HashMap::new(),
                     namespace_targets: Vec::new(),
+                    glob_sources: Vec::new(),
                 };
 
-                let scanner =
-                    UsageScanner::new(facts.language, &facts.source, imported_names);
+                let scanner = UsageScanner::new(facts.language, &facts.source, scope.names());
                 let usages = scanner.collect()?;
-                self.insert_usage_refs(source_file, &facts, &bindings, usages);
+                self.insert_usage_refs(source_file, &facts, &scope, usages);
             }
         }
 
@@ -558,23 +666,21 @@ impl<'a> Indexer<'a> {
         &mut self,
         source_file: &Path,
         facts: &CodeFileFacts,
-        bindings: &ImportedBindings,
-        usages: Vec<IdentifierUsage>,
+        scope: &ModuleScope,
+        usages: Vec<super::scanner::IdentifierUsage>,
     ) {
         for usage in usages {
             let binding_key = usage.binding_name.as_deref().unwrap_or(&usage.name);
-            let target_files = bindings.targets(binding_key);
-
-            let Some(target_files) = target_files else {
+            let Some(target_files) = scope.targets(binding_key) else {
                 continue;
             };
 
             let lookup_name = if usage.binding_name.is_some() {
                 usage.name.as_str()
             } else {
-                bindings.definition_name(binding_key).unwrap_or(&usage.name)
+                scope.definition_name(binding_key).unwrap_or(&usage.name)
             };
-            for target_file in target_files {
+            for target_file in &target_files {
                 self.insert_usage_row(source_file, facts, target_file, &usage, lookup_name);
             }
         }
@@ -585,18 +691,10 @@ impl<'a> Indexer<'a> {
         source_file: &Path,
         facts: &CodeFileFacts,
         target_file: &Path,
-        usage: &IdentifierUsage,
+        usage: &super::scanner::IdentifierUsage,
         lookup_name: &str,
     ) {
-        let mut keys = self.symbol_keys(target_file, lookup_name);
-        if keys.is_none() {
-            keys = self
-                .follow_reexport_target(target_file, lookup_name)
-                .and_then(|followed| {
-                    self.symbol_keys(&followed.target_file, &followed.lookup_name)
-                });
-        }
-        let Some(keys) = keys else {
+        let Some(keys) = self.symbol_keys(target_file, lookup_name) else {
             return;
         };
 
@@ -618,311 +716,6 @@ impl<'a> Indexer<'a> {
             super::refs::normalize_symbol_refs(refs);
         }
     }
-}
-
-#[derive(Debug)]
-struct UsageScanner {
-    language: CodeLanguage,
-    source: String,
-    imported_names: HashSet<String>,
-}
-
-impl UsageScanner {
-    fn new(language: CodeLanguage, source: &str, imported_names: HashSet<String>) -> Self {
-        Self {
-            language,
-            source: source.to_string(),
-            imported_names,
-        }
-    }
-
-    fn collect(&self) -> Result<Vec<IdentifierUsage>> {
-        if self.imported_names.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let tree = parse_tree(self.language, &self.source)?;
-        let source_bytes = self.source.as_bytes();
-        let mut usages = Vec::new();
-
-        walk_depth_first(tree.root_node(), |node| {
-            if let Some(usage) = self.qualified_usage_for_node(node, source_bytes) {
-                usages.push(usage);
-                return;
-            }
-
-            if !self.is_usage_identifier(node.kind()) {
-                return;
-            }
-
-            if self.is_part_of_qualified_usage(node) {
-                return;
-            }
-
-            let Some(name) = raw_node_text(node, source_bytes) else {
-                return;
-            };
-            if !self.imported_names.contains(name) {
-                return;
-            }
-            if is_import_identifier(node) || is_declaration_identifier(node) {
-                return;
-            }
-
-            usages.push(IdentifierUsage {
-                name: name.to_string(),
-                binding_name: None,
-                line: node.start_position().row + 1,
-                column: node.start_position().column + 1,
-            });
-        });
-
-        usages.sort();
-        usages.dedup();
-        Ok(usages)
-    }
-
-    fn qualified_usage_for_node(
-        &self,
-        node: Node<'_>,
-        source_bytes: &[u8],
-    ) -> Option<IdentifierUsage> {
-        match self.language {
-            CodeLanguage::Go => self.go_qualified_usage(node, source_bytes),
-            CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => self
-                .member_expression_usage(
-                    node,
-                    source_bytes,
-                    "member_expression",
-                    "object",
-                    "property",
-                ),
-            CodeLanguage::Python => {
-                self.member_expression_usage(node, source_bytes, "attribute", "object", "attribute")
-            }
-            _ => None,
-        }
-    }
-
-    /// Handle qualified access via member expressions (TS/JS `obj.prop`,
-    /// Python `obj.attr`). When the object matches a namespace import binding,
-    /// the property/attribute is treated as a usage from the target module.
-    fn member_expression_usage(
-        &self,
-        node: Node<'_>,
-        source_bytes: &[u8],
-        parent_kind: &str,
-        object_field: &str,
-        property_field: &str,
-    ) -> Option<IdentifierUsage> {
-        if node.kind() != parent_kind {
-            return None;
-        }
-        let object_node = node.child_by_field_name(object_field)?;
-        let property_node = node.child_by_field_name(property_field)?;
-
-        let binding_name = raw_node_text(object_node, source_bytes)?;
-        if !self.imported_names.contains(binding_name) {
-            return None;
-        }
-        if is_import_identifier(object_node) {
-            return None;
-        }
-
-        let name = raw_node_text(property_node, source_bytes)?;
-        Some(IdentifierUsage {
-            name: name.to_string(),
-            binding_name: Some(binding_name.to_string()),
-            line: property_node.start_position().row + 1,
-            column: property_node.start_position().column + 1,
-        })
-    }
-
-    fn go_qualified_usage(&self, node: Node<'_>, source_bytes: &[u8]) -> Option<IdentifierUsage> {
-        let (binding_node, symbol_node) = go_qualified_nodes(node)?;
-        let binding_name = raw_node_text(binding_node, source_bytes)?;
-        if !self.imported_names.contains(binding_name) {
-            return None;
-        }
-
-        if is_import_identifier(symbol_node) || is_declaration_identifier(symbol_node) {
-            return None;
-        }
-
-        let name = raw_node_text(symbol_node, source_bytes)?;
-        Some(IdentifierUsage {
-            name: name.to_string(),
-            binding_name: Some(binding_name.to_string()),
-            line: symbol_node.start_position().row + 1,
-            column: symbol_node.start_position().column + 1,
-        })
-    }
-
-    fn is_part_of_qualified_usage(&self, node: Node<'_>) -> bool {
-        match self.language {
-            CodeLanguage::Go => is_go_qualified_binding_node(node),
-            CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
-                is_member_object_node(node, "member_expression", "object")
-            }
-            CodeLanguage::Python => is_member_object_node(node, "attribute", "object"),
-            _ => false,
-        }
-    }
-
-    fn is_usage_identifier(&self, kind: &str) -> bool {
-        match self.language {
-            CodeLanguage::Rust => matches!(kind, "identifier" | "type_identifier"),
-            CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
-                matches!(kind, "identifier" | "type_identifier" | "jsx_identifier")
-            }
-            CodeLanguage::Python => kind == "identifier",
-            CodeLanguage::Go => matches!(kind, "identifier" | "type_identifier"),
-        }
-    }
-}
-
-fn go_qualified_nodes(node: Node<'_>) -> Option<(Node<'_>, Node<'_>)> {
-    match node.kind() {
-        "selector_expression" => Some((
-            node.child_by_field_name("operand")?,
-            node.child_by_field_name("field")?,
-        )),
-        "qualified_type" => Some((
-            node.child_by_field_name("package")?,
-            node.child_by_field_name("name")?,
-        )),
-        _ => None,
-    }
-}
-
-fn is_go_qualified_binding_node(node: Node<'_>) -> bool {
-    let Some(parent) = node.parent() else {
-        return false;
-    };
-
-    match parent.kind() {
-        "selector_expression" => parent
-            .child_by_field_name("operand")
-            .is_some_and(|operand| same_node(operand, node)),
-        "qualified_type" => parent
-            .child_by_field_name("package")
-            .is_some_and(|package| same_node(package, node)),
-        _ => false,
-    }
-}
-
-/// Check if `node` is the object side of a member expression / attribute
-/// access, which means it should be skipped as a bare usage.
-fn is_member_object_node(node: Node<'_>, parent_kind: &str, object_field: &str) -> bool {
-    let Some(parent) = node.parent() else {
-        return false;
-    };
-    if parent.kind() != parent_kind {
-        return false;
-    }
-    parent
-        .child_by_field_name(object_field)
-        .is_some_and(|obj| same_node(obj, node))
-}
-
-fn is_import_identifier(node: Node<'_>) -> bool {
-    let mut cursor = Some(node);
-    while let Some(current) = cursor {
-        if is_import_node(current.kind()) {
-            return true;
-        }
-        cursor = current.parent();
-    }
-    false
-}
-
-fn is_import_node(kind: &str) -> bool {
-    matches!(
-        kind,
-        "import_statement"
-            | "import_clause"
-            | "import_specifier"
-            | "namespace_import"
-            | "named_imports"
-            | "import_declaration"
-            | "import_spec"
-            | "import_from_statement"
-            | "aliased_import"
-            | "use_declaration"
-            | "extern_crate_declaration"
-            | "mod_item"
-    )
-}
-
-fn is_declaration_identifier(node: Node<'_>) -> bool {
-    let Some(parent) = node.parent() else {
-        return false;
-    };
-
-    if parent.kind() == "qualified_type" {
-        return false;
-    }
-
-    // JSX element tags use the `name` field, but they're usages, not declarations.
-    if matches!(
-        parent.kind(),
-        "jsx_opening_element" | "jsx_closing_element" | "jsx_self_closing_element"
-    ) {
-        return false;
-    }
-
-    if node_is_field(parent, "name", node)
-        || node_is_field(parent, "alias", node)
-        || node_is_field(parent, "parameter", node)
-        || node_is_field(parent, "pattern", node)
-    {
-        return true;
-    }
-
-    matches!(
-        parent.kind(),
-        "function_item"
-            | "function_declaration"
-            | "function_definition"
-            | "method_definition"
-            | "method_declaration"
-            | "class_definition"
-            | "class_declaration"
-            | "struct_item"
-            | "enum_item"
-            | "trait_item"
-            | "type_item"
-            | "type_spec"
-            | "interface_declaration"
-            | "type_alias_declaration"
-            | "variable_declarator"
-            | "lexical_declaration"
-            | "variable_declaration"
-            | "const_spec"
-            | "var_spec"
-            | "short_var_declaration"
-            | "parameters"
-            | "formal_parameters"
-            | "parameter_list"
-            | "required_parameter"
-            | "optional_parameter"
-            | "typed_parameter"
-            | "receiver"
-            | "pair_pattern"
-            | "assignment_pattern"
-    )
-}
-
-fn node_is_field(parent: Node<'_>, field: &str, node: Node<'_>) -> bool {
-    parent
-        .child_by_field_name(field)
-        .is_some_and(|field_node| same_node(field_node, node))
-}
-
-fn same_node(left: Node<'_>, right: Node<'_>) -> bool {
-    left.start_byte() == right.start_byte()
-        && left.end_byte() == right.end_byte()
-        && left.kind() == right.kind()
 }
 
 fn symbol_key(file: &Path, symbol: &Symbol) -> SymbolKey {
