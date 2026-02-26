@@ -62,11 +62,12 @@ enum Command {
         /// Optional path to render (defaults to project root).
         path: Option<PathBuf>,
     },
-    /// Print symbols for a markdown or supported code file.
+    /// Print symbols for files and/or directories.
     Symbols {
-        /// File path to inspect.
-        path: PathBuf,
-        /// Select symbols by name or `Parent::name` (accepts multiple).
+        /// File or directory paths to inspect (accepts multiple).
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+        /// Select symbols by name or `Parent::name` (single file only).
         #[arg(short = 's', long = "symbol", num_args = 1..)]
         symbols: Vec<String>,
         /// Emit structured JSON output.
@@ -146,11 +147,11 @@ async fn main() {
             path, level, json, all, dirs_only, full_path, ignore, pattern,
         ),
         Command::Symbols {
-            path,
+            paths,
             symbols,
             json,
             public_only,
-        } => kdb::cmd::symbols(path, symbols, json, public_only),
+        } => kdb::cmd::symbols(paths, symbols, json, public_only),
         Command::Refs {
             target,
             symbol,

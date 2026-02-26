@@ -1,5 +1,7 @@
 //! Symbol display formatting, CLI output, and codemap generation.
 
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 use serde::Serialize;
 
@@ -293,6 +295,31 @@ pub fn print_text(rows: &[SymbolRow]) {
     let width = rows.iter().map(|row| row.display.len()).max().unwrap_or(0);
     for row in rows {
         println!("{:<width$}  L{}", row.display, row.line, width = width);
+    }
+}
+
+/// Print symbol rows from multiple files, with `── path` headers.
+pub fn print_multi_text(file_rows: &[(PathBuf, Vec<SymbolRow>)]) {
+    let all_empty = file_rows.iter().all(|(_, rows)| rows.is_empty());
+    if all_empty {
+        println!("(no symbols)");
+        return;
+    }
+
+    let width = file_rows
+        .iter()
+        .flat_map(|(_, rows)| rows.iter().map(|row| row.display.len()))
+        .max()
+        .unwrap_or(0);
+
+    for (index, (path, rows)) in file_rows.iter().enumerate() {
+        if index > 0 {
+            println!();
+        }
+        println!("── {}", path.display());
+        for row in rows {
+            println!("{:<width$}  L{}", row.display, row.line, width = width);
+        }
     }
 }
 

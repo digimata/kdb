@@ -28,10 +28,10 @@ use crate::tree;
 // pub fn check()                    L148
 // pub fn tree()                     L165
 // pub fn symbols()                  L213
-// pub fn refs()                     L264
-// pub fn deps()                     L321
-// pub fn graph()                    L356
-// pub fn format()                   L370
+// pub fn refs()                     L268
+// pub fn deps()                     L325
+// pub fn graph()                    L360
+// pub fn format()                   L374
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -209,51 +209,58 @@ pub fn tree(
     Ok(())
 }
 
-/// Print symbols for a single markdown or supported code file.
+/// Print symbols for one or more files and/or directories.
 pub fn symbols(
-    path: PathBuf,
+    paths: Vec<PathBuf>,
     selectors: Vec<String>,
     as_json: bool,
     public_only: bool,
 ) -> Result<()> {
-    let file_abs = project::root::make_absolute(&path)?;
-    if !file_abs.is_file() {
-        bail!("file not found: {}", file_abs.display());
+    assert!(!paths.is_empty(), "at least one path is required");
+
+    let ctx = CmdContext::from_path(Some(&paths[0]))?;
+    let files = symbols::query::expand_paths(&ctx.project, &paths)?;
+    assert!(!files.is_empty(), "no supported files found in given paths");
+
+    let multi = files.len() > 1;
+    if multi && !selectors.is_empty() {
+        bail!("-s/--symbol requires a single definition file, got {} files", files.len());
     }
 
-    let file_abs = file_abs
-        .canonicalize()
-        .with_context(|| format!("failed to canonicalize {}", path.display()))?;
-    let ctx = CmdContext::from_path(Some(&path))?;
-    let rel_path = ctx.rel_path(&file_abs)?;
-
     if selectors.is_empty() {
-        let mut rows = symbols::query::collect_rows(&ctx.project.root, &file_abs, &rel_path)?;
-        if public_only {
-            rows.retain(|row| row.is_public);
+        let mut all_rows: Vec<(PathBuf, Vec<symbols::display::SymbolRow>)> = Vec::new();
+        for (abs, rel) in &files {
+            let mut rows = symbols::query::collect_rows(&ctx.project.root, abs, rel)?;
+            if public_only {
+                rows.retain(|row| row.is_public);
+            }
+            all_rows.push((rel.clone(), rows));
         }
 
         if as_json {
-            let output = serde_json::to_string_pretty(&rows)
+            let flat: Vec<_> = all_rows.iter().flat_map(|(_, rows)| rows).collect();
+            let output = serde_json::to_string_pretty(&flat)
                 .context("failed to serialize symbols as JSON")?;
             println!("{output}");
+        } else if multi {
+            symbols::display::print_multi_text(&all_rows);
         } else {
-            symbols::display::print_text(&rows);
+            symbols::display::print_text(&all_rows[0].1);
         }
     } else {
         let selector_strs: Vec<&str> = selectors.iter().map(String::as_str).collect();
-        let rows = symbols::query::collect_body_rows(
-            &file_abs,
-            &rel_path,
-            &selector_strs,
-            public_only,
-        )?;
+        let mut all_rows = Vec::new();
+        for (abs, rel) in &files {
+            let rows = symbols::query::collect_body_rows(abs, rel, &selector_strs, public_only)?;
+            all_rows.extend(rows);
+        }
+
         if as_json {
-            let output = serde_json::to_string_pretty(&rows)
+            let output = serde_json::to_string_pretty(&all_rows)
                 .context("failed to serialize symbol bodies as JSON")?;
             println!("{output}");
         } else {
-            symbols::display::print_bodies_text(&rows);
+            symbols::display::print_bodies_text(&all_rows);
         }
     }
 

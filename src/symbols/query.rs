@@ -1,10 +1,12 @@
-use anyhow::{Context, Result, bail};
+use std::collections::BTreeSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result, bail};
 
 use crate::index::{VaultIndex, parse_markdown, section_byte_bounds, section_line_bounds};
 use crate::lang::CodeLanguage;
-use crate::project::config;
+use crate::project::{self, ProjectContext, config};
 
 use super::display::{self, SymbolBodyRow, SymbolRow};
 use super::{Symbol, extract_symbols};
@@ -12,17 +14,20 @@ use super::{Symbol, extract_symbols};
 // ----------------------------------------
 // src/symbols/query.rs
 //
-// pub fn collect_rows()                L29
-// pub fn collect_body_rows()           L79
-// fn collect_code_body_rows()         L118
-// fn collect_markdown_body_rows()     L162
-// fn is_markdown_file()               L208
-// fn normalize_markdown_selector()    L214
-// struct SymbolSelector               L229
-//   fn parse()                        L236
-//   fn matches()                      L268
-//   fn display()                      L279
-// fn normalize_selector_name()        L287
+// pub fn collect_rows()                L34
+// pub fn collect_body_rows()           L84
+// fn collect_code_body_rows()         L123
+// fn collect_markdown_body_rows()     L167
+// fn is_markdown_file()               L213
+// fn normalize_markdown_selector()    L219
+// struct SymbolSelector               L234
+//   fn parse()                        L241
+//   fn matches()                      L273
+//   fn display()                      L284
+// fn normalize_selector_name()        L292
+// pub fn expand_paths()               L301
+// fn rel_from_root()                  L344
+// fn is_symbol_file()                 L369
 // ----------------------------------------
 
 /// Collect symbol rows for a single file (headings for markdown, declarations for code).
@@ -144,8 +149,8 @@ fn collect_code_body_rows(
         .into_iter()
         .filter(|symbol| selector.matches(symbol))
         .map(|symbol| {
-            let (body, start_line) =
-                display::extract_body_with_docs(&source, &symbol).with_context(|| {
+            let (body, start_line) = display::extract_body_with_docs(&source, &symbol)
+                .with_context(|| {
                     format!(
                         "failed to extract body for symbol `{}` in {}",
                         selector.display(),
@@ -286,4 +291,81 @@ impl SymbolSelector {
 
 fn normalize_selector_name(value: &str) -> String {
     value.trim().trim_end_matches("()").to_string()
+}
+
+/// Expand a list of paths into deduplicated `(absolute, relative)` file pairs.
+///
+/// Files are used directly. Directories are walked recursively, collecting
+/// all files with a recognized code language or markdown extension. Results
+/// are sorted by relative path and deduplicated.
+pub fn expand_paths(
+    project: &ProjectContext,
+    paths: &[PathBuf],
+) -> Result<Vec<(PathBuf, PathBuf)>> {
+    let mut seen = BTreeSet::new();
+    let mut result = Vec::new();
+
+    for path in paths {
+        let abs = project::root::make_absolute(path)?;
+        if abs.is_file() {
+            let abs = abs
+                .canonicalize()
+                .with_context(|| format!("failed to canonicalize {}", path.display()))?;
+            let rel = rel_from_root(&project.root, &abs)?;
+            if seen.insert(rel.clone()) {
+                result.push((abs, rel));
+            }
+        } else if abs.is_dir() {
+            let dir_abs = abs
+                .canonicalize()
+                .with_context(|| format!("failed to canonicalize {}", path.display()))?;
+            let discovered = project::discover::discover_files(
+                &project.root,
+                &dir_abs,
+                &project.ignore_set,
+                project::ignore::ALWAYS_IGNORED_DIRS,
+            )?;
+            for rel in discovered {
+                if is_symbol_file(&rel) && seen.insert(rel.clone()) {
+                    let file_abs = project.root.join(&rel);
+                    result.push((file_abs, rel));
+                }
+            }
+        } else {
+            bail!("path not found: {}", abs.display());
+        }
+    }
+
+    result.sort_by(|(_, a), (_, b)| a.cmp(b));
+    Ok(result)
+}
+
+/// Compute a root-relative path from an absolute path.
+fn rel_from_root(root: &Path, abs: &Path) -> Result<PathBuf> {
+    let canonical = abs
+        .canonicalize()
+        .with_context(|| format!("failed to canonicalize {}", abs.display()))?;
+    canonical
+        .strip_prefix(root)
+        .with_context(|| {
+            format!(
+                "path {} is not inside kdb root {}",
+                canonical.display(),
+                root.display()
+            )
+        })
+        .and_then(|rel| {
+            project::paths::normalize_rel_path(rel).with_context(|| {
+                format!(
+                    "path {} resolves outside kdb root {}",
+                    canonical.display(),
+                    root.display()
+                )
+            })
+        })
+}
+
+/// Check whether a file is supported by the symbols command.
+fn is_symbol_file(rel: &Path) -> bool {
+    is_markdown_file(rel) || CodeLanguage::from_path(rel).is_some()
 }

@@ -1,79 +1,74 @@
 # kdb
 
-A compiler and language server for markdown knowledge bases.
+A structural index for codebases. CLI and language server.
 
-Treats a directory of markdown files like a codebase — headings are symbols, links are references, and broken links are compile errors.
+kdb treats a project as a graph of symbols and references — whether those are markdown headings linked by wikilinks, or code functions connected by import statements. It parses every file into symbols, resolves cross-file references, and gives you a unified way to navigate the result.
 
-If you've used Obsidian, the concept is familiar — but kdb is not tied to any app. It's an open standard for markdown knowledge bases with a compiler and language server that works in any editor.
+## What it does
 
-![demo](docs/demo.gif)
+**Markdown**: headings are symbols, links are references, broken links are errors, orphan files are dead code.
 
-## Knowledge = Code
+**Code**: functions/classes/types are symbols, imports are references, resolved across files with language-aware import resolution.
 
-| Code               | Knowledge                                   |
-|---------------------|---------------------------------------------|
-| Module              | Markdown file                               |
-| Exported symbol     | Heading (`## Definition`)                   |
-| Import / reference  | Link (`[text](file.md#heading)`)            |
-| Compile error       | Broken link (target file/heading missing)   |
-| Dead code           | Orphan file (nothing links to it)           |
-| Public API          | Outline (heading tree of a file)            |
-| Interface           | Template (expected structure for a category)|
-| Dependency graph    | Link graph across files                     |
+Both sides share the same model — symbols, references, dependencies — and the same commands work on both.
+
+### Supported languages
+
+- Rust,
+- TypeScript/JavaScript
+- Python
+- Go
+- C#
 
 ## Quickstart
 
-1. Install the CLI:
+1. Install:
 
 ```
 cargo install --path .
 ```
 
-2. Add the editor extension:
-
-| Editor | Install |
-|--------|---------|
-| Zed    | Extensions panel → search "kdb" → Install |
-| VSCode | Coming soon |
-
-3. Init a kdb in your project:
+2. Init in your project:
 
 ```
 cd my-project
 kdb init
 ```
 
-This creates a `.kdb/` directory at the root of your project. **All kdb commands require this directory** — it marks the vault boundary and is where kdb stores its configuration and index cache. You now get go-to-definition, autocomplete, hover previews, diagnostics, and document symbols in your editor.
+This creates a `.kdb/` directory that marks the project root. All commands run relative to this boundary.
 
-## Link Syntax
+3. Add the editor extension (optional — for LSP features):
 
-Both standard markdown links and wikilinks are supported:
+| Editor | Install |
+|--------|---------|
+| Zed    | Extensions panel → search "kdb" → Install |
+
+## Commands
+
+```
+kdb symbols <path>      # list symbols in a file (headings, functions, types, etc.)
+kdb refs <target>       # find inbound references to a file or heading
+kdb refs <file> -s <s>  # find who imports a code symbol
+kdb deps <file>         # list outbound dependencies (links, imports)
+kdb check               # report broken links and orphan files
+kdb tree [path]         # print filtered directory tree
+kdb graph               # output dependency graph (dot format)
+kdb fmt [path]          # generate/update code index headers
+kdb lsp                 # start the language server (stdio)
+```
+
+### Markdown links
+
+Both standard links and wikilinks are supported:
 
 ```markdown
 [React Hooks](react/hooks.md#useEffect)
 [[react/hooks#useEffect]]
 ```
 
-## Commands
+### LSP
 
-```
-kdb init               # initialize a kdb project (creates .kdb/config.toml)
-kdb fmt [path]         # generate/update code index headers (Rust, TS/JS, Python, Go)
-kdb check [--orphans]  # report broken links and warnings (orphans with --orphans)
-kdb tree [path]        # print filtered directory tree
-kdb symbols <path>     # print markdown/code symbols for a file
-kdb refs <target>      # find inbound refs to a file or heading (--json, --count)
-kdb refs <file> -s <s> # code symbol refs (import-resolved); spec: docs/specs/refs.md
-kdb deps <file>        # list outbound deps for a markdown/code file (--json)
-kdb graph              # output dependency graph (dot format)
-kdb lsp                # start the language server (stdio)
-```
-
-With the LSP running, `kdb` advertises document formatting for supported code
-files. In Zed, you can chain multiple formatters on save so language-native
-formatters (rustfmt/prettier/black/gofmt) run first and `kdb` runs second.
-
-Zed (example for Rust):
+The language server provides go-to-definition, autocomplete, hover previews, diagnostics, and document symbols. It also advertises formatting for code files — in Zed you can chain it after language-native formatters:
 
 ```json
 {
@@ -91,15 +86,7 @@ Zed (example for Rust):
 
 ## Development
 
-### Changelog
-
-Maintained with [git-cliff](https://git-cliff.org/). Config in `cliff.toml`.
-
-Commits follow [conventional commits](https://www.conventionalcommits.org/) (`type(scope): description`). To regenerate:
-
-```
-git cliff -o CHANGELOG.md
-```
+Commits follow [conventional commits](https://www.conventionalcommits.org/). Changelog maintained with [git-cliff](https://git-cliff.org/) (`git cliff -o CHANGELOG.md`).
 
 ## License
 

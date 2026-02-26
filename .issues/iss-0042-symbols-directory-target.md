@@ -1,7 +1,7 @@
 ---
 id: 42
 title: "symbols: support directory targets with recursive aggregation"
-status: proposed
+status: done
 priority: medium
 labels:
   - enhancement

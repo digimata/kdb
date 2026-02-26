@@ -1,6 +1,6 @@
 # Spec: Multi-pass reference resolution
 
-Detailed design for [iss-0041](../../.issues/iss-0041-multi-pass-ref-resolution.md).
+Detailed design for iss-0041.
 
 ## Current pipeline
 

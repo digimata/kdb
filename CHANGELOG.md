@@ -4,6 +4,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-02-26
+
+### Added
+
+- `kdb symbols` now accepts multiple paths and directories (iss-0042, iss-0044)
+  - directories are walked recursively, aggregating symbols from all supported files
+  - multi-file output shows `── path` headers between each file's symbols
+  - files are deduplicated when listed both explicitly and inside a directory
+- `-s/--symbol` restricted to single definition file targets
+
 ## [0.10.2] — 2026-02-26
 
 ### Changed
