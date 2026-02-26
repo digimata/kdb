@@ -9,45 +9,46 @@ use crate::lang::CodeLanguage;
 use crate::resolve::{ReexportBinding, ResolvedImport, extract_reexport_bindings};
 use crate::symbols::{Symbol, extract_symbols_from_tree, parse_tree};
 
-use super::scanner::{UsageScanner, scan_qualified_symbols};
+use super::scanner::{UsageScanner, scan_all_qualified_symbols};
 use super::scope::{ExportedNames, FollowedReexport, GlobSource, ModuleScope, ReexportTarget};
 use super::{SymbolKey, SymbolRef};
 
-// ----------------------------------------
+// -----------------------------------------
 // src/index/code.rs
 //
-// pub struct SymbolIndex               L54
-//   pub(super) fn build()              L63
-// struct CodeFileFacts                 L72
-//   fn new()                           L81
-//   fn snippet_for_line()              L92
-//   fn column_from_byte()              L99
-// struct Indexer                      L112
-//   fn new()                          L124
-//   fn build()                        L137
-//   fn load_code_files()              L158
-//   fn extract_symbols()              L185
-//   fn build_symbol_lookup()          L206
-//   fn build_reexport_lookup()        L219
-//   fn resolve_reexport_target()      L269
-//   fn build_module_scopes()          L308
-//   fn resolution_loop()              L332
-//   fn resolve_reexports()            L346
-//   fn expand_qualified_access()      L386
-//   fn propagate_glob_imports()       L428
-//   fn is_module_file()               L463
-//   fn exported_names()               L475
-//   fn follow_reexport_target()       L506
-//   fn symbol_exists()                L551
-//   fn symbol_keys()                  L558
-//   fn seed_definition_refs()         L569
-//   fn link_usage_refs()              L591
-//   fn link_go_same_package_refs()    L618
-//   fn insert_usage_refs()            L696
-//   fn insert_usage_row()             L720
-//   fn normalize_symbol_refs()        L745
-// fn symbol_key()                     L752
-// ----------------------------------------
+// pub struct SymbolIndex                L55
+//   pub(super) fn build()               L64
+// struct CodeFileFacts                  L73
+//   fn new()                            L82
+//   fn snippet_for_line()               L93
+//   fn column_from_byte()              L100
+// struct Indexer                       L113
+//   fn new()                           L134
+//   fn build()                         L148
+//   fn load_code_files()               L169
+//   fn extract_symbols()               L212
+//   fn build_symbol_lookup()           L233
+//   fn build_reexport_lookup()         L246
+//   fn resolve_reexport_target()       L296
+//   fn build_module_scopes()           L335
+//   fn precompute_qualified_cache()    L360
+//   fn resolution_loop()               L376
+//   fn resolve_reexports()             L391
+//   fn expand_qualified_access()       L431
+//   fn propagate_glob_imports()        L487
+//   fn is_module_file()                L522
+//   fn exported_names()                L534
+//   fn follow_reexport_target()        L565
+//   fn symbol_exists()                 L610
+//   fn symbol_keys()                   L617
+//   fn seed_definition_refs()          L628
+//   fn link_usage_refs()               L650
+//   fn link_go_same_package_refs()     L677
+//   fn insert_usage_refs()             L755
+//   fn insert_usage_row()              L779
+//   fn normalize_symbol_refs()         L804
+// fn symbol_key()                      L811
+// -----------------------------------------
 
 /// Declaration symbols and inbound references built for `kdb refs -s`.
 #[derive(Debug, Clone, Default)]
@@ -118,6 +119,15 @@ struct Indexer<'a> {
     reexport_lookup: HashMap<PathBuf, HashMap<String, Vec<ReexportTarget>>>,
     module_scopes: HashMap<PathBuf, ModuleScope>,
     symbol_refs: HashMap<SymbolKey, Vec<SymbolRef>>,
+    /// Cached qualified access patterns per file (object → {accessed symbols}).
+    /// Populated lazily by `expand_qualified_access`. Safe to cache across loop
+    /// iterations because qualified patterns are determined by source text alone
+    /// (tree-sitter parse of `a.b`, `a::b` patterns), not by scope state.
+    ///
+    /// INVARIANT: source files are read-only during indexing. If the indexer
+    /// ever mutates source text (e.g. macro expansion), this cache must be
+    /// invalidated.
+    qualified_cache: HashMap<PathBuf, HashMap<String, HashSet<String>>>,
 }
 
 impl<'a> Indexer<'a> {
@@ -131,6 +141,7 @@ impl<'a> Indexer<'a> {
             reexport_lookup: HashMap::new(),
             module_scopes: HashMap::new(),
             symbol_refs: HashMap::new(),
+            qualified_cache: HashMap::new(),
         }
     }
 
@@ -156,28 +167,44 @@ impl<'a> Indexer<'a> {
     // -----------------------------------------------------------------------
 
     fn load_code_files(&mut self) -> Result<()> {
-        for rel_path in self.imports.keys() {
-            let Some(language) = CodeLanguage::from_path(rel_path) else {
-                continue;
-            };
+        let root = self.root;
+        let results: Vec<_> = self
+            .imports
+            .keys()
+            .filter_map(|rel_path| {
+                let language = CodeLanguage::from_path(rel_path)?;
+                Some((rel_path.clone(), language))
+            })
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .filter_map(|(rel_path, language)| {
+                let abs_path = root.join(&rel_path);
+                let source = match fs::read_to_string(&abs_path) {
+                    Ok(source) => source,
+                    Err(error)
+                        if matches!(error.kind(), ErrorKind::InvalidData | ErrorKind::NotFound) =>
+                    {
+                        return None;
+                    }
+                    Err(error) => {
+                        return Some(
+                            Err(error)
+                                .with_context(|| format!("failed to read {}", rel_path.display())),
+                        );
+                    }
+                };
 
-            let abs_path = self.root.join(rel_path);
-            let source = match fs::read_to_string(&abs_path) {
-                Ok(source) => source,
-                Err(error)
-                    if matches!(error.kind(), ErrorKind::InvalidData | ErrorKind::NotFound) =>
-                {
-                    continue;
-                }
-                Err(error) => {
-                    return Err(error)
-                        .with_context(|| format!("failed to read {}", rel_path.display()));
-                }
-            };
+                let facts = match CodeFileFacts::new(language, source) {
+                    Ok(facts) => facts,
+                    Err(error) => return Some(Err(error)),
+                };
+                Some(Ok((rel_path, facts)))
+            })
+            .collect();
 
-            let facts = CodeFileFacts::new(language, source)
-                .with_context(|| format!("failed to parse {}", rel_path.display()))?;
-            self.files.insert(rel_path.clone(), facts);
+        for result in results {
+            let (rel_path, facts) = result?;
+            self.files.insert(rel_path, facts);
         }
         Ok(())
     }
@@ -328,8 +355,26 @@ impl<'a> Indexer<'a> {
         }
     }
 
+    /// Pre-compute qualified access patterns for all files in parallel.
+    /// Populates `qualified_cache` so the resolution loop never tree-walks.
+    fn precompute_qualified_cache(&mut self) {
+        let results: Vec<_> = self
+            .files
+            .par_iter()
+            .map(|(path, facts)| {
+                let map = scan_all_qualified_symbols(facts.language, &facts.source, &facts.tree);
+                (path.clone(), map)
+            })
+            .collect();
+
+        for (path, map) in results {
+            self.qualified_cache.insert(path, map);
+        }
+    }
+
     /// Fixed-point resolution loop — enriches module scopes until stable.
     fn resolution_loop(&mut self) {
+        self.precompute_qualified_cache();
         loop {
             let mut changed = false;
             changed |= self.resolve_reexports();
@@ -387,36 +432,50 @@ impl<'a> Indexer<'a> {
         let mut changed = false;
 
         // Collect (source_file, binding_name, target_file) triples where the
-        // target looks like a module file. Two-phase to avoid borrow conflicts.
-        let mut module_bindings = Vec::new();
+        // target looks like a module file. Group by source_file so we scan each
+        // file's qualified patterns once instead of per-binding.
+        let mut by_source: HashMap<PathBuf, Vec<(String, PathBuf)>> = HashMap::new();
         for (source_file, scope) in &self.module_scopes {
             for (name, targets) in &scope.bindings {
                 for target in targets {
                     if self.is_module_file(target, name) {
-                        module_bindings.push((source_file.clone(), name.clone(), target.clone()));
+                        by_source
+                            .entry(source_file.clone())
+                            .or_default()
+                            .push((name.clone(), target.clone()));
                     }
                 }
             }
         }
 
-        for (source_file, binding_name, module_file) in module_bindings {
-            let Some(facts) = self.files.get(&source_file) else {
-                continue;
-            };
-
-            let accessed = scan_qualified_symbols(facts.language, &facts.source, &binding_name);
+        for (source_file, module_bindings) in by_source {
+            // Use cached qualified patterns — source code doesn't change between
+            // loop iterations, so the tree walk result is stable.
+            let all_accessed = self
+                .qualified_cache
+                .entry(source_file.clone())
+                .or_insert_with(|| {
+                    let facts = &self.files[&source_file];
+                    scan_all_qualified_symbols(facts.language, &facts.source, &facts.tree)
+                })
+                .clone();
 
             let scope = self.module_scopes.get_mut(&source_file).unwrap();
-            for symbol_name in accessed {
-                if scope.bindings.contains_key(&symbol_name) {
+            for (binding_name, module_file) in module_bindings {
+                let Some(accessed) = all_accessed.get(&binding_name) else {
                     continue;
+                };
+                for symbol_name in accessed {
+                    if scope.bindings.contains_key(symbol_name) {
+                        continue;
+                    }
+                    let inserted = scope
+                        .bindings
+                        .entry(symbol_name.clone())
+                        .or_default()
+                        .insert(module_file.clone());
+                    changed |= inserted;
                 }
-                let inserted = scope
-                    .bindings
-                    .entry(symbol_name)
-                    .or_default()
-                    .insert(module_file.clone());
-                changed |= inserted;
             }
         }
 

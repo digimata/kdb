@@ -4,6 +4,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] — 2026-02-26
+
+### Changed
+
+- replace per-binding `scan_qualified_symbols` with single-pass `scan_all_qualified_symbols` that walks each file's tree once for all bindings (iss-0043)
+- cache qualified access patterns across resolution loop iterations to avoid redundant tree walks (iss-0043)
+- parallelize `load_code_files` with rayon — file I/O + tree-sitter parsing now concurrent (iss-0043)
+
+### Performance
+
+Benchmarks (warm, wall time):
+
+| Repo | Files | Before | After | Speedup |
+|---|---|---|---|---|
+| mio (Rust) | ~200 | 0.28s | 0.05s | 5.6x |
+| poetry (Python) | ~400 | 1.55s | 0.26s | 6x |
+| ripgrep (Rust) | ~300 | 4.00s | 0.17s | 24x |
+| tokio (Rust) | ~766 | 5.64s | 0.32s | 18x |
+| airstore (Go) | ~312 | 13.05s | 0.16s | 82x |
+| kubernetes (Go) | ~16k | ∞ (killed) | 9.0s | ∞ |
+
 ## [0.10.1] — 2026-02-25
 
 ### Changed

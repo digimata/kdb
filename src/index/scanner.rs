@@ -1,35 +1,35 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tree_sitter::Node;
 
 use crate::lang::CodeLanguage;
-use crate::symbols::{parse_tree, raw_node_text, walk_depth_first};
+use crate::symbols::{raw_node_text, walk_depth_first};
 
-// -------------------------------------------------
+// --------------------------------------------------
 // src/index/scanner.rs
 //
-// pub(super) struct IdentifierUsage             L37
-// pub(super) struct UsageScanner                L46
-//   pub fn new()                                L54
-//   pub fn collect()                            L63
-//   fn qualified_usage_for_node()              L109
-//   fn rust_qualified_usage()                  L133
-//   fn member_expression_usage()               L159
-//   fn go_qualified_usage()                    L190
-//   fn is_part_of_qualified_usage()            L210
-//   fn is_usage_identifier()                   L221
-// pub(super) fn rust_qualified_nodes()         L237
-// pub(super) fn rust_binding_name()            L247
-// fn go_qualified_nodes()                      L262
-// fn is_go_qualified_binding_node()            L276
-// fn is_rust_qualified_binding_node()          L292
-// fn is_member_object_node()                   L307
-// pub(super) fn is_import_identifier()         L319
-// fn is_import_node()                          L330
-// pub(super) fn is_declaration_identifier()    L348
-// fn node_is_field()                           L410
-// fn same_node()                               L416
-// pub(super) fn scan_qualified_symbols()       L426
-// -------------------------------------------------
+// pub(super) struct IdentifierUsage              L36
+// pub(super) struct UsageScanner                 L45
+//   pub fn new()                                 L53
+//   pub fn collect()                             L64
+//   fn qualified_usage_for_node()               L109
+//   fn rust_qualified_usage()                   L133
+//   fn member_expression_usage()                L159
+//   fn go_qualified_usage()                     L190
+//   fn is_part_of_qualified_usage()             L210
+//   fn is_usage_identifier()                    L221
+// pub(super) fn rust_qualified_nodes()          L237
+// pub(super) fn rust_binding_name()             L247
+// fn go_qualified_nodes()                       L262
+// fn is_go_qualified_binding_node()             L276
+// fn is_rust_qualified_binding_node()           L292
+// fn is_member_object_node()                    L307
+// pub(super) fn is_import_identifier()          L319
+// fn is_import_node()                           L330
+// pub(super) fn is_declaration_identifier()     L348
+// fn node_is_field()                            L410
+// fn same_node()                                L416
+// pub(super) fn scan_all_qualified_symbols()    L429
+// --------------------------------------------------
 
 /// A single identifier usage discovered by tree-sitter scanning.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -423,15 +423,15 @@ fn same_node(left: Node<'_>, right: Node<'_>) -> bool {
 /// `binding_name`. Returns the set of accessed symbol names.
 ///
 /// Handles `qualifier::Name` (Rust), `qualifier.name` (TS/Python/Go).
-pub(super) fn scan_qualified_symbols(
+/// Walk the tree once and collect ALL qualified access patterns: `object.field`,
+/// `path::name`, etc. Returns a map from object/path root name to the set of
+/// accessed symbol names. This avoids re-parsing the tree per binding.
+pub(super) fn scan_all_qualified_symbols(
     language: CodeLanguage,
     source: &str,
-    binding_name: &str,
-) -> HashSet<String> {
-    let mut accessed = HashSet::new();
-    let Ok(tree) = parse_tree(language, source) else {
-        return accessed;
-    };
+    tree: &tree_sitter::Tree,
+) -> HashMap<String, HashSet<String>> {
+    let mut result: HashMap<String, HashSet<String>> = HashMap::new();
     let source_bytes = source.as_bytes();
 
     walk_depth_first(tree.root_node(), |node| match language {
@@ -442,14 +442,14 @@ pub(super) fn scan_qualified_symbols(
             let Some(root_name) = rust_binding_name(path_node, source_bytes) else {
                 return;
             };
-            if root_name != binding_name {
-                return;
-            }
             if is_import_identifier(path_node) || is_import_identifier(name_node) {
                 return;
             }
             if let Some(name) = raw_node_text(name_node, source_bytes) {
-                accessed.insert(name.to_string());
+                result
+                    .entry(root_name.to_string())
+                    .or_default()
+                    .insert(name.to_string());
             }
         }
         CodeLanguage::Go => {
@@ -459,11 +459,11 @@ pub(super) fn scan_qualified_symbols(
             let Some(name) = raw_node_text(operand, source_bytes) else {
                 return;
             };
-            if name != binding_name {
-                return;
-            }
             if let Some(sym) = raw_node_text(field, source_bytes) {
-                accessed.insert(sym.to_string());
+                result
+                    .entry(name.to_string())
+                    .or_default()
+                    .insert(sym.to_string());
             }
         }
         CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
@@ -479,11 +479,11 @@ pub(super) fn scan_qualified_symbols(
             let Some(obj_name) = raw_node_text(obj, source_bytes) else {
                 return;
             };
-            if obj_name != binding_name {
-                return;
-            }
             if let Some(sym) = raw_node_text(prop, source_bytes) {
-                accessed.insert(sym.to_string());
+                result
+                    .entry(obj_name.to_string())
+                    .or_default()
+                    .insert(sym.to_string());
             }
         }
         CodeLanguage::Python => {
@@ -499,14 +499,14 @@ pub(super) fn scan_qualified_symbols(
             let Some(obj_name) = raw_node_text(obj, source_bytes) else {
                 return;
             };
-            if obj_name != binding_name {
-                return;
-            }
             if let Some(sym) = raw_node_text(attr, source_bytes) {
-                accessed.insert(sym.to_string());
+                result
+                    .entry(obj_name.to_string())
+                    .or_default()
+                    .insert(sym.to_string());
             }
         }
     });
 
-    accessed
+    result
 }
