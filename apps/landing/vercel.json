@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/install", "destination": "/install.sh" }
+  ]
+}

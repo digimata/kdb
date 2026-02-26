@@ -2,7 +2,7 @@
 
 This document defines the intended behavior of `kdb refs`. The eval suite
 (`tests/refs_eval.rs`) validates conformance. Known gaps are tracked in
-[iss-0039](../../.issues/iss-0039-refs-recall-gaps.md).
+[iss-0039](https://github.com/dremnik/kdb/issues/53).
 
 ## CLI
 
@@ -186,20 +186,17 @@ permanently excluded from `refs -s`:
 | Dynamic imports / reflection | Runtime constructs | `import()`, `getattr()`, `reflect` |
 | Wildcard import expansion | Requires type checker to enumerate names | `use crate::*`, `from x import *` |
 
-## Known gaps
+## Unsupported patterns
 
-Tracked in [iss-0039](../../.issues/iss-0039-refs-recall-gaps.md). Key open
-items:
+Patterns not yet handled by `kdb refs` (see [iss-0039](https://github.com/dremnik/kdb/issues/53) for history):
 
 - **Compound resolution** (iss-0041): grouped import + directory module +
   re-export chain don't compose in a single pass. Requires multi-pass
   pipeline.
 - **tsconfig path aliases** (iss-0039.8): `@/foo` mappings not resolved.
-- **TSX real-world** (iss-0039.10): JSX identifiers broken in real TSX files.
 - **Member access on imported value** (iss-0039.14): `Foo.method()` where
   `Foo` is a named import.
 - **Rust scoped imports** (iss-0039.12): `use` inside function bodies.
-- **Rust cfg-macro symbols** (iss-0039.13): symbols inside `cfg_if!` blocks.
 
 ## Per-language coverage
 

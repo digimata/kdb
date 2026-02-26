@@ -24,14 +24,7 @@ curl -fsSL https://kdb.kernl.sh/install | bash
 
 ## Remaining: Host at kdb.kernl.sh
 
-The install script and binary downloads need to be served from `kdb.kernl.sh`:
-
-- **`kdb.kernl.sh/install`** — serve `install.sh` so `curl -fsSL https://kdb.kernl.sh/install | bash` works
-- **Binary downloads** — either proxy to GitHub Releases or host directly
-- **Version endpoint** — `kdb.kernl.sh/latest` or similar, returns latest version tag (needed by iss-0054 self-update)
-- **Update install.sh** — point download URLs at `kdb.kernl.sh` instead of GitHub
-
-### Open questions
-
-- What's hosting the `kernl.sh` domain? (Cloudflare, Vercel, S3+CloudFront, etc.)
-- Proxy to GitHub releases vs mirror the binaries?
+- [x] `kdb.kernl.sh/install` — Vercel rewrite serves `public/install.sh`
+- [x] `kdb.kernl.sh/latest` — Route Handler proxies GitHub Releases API (5-min cache)
+- [x] `install.sh` updated to fetch version from `kdb.kernl.sh/latest`, binaries still from GitHub Releases
+- [ ] DNS: point `kdb.kernl.sh` CNAME → `cname.vercel-dns.com` and add custom domain in Vercel

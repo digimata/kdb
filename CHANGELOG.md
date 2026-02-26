@@ -4,6 +4,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [landing-0.2.0] — 2026-02-26
+
+### Added
+
+- `/install` endpoint — serves install script at `kdb.kernl.sh/install` via Vercel rewrite
+- `/latest` endpoint — Route Handler proxying GitHub Releases API for latest version tag (5-min cache)
+- `install.sh` now fetches version from `kdb.kernl.sh/latest` instead of GitHub API directly
+
+### Changed
+
+- removed `output: "export"` from Next.js config to enable serverless Route Handlers
+- deleted pre-built `out/` static export (Vercel builds on deploy)
+
 ## [0.16.0] — 2026-02-26
 
 ### Removed

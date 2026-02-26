@@ -49,12 +49,7 @@ detect_platform() {
 
 fetch_latest_tag() {
     info "fetching latest release..."
-    TAG="$(
-        curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-            | grep '"tag_name"' \
-            | head -1 \
-            | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/'
-    )"
+    TAG="$(curl -fsSL "https://kdb.kernl.sh/latest" | tr -d '[:space:]')"
 
     if [ -z "$TAG" ]; then
         err "could not determine latest release"
