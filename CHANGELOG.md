@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] — 2026-02-26
+
+### Added
+
+- `kdb update` command — checks for newer releases and self-updates the binary in place (iss-0054)
+- `kdb update --check` — prints version info without installing
+
 ## [0.17.0] — 2026-02-26
 
 ### Changed

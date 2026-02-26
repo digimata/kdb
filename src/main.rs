@@ -120,6 +120,12 @@ enum Command {
         /// Optional starting path to discover kdb root from.
         path: Option<PathBuf>,
     },
+    /// Check for updates and self-update the binary.
+    Update {
+        /// Only check for a newer version without installing.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[tokio::main]
@@ -167,6 +173,7 @@ async fn main() {
         Command::Graph { path } => kdb::cmd::graph(path),
         Command::Fmt { path } => kdb::cmd::format(path),
         Command::Lsp { path } => kdb::lsp::serve(path).await,
+        Command::Update { check } => kdb::cmd::update(check),
     };
 
     if let Err(error) = result {

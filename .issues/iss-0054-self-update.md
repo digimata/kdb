@@ -1,7 +1,7 @@
 ---
 id: 54
 title: "Self-update command"
-status: proposed
+status: done
 priority: medium
 labels:
   - feat

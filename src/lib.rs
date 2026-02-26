@@ -26,6 +26,7 @@ pub mod project;
 pub mod resolve;
 pub mod symbols;
 pub mod tree;
+pub mod update;
 
 // ----------------------
 // src/lib.rs
@@ -40,4 +41,5 @@ pub mod tree;
 // pub mod resolve    L26
 // pub mod symbols    L27
 // pub mod tree       L28
+// pub mod update     L29
 // ----------------------

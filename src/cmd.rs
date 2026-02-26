@@ -15,6 +15,7 @@ use crate::lang::CodeLanguage;
 use crate::project::{self, ProjectContext};
 use crate::symbols;
 use crate::tree;
+use crate::update;
 
 // --------------------------------------
 // src/cmd.rs
@@ -32,6 +33,7 @@ use crate::tree;
 // pub fn deps()                     L350
 // pub fn graph()                    L385
 // pub fn format()                   L399
+// pub fn update()                   L432
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -427,4 +429,12 @@ pub fn format(path: Option<PathBuf>) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Check for updates and optionally self-update the binary.
+///
+/// When `check_only` is true, prints version info without replacing the binary.
+pub fn update(check_only: bool) -> Result<()> {
+    let updater = update::Updater::new();
+    updater.run(check_only)
 }
