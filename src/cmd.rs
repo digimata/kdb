@@ -163,6 +163,10 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
     fs::write(&config, default_config)
         .with_context(|| format!("failed to write {}", config.display()))?;
 
+    let ignore_path = marker_dir.join("ignore");
+    fs::write(&ignore_path, project::ignore::DEFAULT_IGNORE)
+        .with_context(|| format!("failed to write {}", ignore_path.display()))?;
+
     println!("initialized kdb project at {}\n", root.display());
 
     // Pre-warm the persistent index so the first refs/deps/check is instant.

@@ -46,7 +46,6 @@ use crate::symbols::extract_symbols;
 // fn rel_path_from_root()                         L522
 // ----------------------------------------------------
 
-pub(super) use crate::project::ignore::ALWAYS_IGNORED_DIRS;
 pub(super) use crate::project::ignore::{build_ignore_globset, path_is_ignored};
 pub(super) use crate::project::paths::normalize_rel_path;
 
@@ -308,11 +307,6 @@ fn discover_code_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>
             };
             if rel.as_os_str().is_empty() {
                 return true;
-            }
-
-            let name = entry.file_name().to_string_lossy();
-            if ALWAYS_IGNORED_DIRS.contains(&name.as_ref()) {
-                return false;
             }
 
             !path_is_ignored(ignore_set, &rel, true)

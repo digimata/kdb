@@ -18,7 +18,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::index::{FileEntry, Heading, Link, LinkKind, LinkTarget};
 use crate::lang::CodeLanguage;
 use crate::project::discover::discover_files;
-use crate::project::ignore::{ALWAYS_IGNORED_DIRS, build_ignore_globset};
+use crate::project::ignore::build_ignore_globset;
 use crate::resolve::{
     ImportKind, ImportNames, ResolvedImport, WorkspaceCaches, resolve_imports_for_language,
 };
@@ -277,7 +277,7 @@ pub(crate) fn incremental_build(
 
     // 4. Discover all markdown + code files.
     let ignore_set = build_ignore_globset(ignore_patterns)?;
-    let all_files = discover_files(root, root, &ignore_set, ALWAYS_IGNORED_DIRS)?;
+    let all_files = discover_files(root, root, &ignore_set)?;
 
     let md_files: Vec<PathBuf> = all_files
         .iter()

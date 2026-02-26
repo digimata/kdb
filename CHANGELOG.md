@@ -4,6 +4,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] — 2026-02-26
+
+### Added
+
+- configurable ignore patterns via `.kdb/ignore` — replaces the hardcoded `ALWAYS_IGNORED_DIRS` list with a user-editable file created by `kdb init`, using gitignore-style syntax; existing projects without the file fall back to the same defaults for backwards compatibility (iss-0050)
+
 ## [0.13.0] — 2026-02-26
 
 ### Added

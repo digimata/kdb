@@ -323,7 +323,6 @@ pub fn expand_paths(
                 &project.root,
                 &dir_abs,
                 &project.ignore_set,
-                project::ignore::ALWAYS_IGNORED_DIRS,
             )?;
             for rel in discovered {
                 if is_symbol_file(&rel) && seen.insert(rel.clone()) {

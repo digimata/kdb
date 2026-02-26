@@ -1,7 +1,7 @@
 ---
 id: 50
 title: "Configurable ignore patterns via .kdb/ignore"
-status: proposed
+status: done
 priority: medium
 labels:
   - enhancement

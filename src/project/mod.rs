@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 // pub mod root                 L11
 // pub struct ProjectContext    L35
 //   pub fn discover()          L49
-//   pub fn from_root()         L58
+//   pub fn from_root()         L59
 // --------------------------------
 
 /// Shared project state: root path, ignore patterns, and compiled matchers.
@@ -54,12 +54,15 @@ impl ProjectContext {
     /// Build context from a known root path.
     ///
     /// Useful when the root is already known (e.g. LSP backend after
-    /// initialization).
+    /// initialization).  Merges patterns from `.kdb/ignore` and
+    /// `config.toml [index].ignore` into a single compiled globset.
     pub fn from_root(root: PathBuf) -> Result<Self> {
         let root = root
             .canonicalize()
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
-        let ignore_patterns = config::load_index_ignores(&root)?;
+        let mut ignore_patterns = ignore::load_ignore_file(&root)?;
+        let config_patterns = config::load_index_ignores(&root)?;
+        ignore_patterns.extend(config_patterns);
         let ignore_set = ignore::build_ignore_globset(&ignore_patterns)?;
         Ok(Self {
             root,

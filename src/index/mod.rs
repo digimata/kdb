@@ -85,7 +85,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 use crate::project::discover::discover_files;
-use crate::project::ignore::{ALWAYS_IGNORED_DIRS, build_ignore_globset, path_is_ignored};
+use crate::project::ignore::{build_ignore_globset, path_is_ignored};
 use crate::project::paths::normalize_rel_path;
 use crate::resolve::{
     GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, WorkspaceCaches, WorkspacePackages,
@@ -796,7 +796,7 @@ impl ResolveError {
 // ---------------------------------------------------------------------------
 
 fn discover_markdown_files(root: &Path, ignore_set: &GlobSet) -> Result<Vec<PathBuf>> {
-    let paths = discover_files(root, root, ignore_set, ALWAYS_IGNORED_DIRS)?;
+    let paths = discover_files(root, root, ignore_set)?;
     Ok(paths
         .into_iter()
         .filter(|rel| {

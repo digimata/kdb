@@ -9,31 +9,26 @@ use std::sync::{Arc, Mutex};
 use super::ignore::path_is_ignored;
 use super::paths::normalize_rel_path;
 
-// -------------------------------
+// ------------------------------
 // src/project/discover.rs
 //
-// pub fn discover_files()     L25
-// fn rel_path_from_root()     L99
-// fn should_visit_entry()    L104
-// -------------------------------
+// pub fn discover_files()    L25
+// fn rel_path_from_root()    L94
+// fn should_visit_entry()    L99
+// ------------------------------
 
 /// Discover files under `scope` and return sorted relative paths from `root`.
 ///
 /// Discovery honors `.gitignore` and `.ignore` files through
-/// `ignore::WalkBuilder`, plus user-defined `ignore_set` patterns and
-/// caller-specified always-ignored directory names.
+/// `ignore::WalkBuilder`, plus the compiled `ignore_set` (which already
+/// includes `.kdb/ignore` patterns, config patterns, and the `.kdb` dir).
 pub fn discover_files(
     root: &Path,
     scope: &Path,
     ignore_set: &GlobSet,
-    ignored_dirs: &[&str],
 ) -> Result<Vec<PathBuf>> {
     let root = root.to_path_buf();
     let ignore_set = ignore_set.clone();
-    let ignored_dirs = ignored_dirs
-        .iter()
-        .map(|name| (*name).to_string())
-        .collect::<Vec<_>>();
 
     let mut walker = WalkBuilder::new(scope);
     walker
@@ -48,7 +43,7 @@ pub fn discover_files(
         .filter_entry({
             let root = root.clone();
             let ignore_set = ignore_set.clone();
-            move |entry| should_visit_entry(entry, &root, &ignore_set, &ignored_dirs)
+            move |entry| should_visit_entry(entry, &root, &ignore_set)
         });
 
     let collected = Arc::new(Mutex::new(Vec::new()));
@@ -105,7 +100,6 @@ fn should_visit_entry(
     entry: &DirEntry,
     root: &Path,
     ignore_set: &GlobSet,
-    ignored_dirs: &[String],
 ) -> bool {
     let is_dir = entry
         .file_type()
@@ -116,13 +110,6 @@ fn should_visit_entry(
 
     if rel.as_os_str().is_empty() {
         return true;
-    }
-
-    if is_dir {
-        let name = entry.file_name().to_string_lossy();
-        if ignored_dirs.iter().any(|ignored| ignored == name.as_ref()) {
-            return false;
-        }
     }
 
     !path_is_ignored(ignore_set, &rel, is_dir)

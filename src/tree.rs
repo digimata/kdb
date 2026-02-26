@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::project::ignore::{ALWAYS_IGNORED_DIRS, build_ignore_globset};
+use crate::project::ignore::build_ignore_globset;
 use crate::project::paths::normalize_rel_path;
 
 // -----------------------------------
@@ -317,9 +317,6 @@ fn is_ignored_path(
         .file_name()
         .and_then(|value| value.to_str())
         .unwrap_or_default();
-    if is_dir && ALWAYS_IGNORED_DIRS.contains(&file_name) {
-        return true;
-    }
 
     if !show_hidden && file_name.starts_with('.') {
         return true;

@@ -17,13 +17,14 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0042 — Symbols: Directory Target](iss-0042-symbols-directory-target.md) | enhancement | done | medium |
 | [0044 — Symbols: Multi-Path Arguments](iss-0044-symbols-multi-path.md) | enhancement | done | medium |
 | [0046 — Profile and Optimize `refs -s` Performance](iss-0046-refs-performance.md) | perf | proposed | medium |
-| [0050 — Configurable Ignore Patterns via `.kdb/ignore`](iss-0050-configurable-ignore-patterns.md) | enhancement | proposed | medium |
+| [0050 — Configurable Ignore Patterns via `.kdb/ignore`](iss-0050-configurable-ignore-patterns.md) | enhancement | done | medium |
 | [0047 — Benchmark Agent Performance With/Without kdb](iss-0047-agent-benchmark.md) | research | proposed | medium |
 | [0021 — kdb graph Command](iss-0021-graph-command.md) | feat | proposed | medium |
 | [0001 — KDB Workspaces](iss-0001-kdb-workspaces.md) | feat | proposed | medium |
 | [0002 — Templates](iss-0002-templates.md) | feat | proposed | medium |
 | [0008 — Installable KDB Packages](iss-0008-installable-packages.md) | feat | proposed | medium |
 | [0040 — C# Language Support](iss-0040-csharp-language-support.md) | feat | proposed | medium |
+| [0051 — Landing Page](iss-0051-landing-page.md) | feat | proposed | medium |
 | [0004 — Canvas Support](iss-0004-canvas-support.md) | feat | proposed | low |
 
 Labels: `feat` · `bug` · `refactor` · `chore`

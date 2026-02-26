@@ -2211,6 +2211,10 @@ fn init_creates_kdb_directory_and_default_config() {
     let config = fs::read_to_string(root.join(".kdb/config.toml")).expect("read config");
     assert!(config.contains("[project]"));
     assert!(config.contains(&format!("name = \"{expected_name}\"")));
+
+    let ignore = fs::read_to_string(root.join(".kdb/ignore")).expect("read ignore");
+    assert!(ignore.contains("target"), ".kdb/ignore should contain default patterns");
+    assert!(ignore.contains("node_modules"), ".kdb/ignore should contain node_modules");
 }
 
 #[test]

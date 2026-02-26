@@ -476,11 +476,6 @@ fn discover_python_project_roots(root: &Path, ignore_set: &GlobSet) -> Vec<PathB
                 return true;
             }
 
-            let name = entry.file_name().to_string_lossy();
-            if super::ALWAYS_IGNORED_DIRS.contains(&name.as_ref()) {
-                return false;
-            }
-
             !super::path_is_ignored(ignore_set, &rel, true)
         })
         .filter_map(std::result::Result::ok)

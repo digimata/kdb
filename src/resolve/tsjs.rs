@@ -12,7 +12,7 @@ use crate::lang::CodeLanguage;
 use crate::symbols::{raw_node_text, walk_depth_first};
 
 use super::{
-    ALWAYS_IGNORED_DIRS, ImportKind, ImportNames, LanguageResolver, ReexportBinding,
+    ImportKind, ImportNames, LanguageResolver, ReexportBinding,
     ResolvedImport, WorkspacePackages, normalize_identifier, normalize_rel_path, path_is_ignored,
     resolve_file, resolve_with_exts, sanitize_specifier, slash_path, to_root_relative,
 };
@@ -695,11 +695,6 @@ pub(super) fn discover_workspace_packages(root: &Path, ignore_set: &GlobSet) -> 
                 return true;
             }
 
-            let name = entry.file_name().to_string_lossy();
-            if ALWAYS_IGNORED_DIRS.contains(&name.as_ref()) {
-                return false;
-            }
-
             !path_is_ignored(ignore_set, &rel, true)
         })
         .filter_map(std::result::Result::ok)
@@ -1104,5 +1099,23 @@ impl WorkspaceMatch {
             }
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn multi_named_import_collects_all_names() {
+        let source = "import { Foo, Bar } from './target';\nFoo();\n";
+        let source_file = PathBuf::from("src/caller.ts");
+        let requests = TsjsResolver::collect_requests(&source_file, source);
+        assert_eq!(requests.len(), 1);
+        let names = &requests[0].names;
+        eprintln!("locals: {:?}", names.locals);
+        assert!(names.locals.contains(&"Foo".to_string()), "missing Foo");
+        assert!(names.locals.contains(&"Bar".to_string()), "missing Bar");
     }
 }

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use crate::lang::CodeLanguage;
 use crate::project::discover::discover_files;
-use crate::project::ignore::{ALWAYS_IGNORED_DIRS, build_ignore_globset};
+use crate::project::ignore::build_ignore_globset;
 use crate::symbols::{Symbol, extract_symbols, format_symbol_display};
 
 pub mod preamble;
@@ -447,7 +447,7 @@ fn discover_code_files_in_scope(
     scope: &Path,
     ignore_set: &GlobSet,
 ) -> Result<Vec<PathBuf>> {
-    let paths = discover_files(root, scope, ignore_set, ALWAYS_IGNORED_DIRS)?;
+    let paths = discover_files(root, scope, ignore_set)?;
     Ok(paths
         .into_iter()
         .filter(|rel| CodeLanguage::from_path(rel).is_some())
