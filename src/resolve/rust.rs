@@ -17,57 +17,61 @@ use super::{
 // --------------------------------------------
 // src/resolve/rust.rs
 //
-// enum SourceImport                        L74
-// struct RustImportCollector               L79
-//   fn new()                               L85
-//   fn collect()                           L92
-//   fn parse_tree()                       L117
-//   fn parse_mod_item()                   L124
-//   fn parse_use_declaration()            L151
-//   fn parse_use_path()                   L163
-//   fn use_path_from_text()               L175
-//   fn first_named_child_of_kind()        L190
-// fn collect_source_imports()             L198
-// pub(crate) fn collect_mod_and_use()     L203
-// pub(crate) fn collect_reexports()       L218
-// fn is_public_use_declaration()          L265
-// struct ParsedManifest                   L280
-//   fn parse()                            L289
-//   fn src_root()                         L330
-// struct LocalDependency                  L339
-// pub struct RustWorkspaceCrate           L349
-// pub struct RustWorkspaceCache           L359
-//   pub(super) fn build()                 L366
-// pub(crate) struct RustResolver          L437
-//   pub(super) fn new()                   L444
-//   fn resolve_source()                   L450
-//   fn resolve()                          L507
-// struct CrateContext                     L515
-//   fn from_workspace()                   L526
-//   fn resolve_mod_decl()                 L563
-//   fn resolve_use()                      L585
-// fn discover_manifest_paths()            L662
-// fn parse_crate_root_files()             L714
-// fn push_manifest_entry_path()           L739
-// fn default_crate_root_files()           L749
-// fn normalize_manifest_path()            L758
-// fn collect_dependency_sections()        L768
-// fn parse_local_dependency()             L801
-// fn resolve_dependency_root()            L857
-// fn crate_root_for_name()                L882
-// fn crate_import_name()                  L896
-// fn parse_use_prefix()                   L901
-// fn find_crate_root()                    L915
-// fn classify_use_kind()                  L935
-// fn rust_module_path()                   L958
-// fn rust_crate_entry_path()              L976
-// fn rust_file_candidates()               L993
-// fn looks_like_module_segment()         L1002
-// fn source_segments()                   L1011
-// fn imported_names()                    L1035
-// fn split_brace_group()                 L1090
-// fn last_segment()                      L1103
-// fn dedupe_names()                      L1120
+// enum SourceImport                        L78
+// struct RustImportCollector               L83
+//   fn new()                               L89
+//   fn collect()                           L96
+//   fn parse_tree()                       L121
+//   fn parse_mod_item()                   L128
+//   fn parse_use_declaration()            L155
+//   fn parse_use_path()                   L167
+//   fn use_path_from_text()               L179
+//   fn first_named_child_of_kind()        L194
+// fn collect_source_imports()             L202
+// pub(crate) fn collect_mod_and_use()     L207
+// pub(crate) fn collect_reexports()       L222
+// fn is_public_use_declaration()          L269
+// struct ParsedManifest                   L284
+//   fn parse()                            L293
+//   fn src_root()                         L334
+// struct LocalDependency                  L343
+// pub struct RustWorkspaceCrate           L353
+// pub struct RustWorkspaceCache           L363
+//   pub(super) fn build()                 L370
+// pub(crate) struct RustResolver          L441
+//   pub(super) fn new()                   L448
+//   fn resolve_source()                   L454
+//   fn resolve()                          L527
+// struct CrateContext                     L535
+//   fn from_workspace()                   L546
+//   fn resolve_mod_decl()                 L583
+//   fn resolve_use()                      L605
+// fn discover_manifest_paths()            L682
+// fn parse_crate_root_files()             L734
+// fn push_manifest_entry_path()           L759
+// fn default_crate_root_files()           L769
+// fn normalize_manifest_path()            L778
+// fn collect_dependency_sections()        L788
+// fn parse_local_dependency()             L821
+// fn resolve_dependency_root()            L877
+// fn crate_root_for_name()                L902
+// fn crate_import_name()                  L916
+// fn parse_use_prefix()                   L921
+// fn parse_use_head()                     L933
+// fn single_group_item_path()             L945
+// fn find_crate_root()                    L970
+// fn classify_use_kind()                  L990
+// fn rust_module_path()                  L1013
+// fn rust_crate_entry_path()             L1031
+// fn rust_file_candidates()              L1048
+// fn looks_like_module_segment()         L1057
+// fn source_segments()                   L1066
+// fn imported_names()                    L1090
+// fn split_brace_group()                 L1145
+// fn split_brace_items()                 L1160
+// fn expand_brace_imports()              L1190
+// fn last_segment()                      L1227
+// fn dedupe_names()                      L1244
 // --------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -215,11 +219,10 @@ pub(crate) fn collect_mod_and_use(source: &str) -> (Vec<String>, Vec<String>) {
 }
 
 /// Collect public `use` re-export bindings (`pub use ...`) from Rust source.
-pub(crate) fn collect_reexports(source: &str) -> Vec<ReexportBinding> {
+///
+/// The `tree` must have been parsed from `source`.
+pub(crate) fn collect_reexports(source: &str, tree: &tree_sitter::Tree) -> Vec<ReexportBinding> {
     let collector = RustImportCollector::new(source);
-    let Some(tree) = collector.parse_tree() else {
-        return Vec::new();
-    };
 
     let mut bindings = Vec::new();
     walk_depth_first(tree.root_node(), |node| {
@@ -475,6 +478,22 @@ impl<'a> RustResolver<'a> {
                     let resolved_path = prefix
                         .as_deref()
                         .and_then(|value| crate_context.resolve_use(self.root, source_file, value));
+
+                    // Multi-item brace group where the base alone didn't
+                    // resolve: expand each item into its own ResolvedImport.
+                    if resolved_path.is_none() {
+                        if let Some(expanded) = expand_brace_imports(
+                            &path,
+                            line,
+                            &crate_context,
+                            self.root,
+                            source_file,
+                        ) {
+                            imports.extend(expanded);
+                            continue;
+                        }
+                    }
+
                     let kind = classify_use_kind(prefix.as_deref(), resolved_path.is_some());
 
                     let mut names = imported_names(&path);
@@ -899,6 +918,18 @@ fn crate_import_name(raw: &str) -> Option<String> {
 
 /// Extract the use-path prefix before any brace group, comma, or `as` alias.
 fn parse_use_prefix(path: &str) -> Option<String> {
+    if let Some((prefix, body)) = split_brace_group(path.trim()) {
+        let base = parse_use_head(prefix)?;
+        if let Some(segment) = single_group_item_path(body) {
+            return Some(format!("{base}::{segment}"));
+        }
+        return Some(base);
+    }
+
+    parse_use_head(path)
+}
+
+fn parse_use_head(path: &str) -> Option<String> {
     let head = path.split('{').next().unwrap_or(path).trim();
     let head = head.split(',').next().unwrap_or(head).trim();
     let head = head.split(" as ").next().unwrap_or(head).trim();
@@ -908,6 +939,29 @@ fn parse_use_prefix(path: &str) -> Option<String> {
     } else {
         Some(head.to_string())
     }
+}
+
+fn single_group_item_path(body: &str) -> Option<String> {
+    let mut items = body
+        .split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty() && *item != "*");
+
+    let item = items.next()?;
+    if items.next().is_some() || item == "self" {
+        return None;
+    }
+
+    let item_path = item
+        .split_once(" as ")
+        .map(|(original, _)| original.trim())
+        .unwrap_or(item)
+        .trim();
+    if item_path.is_empty() {
+        return None;
+    }
+
+    Some(item_path.to_string())
 }
 
 /// Walk up from `source_file` to find the nearest directory containing a
@@ -1097,6 +1151,75 @@ fn split_brace_group(input: &str) -> Option<(&str, &str)> {
         input[..start].trim_end_matches(':').trim(),
         &input[start + 1..end],
     ))
+}
+
+/// Split the body of a brace group into individual items, respecting nested
+/// braces so that `event::{self, Source}, Token` yields two items rather than
+/// splitting inside the nested group.
+fn split_brace_items(body: &str) -> Vec<&str> {
+    let mut items = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0;
+
+    for (i, ch) in body.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                let item = body[start..i].trim();
+                if !item.is_empty() {
+                    items.push(item);
+                }
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+
+    let last = body[start..].trim();
+    if !last.is_empty() {
+        items.push(last);
+    }
+
+    items
+}
+
+/// Expand a multi-item brace group into per-item resolved imports. Returns
+/// `None` when the path is not a multi-item brace group (fast-path exits).
+fn expand_brace_imports(
+    path: &str,
+    line: usize,
+    crate_context: &CrateContext,
+    root: &Path,
+    source_file: &Path,
+) -> Option<Vec<ResolvedImport>> {
+    let (prefix, body) = split_brace_group(path.trim())?;
+    let base = parse_use_head(prefix)?;
+    let items = split_brace_items(body);
+    if items.len() < 2 {
+        return None;
+    }
+
+    let mut result = Vec::new();
+    for item in items {
+        let full_path = format!("{base}::{item}");
+        let item_prefix = parse_use_prefix(&full_path);
+        let resolved_path = item_prefix
+            .as_deref()
+            .and_then(|value| crate_context.resolve_use(root, source_file, value));
+        let kind = classify_use_kind(item_prefix.as_deref(), resolved_path.is_some());
+        let names = imported_names(&full_path);
+
+        result.push(ResolvedImport {
+            raw: full_path,
+            resolved_path,
+            kind,
+            names,
+            line,
+        });
+    }
+
+    Some(result)
 }
 
 /// Extract and normalize the last `::` segment from a use path.

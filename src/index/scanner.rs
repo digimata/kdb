@@ -1,4 +1,3 @@
-use anyhow::Result;
 use std::collections::HashSet;
 use tree_sitter::Node;
 
@@ -60,12 +59,13 @@ impl UsageScanner {
     }
 
     /// Collect all identifier usages matching imported names.
-    pub fn collect(&self) -> Result<Vec<IdentifierUsage>> {
+    ///
+    /// The `tree` must have been parsed from the same source passed to `new()`.
+    pub fn collect(&self, tree: &tree_sitter::Tree) -> Vec<IdentifierUsage> {
         if self.imported_names.is_empty() {
-            return Ok(Vec::new());
+            return Vec::new();
         }
 
-        let tree = parse_tree(self.language, &self.source)?;
         let source_bytes = self.source.as_bytes();
         let mut usages = Vec::new();
 
@@ -103,7 +103,7 @@ impl UsageScanner {
 
         usages.sort();
         usages.dedup();
-        Ok(usages)
+        usages
     }
 
     fn qualified_usage_for_node(

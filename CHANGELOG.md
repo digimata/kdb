@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] — 2026-02-25
+
+### Changed
+
+- parse tree-sitter tree once per file and reuse across symbol extraction, reexport collection, and usage scanning (iss-0043)
+- parallelize per-file indexer phases (extract_symbols, build_reexport_lookup, link_usage_refs, link_go_same_package_refs) with rayon (iss-0043)
+
 ## [0.10.0] — 2026-02-25
 
 ### Changed

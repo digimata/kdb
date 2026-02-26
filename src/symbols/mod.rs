@@ -154,19 +154,32 @@ impl<'src> Extractor<'src> {
 }
 
 /// Parse source and extract language-appropriate symbols.
+///
+/// Convenience wrapper that parses internally. Prefer
+/// [`extract_symbols_from_tree`] when a pre-parsed tree is available.
 pub fn extract_symbols(language: CodeLanguage, source: &str) -> Result<Vec<Symbol>> {
-    let root_tree = tree::parse_tree(language, source)?;
-    let root = root_tree.root_node();
+    let tree = tree::parse_tree(language, source)?;
+    Ok(extract_symbols_from_tree(language, source, &tree))
+}
+
+/// Extract language-appropriate symbols from a pre-parsed tree-sitter tree.
+///
+/// The `tree` must have been parsed from `source` — callers parse once and
+/// pass both to avoid redundant parsing.
+pub fn extract_symbols_from_tree(
+    language: CodeLanguage,
+    source: &str,
+    tree: &tree_sitter::Tree,
+) -> Vec<Symbol> {
+    let root = tree.root_node();
     let source_bytes = source.as_bytes();
 
-    let symbols = match language {
+    match language {
         CodeLanguage::Rust => extract::extract_rust(root, source_bytes),
         CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
             extract::extract_typescript(root, source_bytes)
         }
         CodeLanguage::Python => extract::extract_python(root, source_bytes),
         CodeLanguage::Go => extract::extract_go(root, source_bytes),
-    };
-
-    Ok(symbols)
+    }
 }

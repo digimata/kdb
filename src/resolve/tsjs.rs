@@ -1,7 +1,7 @@
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
-use oxc_resolver::{ResolveOptions, Resolver, TsconfigDiscovery};
+use unrs_resolver::{ResolveOptions, Resolver, TsconfigOptions, TsconfigReferences};
 use serde_json::Value;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -17,56 +17,60 @@ use super::{
     resolve_file, resolve_with_exts, sanitize_specifier, slash_path, to_root_relative,
 };
 
-// ---------------------------------------------------
+// ----------------------------------------------------
 // src/resolve/tsjs.rs
 //
-// const TSJS_EXTS                                 L71
-// pub(crate) struct TsjsResolver                  L77
-// enum ImportPattern                              L84
-// struct ImportRequest                            L93
-//   pub(super) fn new()                          L100
-//   pub(super) fn resolve()                      L130
-//   fn classify_local_kind()                     L165
-//   fn resolve_workspace_specifier()             L177
-//   fn collect_requests()                        L181
-//   fn parse_tree()                              L203
-//   fn resolve()                                 L226
-//   fn classify()                                L233
-//   fn parse()                                   L268
-//   fn source_field()                            L312
-//   fn require_arg()                             L320
-//   fn bindings_before_source()                  L327
-//   fn declarator_name()                         L347
-//   fn first_named_child_of_kind()               L364
-//   fn string_literal_value()                    L370
-// struct ImportBindings                          L397
-//   fn from_import()                             L404
-//   fn from_require()                            L421
-//   fn from_braced()                             L436
-//   fn parse_segment()                           L473
-//   fn dedupe()                                  L497
-// pub(crate) fn collect_specifiers()             L509
-// pub(super) fn discover_workspace_packages()    L522
-// struct WorkspacePatternSet                     L600
-//   fn discover()                                L607
-//   fn compile_include()                         L633
-//   fn compile_exclude()                         L637
-//   fn path_allowed()                            L641
-//   fn read_pnpm_patterns()                      L660
-//   fn read_package_json_patterns()              L706
-//   fn compile_globset()                         L743
-//   fn globset_matches()                         L759
-// struct PackageManifest                         L776
-//   fn read_name()                               L779
-//   fn read_json()                               L789
-// struct WorkspaceMatch                          L800
-//   fn find()                                    L807
-//   fn resolve()                                 L817
-//   fn split_specifier()                         L869
-//   fn resolve_target()                          L899
-//   fn export_target()                           L910
-//   fn first_export_string()                     L940
-// ---------------------------------------------------
+// const TSJS_EXTS                                  L75
+// pub(crate) struct TsjsResolver                   L85
+// enum ImportPattern                               L93
+// struct ImportRequest                            L102
+//   pub(super) fn new()                           L111
+//   pub(super) fn resolve()                       L147
+//   fn resolver_for()                             L185
+//   fn base_options()                             L198
+//   fn classify_local_kind()                      L222
+//   fn resolve_workspace_specifier()              L234
+//   fn collect_requests()                         L238
+//   fn parse_tree()                               L260
+//   fn resolve()                                  L283
+//   fn classify()                                 L290
+//   fn parse()                                    L325
+//   fn source_field()                             L369
+//   fn require_arg()                              L377
+//   fn bindings_before_source()                   L384
+//   fn declarator_name()                          L404
+//   fn first_named_child_of_kind()                L421
+//   fn string_literal_value()                     L427
+// struct ImportBindings                           L454
+//   fn from_import()                              L461
+//   fn from_require()                             L483
+//   fn from_braced()                              L500
+//   fn parse_segment()                            L554
+//   fn dedupe()                                   L582
+// pub(crate) fn collect_reexports()               L595
+// fn export_specifier_names()                     L647
+// pub(crate) fn collect_specifiers()              L662
+// pub(super) fn discover_workspace_packages()     L675
+// struct WorkspacePatternSet                      L753
+//   fn discover()                                 L760
+//   fn compile_include()                          L786
+//   fn compile_exclude()                          L790
+//   fn path_allowed()                             L794
+//   fn read_pnpm_patterns()                       L813
+//   fn read_package_json_patterns()               L859
+//   fn compile_globset()                          L896
+//   fn globset_matches()                          L912
+// struct PackageManifest                          L929
+//   fn read_name()                                L932
+//   fn read_json()                                L942
+// struct WorkspaceMatch                           L953
+//   fn find()                                     L960
+//   fn resolve()                                  L970
+//   fn split_specifier()                         L1022
+//   fn resolve_target()                          L1052
+//   fn export_target()                           L1063
+//   fn first_export_string()                     L1093
+// ----------------------------------------------------
 
 const TSJS_EXTS: &[&str] = &[
     "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "d.ts", "d.mts", "d.cts",
@@ -74,9 +78,14 @@ const TSJS_EXTS: &[&str] = &[
 
 /// Resolves TypeScript/JavaScript import and require statements against the
 /// workspace packages and tsconfig paths.
+///
+/// Holds one resolver per workspace package (keyed by package root) so that
+/// each package's `tsconfig.json` `paths` aliases are resolved correctly.
+/// Files outside any package fall back to the root-level resolver.
 pub(crate) struct TsjsResolver<'a> {
     root: &'a Path,
-    resolver: Resolver,
+    package_resolvers: HashMap<PathBuf, Resolver>,
+    fallback: Resolver,
     workspace_packages: &'a WorkspacePackages,
 }
 
@@ -97,38 +106,48 @@ struct ImportRequest {
 }
 
 impl<'a> TsjsResolver<'a> {
+    /// Build per-package resolvers for every workspace package that has a
+    /// `tsconfig.json`, plus a fallback resolver for the project root.
     pub(super) fn new(root: &'a Path, workspace_packages: &'a WorkspacePackages) -> Self {
-        let mut options = ResolveOptions::default();
-        options.tsconfig = Some(TsconfigDiscovery::Auto);
-        options.condition_names = vec![
-            "source".to_string(),
-            "import".to_string(),
-            "node".to_string(),
-            "default".to_string(),
-        ];
-        options.extensions = vec![
-            ".ts".to_string(),
-            ".tsx".to_string(),
-            ".mts".to_string(),
-            ".cts".to_string(),
-            ".js".to_string(),
-            ".jsx".to_string(),
-            ".mjs".to_string(),
-            ".cjs".to_string(),
-            ".json".to_string(),
-            ".node".to_string(),
-        ];
-        options.main_files = vec!["index".to_string()];
+        let base_options = Self::base_options();
+
+        let mut package_resolvers = HashMap::new();
+        for package_root in workspace_packages.values() {
+            let tsconfig_path = root.join(package_root).join("tsconfig.json");
+            if !tsconfig_path.is_file() {
+                continue;
+            }
+
+            let mut options = base_options.clone();
+            options.tsconfig = Some(TsconfigOptions {
+                config_file: tsconfig_path,
+                references: TsconfigReferences::Auto,
+            });
+            package_resolvers.insert(package_root.clone(), Resolver::new(options));
+        }
+
+        let mut fallback_options = base_options;
+        let root_tsconfig = root.join("tsconfig.json");
+        if root_tsconfig.is_file() {
+            fallback_options.tsconfig = Some(TsconfigOptions {
+                config_file: root_tsconfig,
+                references: TsconfigReferences::Auto,
+            });
+        }
 
         Self {
             root,
-            resolver: Resolver::new(options),
+            package_resolvers,
+            fallback: Resolver::new(fallback_options),
             workspace_packages,
         }
     }
 
+    /// Resolve all imports in the given source file.
     pub(super) fn resolve(&self, source_file: &Path, source: &str) -> Vec<ResolvedImport> {
         let source_abs = self.root.join(source_file);
+        let source_dir = source_abs.parent().unwrap_or(&source_abs);
+        let resolver = self.resolver_for(source_file);
         let mut imports = Vec::new();
 
         for request in Self::collect_requests(source_file, source) {
@@ -136,11 +155,10 @@ impl<'a> TsjsResolver<'a> {
                 continue;
             };
 
-            let mut resolved_path = self
-                .resolver
-                .resolve_file(&source_abs, &specifier)
+            let mut resolved_path = resolver
+                .resolve(source_dir, &specifier)
                 .ok()
-                .and_then(|resolution| to_root_relative(self.root, resolution.path()));
+                .and_then(|r| to_root_relative(self.root, r.path()));
             let kind = if resolved_path.is_some() {
                 self.classify_local_kind(&specifier)
             } else if let Some(path) = self.resolve_workspace_specifier(&specifier) {
@@ -160,6 +178,45 @@ impl<'a> TsjsResolver<'a> {
         }
 
         imports
+    }
+
+    /// Select the resolver whose package root is the longest prefix of
+    /// `source_file`. Falls back to the root resolver if no package matches.
+    fn resolver_for(&self, source_file: &Path) -> &Resolver {
+        let mut best: Option<(&Path, &Resolver)> = None;
+        for (package_root, resolver) in &self.package_resolvers {
+            if source_file.starts_with(package_root)
+                && best.map_or(true, |(prev, _)| package_root.as_path() > prev)
+            {
+                best = Some((package_root.as_path(), resolver));
+            }
+        }
+        best.map_or(&self.fallback, |(_, resolver)| resolver)
+    }
+
+    /// Shared resolver options (extensions, condition names, main files).
+    fn base_options() -> ResolveOptions {
+        let mut options = ResolveOptions::default();
+        options.condition_names = vec![
+            "source".to_string(),
+            "import".to_string(),
+            "node".to_string(),
+            "default".to_string(),
+        ];
+        options.extensions = vec![
+            ".ts".to_string(),
+            ".tsx".to_string(),
+            ".mts".to_string(),
+            ".cts".to_string(),
+            ".js".to_string(),
+            ".jsx".to_string(),
+            ".mjs".to_string(),
+            ".cjs".to_string(),
+            ".json".to_string(),
+            ".node".to_string(),
+        ];
+        options.main_files = vec!["index".to_string()];
+        options
     }
 
     fn classify_local_kind(&self, specifier: &str) -> ImportKind {
@@ -535,11 +592,9 @@ impl ImportBindings {
 }
 
 /// Collect re-exported symbol bindings from `export { ... } from '...'` forms.
-pub(crate) fn collect_reexports(source_file: &Path, source: &str) -> Vec<ReexportBinding> {
-    let Some(tree) = TsjsResolver::parse_tree(source_file, source) else {
-        return Vec::new();
-    };
-
+///
+/// The `tree` must have been parsed from `source`.
+pub(crate) fn collect_reexports(source: &str, tree: &tree_sitter::Tree) -> Vec<ReexportBinding> {
     let source_bytes = source.as_bytes();
     let mut bindings = Vec::new();
     walk_depth_first(tree.root_node(), |node| {

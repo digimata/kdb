@@ -16,29 +16,34 @@ use crate::symbols::extract_symbols;
 // ----------------------------------------------------
 // src/resolve/mod.rs
 //
-// mod go                                           L47
-// mod python                                       L48
-// mod rust                                         L49
-// mod tsjs                                         L50
-// pub type WorkspacePackages                       L64
-// pub struct WorkspaceCaches                       L68
-//   pub fn build()                                 L77
-// pub enum ImportKind                              L90
-// pub struct ResolvedImport                       L100
-// pub(crate) trait LanguageResolver               L113
-// pub(crate) struct WorkspaceImportResult         L122
-// pub(crate) fn build_workspace_import_index()    L130
-// pub fn resolve_imports_for_language()           L176
-// fn discover_code_files()                        L203
-// pub(super) fn sanitize_specifier()              L260
-// pub(super) fn normalize_identifier()            L279
-// pub(super) fn resolve_with_exts()               L309
-// pub(super) fn resolve_file()                    L337
-// fn canonicalize_existing_rel_path()             L346
-// pub(super) fn list_go_package_files()           L385
-// pub(super) fn slash_path()                      L420
-// pub(super) fn to_root_relative()                L425
-// fn rel_path_from_root()                         L430
+// mod go                                           L53
+// mod python                                       L54
+// mod rust                                         L55
+// mod tsjs                                         L56
+// pub type WorkspacePackages                       L71
+// pub struct WorkspaceCaches                       L75
+//   pub fn build()                                 L84
+// pub enum ImportKind                              L97
+// pub struct ImportNames                          L110
+//   pub fn new()                                  L120
+// pub struct ResolvedImport                       L132
+// pub(crate) struct ReexportBinding               L145
+// pub(crate) trait LanguageResolver               L157
+// pub(crate) fn extract_reexport_bindings()       L163
+// pub(crate) struct WorkspaceImportResult         L182
+// pub(crate) fn build_workspace_import_index()    L190
+// pub fn resolve_imports_for_language()           L236
+// pub(super) fn exported_symbol_names()           L267
+// fn discover_code_files()                        L290
+// pub(super) fn sanitize_specifier()              L347
+// pub(super) fn normalize_identifier()            L366
+// pub(super) fn resolve_with_exts()               L396
+// pub(super) fn resolve_file()                    L424
+// fn canonicalize_existing_rel_path()             L433
+// pub(super) fn list_go_package_files()           L472
+// pub(super) fn slash_path()                      L507
+// pub(super) fn to_root_relative()                L512
+// fn rel_path_from_root()                         L517
 // ----------------------------------------------------
 
 pub(super) use crate::project::ignore::ALWAYS_IGNORED_DIRS;
@@ -155,16 +160,21 @@ pub(crate) trait LanguageResolver {
 }
 
 /// Extract one-hop re-export bindings for a source file.
+///
+/// The `tree` must have been parsed from `source`. Languages that use
+/// tree-sitter for re-export extraction reuse this tree instead of
+/// re-parsing.
 pub(crate) fn extract_reexport_bindings(
     source_file: &Path,
     source: &str,
     language: CodeLanguage,
+    tree: &tree_sitter::Tree,
 ) -> Vec<ReexportBinding> {
     match language {
         CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
-            collect_tsjs_reexports(source_file, source)
+            collect_tsjs_reexports(source, tree)
         }
-        CodeLanguage::Rust => collect_rust_reexports(source),
+        CodeLanguage::Rust => collect_rust_reexports(source, tree),
         CodeLanguage::Python => collect_python_reexports(source_file, source),
         CodeLanguage::Go => Vec::new(),
     }

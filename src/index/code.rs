@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use rayon::prelude::*;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io::ErrorKind;
@@ -6,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crate::lang::CodeLanguage;
 use crate::resolve::{ReexportBinding, ResolvedImport, extract_reexport_bindings};
-use crate::symbols::{Symbol, extract_symbols};
+use crate::symbols::{Symbol, extract_symbols_from_tree, parse_tree};
 
 use super::scanner::{UsageScanner, scan_qualified_symbols};
 use super::scope::{ExportedNames, FollowedReexport, GlobSource, ModuleScope, ReexportTarget};
@@ -15,37 +16,37 @@ use super::{SymbolKey, SymbolRef};
 // ----------------------------------------
 // src/index/code.rs
 //
-// pub struct SymbolIndex               L53
-//   pub(super) fn build()              L62
-// struct CodeFileFacts                 L71
-//   fn new()                           L78
-//   fn snippet_for_line()              L87
-//   fn column_from_byte()              L94
-// struct Indexer                      L107
-//   fn new()                          L119
-//   fn build()                        L132
-//   fn load_code_files()              L153
-//   fn extract_symbols()              L179
-//   fn build_symbol_lookup()          L193
-//   fn build_reexport_lookup()        L206
-//   fn resolve_reexport_target()      L251
-//   fn build_module_scopes()          L290
-//   fn resolution_loop()              L314
-//   fn resolve_reexports()            L328
-//   fn expand_qualified_access()      L368
-//   fn propagate_glob_imports()       L410
-//   fn is_module_file()               L445
-//   fn exported_names()               L457
-//   fn follow_reexport_target()       L488
-//   fn symbol_exists()                L533
-//   fn symbol_keys()                  L540
-//   fn seed_definition_refs()         L551
-//   fn link_usage_refs()              L573
-//   fn link_go_same_package_refs()    L597
-//   fn insert_usage_refs()            L665
-//   fn insert_usage_row()             L689
-//   fn normalize_symbol_refs()        L714
-// fn symbol_key()                     L721
+// pub struct SymbolIndex               L54
+//   pub(super) fn build()              L63
+// struct CodeFileFacts                 L72
+//   fn new()                           L81
+//   fn snippet_for_line()              L92
+//   fn column_from_byte()              L99
+// struct Indexer                      L112
+//   fn new()                          L124
+//   fn build()                        L137
+//   fn load_code_files()              L158
+//   fn extract_symbols()              L185
+//   fn build_symbol_lookup()          L206
+//   fn build_reexport_lookup()        L219
+//   fn resolve_reexport_target()      L269
+//   fn build_module_scopes()          L308
+//   fn resolution_loop()              L332
+//   fn resolve_reexports()            L346
+//   fn expand_qualified_access()      L386
+//   fn propagate_glob_imports()       L428
+//   fn is_module_file()               L463
+//   fn exported_names()               L475
+//   fn follow_reexport_target()       L506
+//   fn symbol_exists()                L551
+//   fn symbol_keys()                  L558
+//   fn seed_definition_refs()         L569
+//   fn link_usage_refs()              L591
+//   fn link_go_same_package_refs()    L618
+//   fn insert_usage_refs()            L696
+//   fn insert_usage_row()             L720
+//   fn normalize_symbol_refs()        L745
+// fn symbol_key()                     L752
 // ----------------------------------------
 
 /// Declaration symbols and inbound references built for `kdb refs -s`.
@@ -72,16 +73,20 @@ struct CodeFileFacts {
     language: CodeLanguage,
     source: String,
     lines: Vec<String>,
+    tree: tree_sitter::Tree,
 }
 
 impl CodeFileFacts {
-    fn new(language: CodeLanguage, source: String) -> Self {
+    /// Parse source into a tree-sitter tree and pre-split lines for snippets.
+    fn new(language: CodeLanguage, source: String) -> Result<Self> {
+        let tree = parse_tree(language, &source)?;
         let lines = source.lines().map(ToString::to_string).collect();
-        Self {
+        Ok(Self {
             language,
             source,
             lines,
-        }
+            tree,
+        })
     }
 
     fn snippet_for_line(&self, line: usize) -> String {
@@ -131,14 +136,14 @@ impl<'a> Indexer<'a> {
 
     fn build(mut self) -> Result<SymbolIndex> {
         self.load_code_files()?;
-        self.extract_symbols()?;
+        self.extract_symbols();
         self.build_symbol_lookup();
         self.build_reexport_lookup();
         self.build_module_scopes();
         self.resolution_loop();
         self.seed_definition_refs();
-        self.link_usage_refs()?;
-        self.link_go_same_package_refs()?;
+        self.link_usage_refs();
+        self.link_go_same_package_refs();
         self.normalize_symbol_refs();
         Ok(SymbolIndex {
             symbols: self.symbols,
@@ -170,24 +175,32 @@ impl<'a> Indexer<'a> {
                 }
             };
 
-            self.files
-                .insert(rel_path.clone(), CodeFileFacts::new(language, source));
+            let facts = CodeFileFacts::new(language, source)
+                .with_context(|| format!("failed to parse {}", rel_path.display()))?;
+            self.files.insert(rel_path.clone(), facts);
         }
         Ok(())
     }
 
-    fn extract_symbols(&mut self) -> Result<()> {
-        for (file, facts) in &self.files {
-            let mut symbols = extract_symbols(facts.language, &facts.source)
-                .with_context(|| format!("failed to extract symbols for {}", file.display()))?;
-            symbols.sort_by(|left, right| {
-                left.line
-                    .cmp(&right.line)
-                    .then_with(|| left.name.cmp(&right.name))
-            });
-            self.symbols.insert(file.clone(), symbols);
+    fn extract_symbols(&mut self) {
+        let results: Vec<_> = self
+            .files
+            .par_iter()
+            .map(|(file, facts)| {
+                let mut symbols =
+                    extract_symbols_from_tree(facts.language, &facts.source, &facts.tree);
+                symbols.sort_by(|left, right| {
+                    left.line
+                        .cmp(&right.line)
+                        .then_with(|| left.name.cmp(&right.name))
+                });
+                (file.clone(), symbols)
+            })
+            .collect();
+
+        for (file, symbols) in results {
+            self.symbols.insert(file, symbols);
         }
-        Ok(())
     }
 
     fn build_symbol_lookup(&mut self) {
@@ -204,48 +217,53 @@ impl<'a> Indexer<'a> {
     }
 
     fn build_reexport_lookup(&mut self) {
-        let mut by_file = HashMap::new();
+        let imports = &self.imports;
+        let results: Vec<_> = self
+            .files
+            .par_iter()
+            .filter_map(|(file, facts)| {
+                let file_imports = imports.get(file)?;
 
-        for (file, facts) in &self.files {
-            let Some(imports) = self.imports.get(file) else {
-                continue;
-            };
-
-            let bindings = extract_reexport_bindings(file, &facts.source, facts.language);
-            if bindings.is_empty() {
-                continue;
-            }
-
-            let mut by_name: HashMap<String, BTreeSet<ReexportTarget>> = HashMap::new();
-            for binding in bindings {
-                let Some(target_file) = Self::resolve_reexport_target(imports, &binding) else {
-                    continue;
-                };
-                if target_file == *file {
-                    continue;
+                let bindings =
+                    extract_reexport_bindings(file, &facts.source, facts.language, &facts.tree);
+                if bindings.is_empty() {
+                    return None;
                 }
 
-                by_name
-                    .entry(binding.exported_name)
-                    .or_default()
-                    .insert(ReexportTarget {
-                        target_file,
-                        definition_name: binding.definition_name,
-                    });
-            }
+                let mut by_name: HashMap<String, BTreeSet<ReexportTarget>> = HashMap::new();
+                for binding in bindings {
+                    let Some(target_file) = Self::resolve_reexport_target(file_imports, &binding)
+                    else {
+                        continue;
+                    };
+                    if target_file == *file {
+                        continue;
+                    }
 
-            if by_name.is_empty() {
-                continue;
-            }
+                    by_name
+                        .entry(binding.exported_name)
+                        .or_default()
+                        .insert(ReexportTarget {
+                            target_file,
+                            definition_name: binding.definition_name,
+                        });
+                }
 
-            let by_name = by_name
-                .into_iter()
-                .map(|(name, targets)| (name, targets.into_iter().collect()))
-                .collect();
-            by_file.insert(file.clone(), by_name);
+                if by_name.is_empty() {
+                    return None;
+                }
+
+                let by_name = by_name
+                    .into_iter()
+                    .map(|(name, targets)| (name, targets.into_iter().collect()))
+                    .collect();
+                Some((file.clone(), by_name))
+            })
+            .collect();
+
+        for (file, by_name) in results {
+            self.reexport_lookup.insert(file, by_name);
         }
-
-        self.reexport_lookup = by_file;
     }
 
     fn resolve_reexport_target(
@@ -570,31 +588,34 @@ impl<'a> Indexer<'a> {
         }
     }
 
-    fn link_usage_refs(&mut self) -> Result<()> {
-        let scope_entries: Vec<(PathBuf, ModuleScope)> = self
+    fn link_usage_refs(&mut self) {
+        let scan_inputs: Vec<_> = self
             .module_scopes
             .iter()
-            .map(|(file, scope)| (file.clone(), scope.clone()))
+            .filter(|(_, scope)| !scope.is_empty())
+            .filter_map(|(file, scope)| {
+                let facts = self.files.get(file)?;
+                Some((file.clone(), facts.clone(), scope.clone()))
+            })
             .collect();
 
-        for (source_file, scope) in scope_entries {
-            let Some(facts) = self.files.get(&source_file).cloned() else {
-                continue;
-            };
-            if scope.is_empty() {
-                continue;
-            }
+        let scan_results: Vec<_> = scan_inputs
+            .par_iter()
+            .map(|(file, facts, scope)| {
+                let scanner = UsageScanner::new(facts.language, &facts.source, scope.names());
+                let usages = scanner.collect(&facts.tree);
+                (file, facts, scope, usages)
+            })
+            .collect();
 
-            let scanner = UsageScanner::new(facts.language, &facts.source, scope.names());
-            let usages = scanner.collect()?;
-            self.insert_usage_refs(&source_file, &facts, &scope, usages);
+        for (source_file, facts, scope, usages) in scan_results {
+            self.insert_usage_refs(source_file, facts, scope, usages);
         }
-        Ok(())
     }
 
     /// Scan Go files for same-package references — symbols used across files
     /// in the same directory without an import statement.
-    fn link_go_same_package_refs(&mut self) -> Result<()> {
+    fn link_go_same_package_refs(&mut self) {
         // Group Go files by parent directory (= Go package boundary).
         let mut packages: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
         for (file, facts) in &self.files {
@@ -612,17 +633,18 @@ impl<'a> Indexer<'a> {
             .map(|(file, by_name)| (file.clone(), by_name.keys().cloned().collect()))
             .collect();
 
+        // Build (file, facts, scope) triples for all Go files needing scans.
+        let mut scan_inputs = Vec::new();
         for (_dir, files) in &packages {
             if files.len() < 2 {
                 continue;
             }
 
             for source_file in files {
-                let Some(facts) = self.files.get(source_file).cloned() else {
+                let Some(facts) = self.files.get(source_file) else {
                     continue;
                 };
 
-                // Build bindings from all *other* files in the same package.
                 let mut by_name: HashMap<String, Vec<PathBuf>> = HashMap::new();
                 for def_file in files {
                     if def_file == source_file {
@@ -653,13 +675,22 @@ impl<'a> Indexer<'a> {
                     glob_sources: Vec::new(),
                 };
 
-                let scanner = UsageScanner::new(facts.language, &facts.source, scope.names());
-                let usages = scanner.collect()?;
-                self.insert_usage_refs(source_file, &facts, &scope, usages);
+                scan_inputs.push((source_file.clone(), facts.clone(), scope));
             }
         }
 
-        Ok(())
+        let scan_results: Vec<_> = scan_inputs
+            .par_iter()
+            .map(|(file, facts, scope)| {
+                let scanner = UsageScanner::new(facts.language, &facts.source, scope.names());
+                let usages = scanner.collect(&facts.tree);
+                (file, facts, scope, usages)
+            })
+            .collect();
+
+        for (source_file, facts, scope, usages) in scan_results {
+            self.insert_usage_refs(source_file, facts, scope, usages);
+        }
     }
 
     fn insert_usage_refs(
