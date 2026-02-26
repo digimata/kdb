@@ -26,14 +26,14 @@ use super::{
 //   fn resolve()                   L314
 // fn go_module_name()              L320
 // fn parse_import_line()           L339
-// fn import_names()                L364
-// fn classify_kind()               L381
-// fn directive_body()              L397
-// fn strip_line_comment()          L411
-// fn parse_local_dir()             L416
-// fn is_local_path()               L431
-// fn trim_go_token()               L443
-// fn push_unique_path()            L448
+// fn import_names()                L367
+// fn classify_kind()               L392
+// fn directive_body()              L408
+// fn strip_line_comment()          L422
+// fn parse_local_dir()             L427
+// fn is_local_path()               L442
+// fn trim_go_token()               L454
+// fn push_unique_path()            L459
 // -------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

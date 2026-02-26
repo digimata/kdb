@@ -29,21 +29,21 @@ use crate::symbols::extract_symbols;
 // pub struct ResolvedImport                       L132
 // pub(crate) struct ReexportBinding               L145
 // pub(crate) trait LanguageResolver               L157
-// pub(crate) fn extract_reexport_bindings()       L163
-// pub(crate) struct WorkspaceImportResult         L182
-// pub(crate) fn build_workspace_import_index()    L190
-// pub fn resolve_imports_for_language()           L236
-// pub(super) fn exported_symbol_names()           L267
-// fn discover_code_files()                        L290
-// pub(super) fn sanitize_specifier()              L347
-// pub(super) fn normalize_identifier()            L366
-// pub(super) fn resolve_with_exts()               L396
-// pub(super) fn resolve_file()                    L424
-// fn canonicalize_existing_rel_path()             L433
-// pub(super) fn list_go_package_files()           L472
-// pub(super) fn slash_path()                      L507
-// pub(super) fn to_root_relative()                L512
-// fn rel_path_from_root()                         L517
+// pub(crate) fn extract_reexport_bindings()       L167
+// pub(crate) struct WorkspaceImportResult         L187
+// pub(crate) fn build_workspace_import_index()    L195
+// pub fn resolve_imports_for_language()           L241
+// pub(super) fn exported_symbol_names()           L272
+// fn discover_code_files()                        L295
+// pub(super) fn sanitize_specifier()              L352
+// pub(super) fn normalize_identifier()            L371
+// pub(super) fn resolve_with_exts()               L401
+// pub(super) fn resolve_file()                    L429
+// fn canonicalize_existing_rel_path()             L438
+// pub(super) fn list_go_package_files()           L477
+// pub(super) fn slash_path()                      L512
+// pub(super) fn to_root_relative()                L517
+// fn rel_path_from_root()                         L522
 // ----------------------------------------------------
 
 pub(super) use crate::project::ignore::ALWAYS_IGNORED_DIRS;

@@ -19,47 +19,50 @@ use super::{
 // ------------------------------------------
 // src/resolve/python.rs
 //
-// pub struct PythonWorkspaceCache        L65
-//   pub(super) fn build()                L73
-// pub(crate) struct PythonResolver       L96
-//   pub(super) fn new()                 L103
-//   fn resolve()                        L110
-// struct PythonImportResolver           L115
-//   fn new()                            L122
-//   fn resolve_source()                 L130
-//   fn push_import_statement()          L154
-//   fn push_from_import_statement()     L178
-//   fn resolve_module()                 L231
-//   fn module_paths()                   L240
-//   fn relative_module_path()           L254
-//   fn absolute_module_paths()          L274
-//   fn resolve_module_path()            L304
-// fn discover_python_project_roots()    L314
-// fn project_package_roots()            L363
-// fn pyproject_package_roots()          L385
-// fn setup_py_package_roots()           L403
-// fn setup_py_root_tokens()             L418
-// struct SetupPyRootCollector           L424
-//   fn new()                            L430
-//   fn collect()                        L441
-//   fn call_function_name()             L478
-//   fn keyword_argument_value()         L489
-//   fn call_keyword_string_arg()        L518
-//   fn setup_package_dir_root()         L529
-//   fn dictionary_root_value()          L534
-//   fn python_string_literal()          L570
-// fn collect_setuptools_roots()         L605
-// fn collect_poetry_roots()             L645
-// fn collect_hatch_roots()              L670
-// fn push_project_root()                L699
-// fn index_package_root()               L723
-// fn parse_names()                      L764
-// fn split_alias()                      L795
-// fn module_binding_name()              L801
-// fn classify_kind()                    L811
-// fn has_python_top_level_entries()     L823
-// fn is_python_source()                 L842
-// fn is_python_package_dir()            L850
+// pub struct PythonWorkspaceCache        L71
+//   pub(super) fn build()                L79
+// pub(crate) struct PythonResolver      L102
+//   pub(super) fn new()                 L109
+//   fn resolve()                        L116
+// struct PythonImportResolver           L121
+//   fn new()                            L128
+//   fn resolve_source()                 L136
+//   fn push_import_statement()          L160
+//   fn push_from_import_statement()     L191
+//   fn resolve_module()                 L267
+//   fn module_paths()                   L276
+//   fn relative_module_path()           L290
+//   fn absolute_module_paths()          L310
+//   fn resolve_module_path()            L340
+// fn extract_python_all()               L354
+// fn python_wildcard_names()            L392
+// pub(crate) fn collect_reexports()     L407
+// fn discover_python_project_roots()    L458
+// fn project_package_roots()            L507
+// fn pyproject_package_roots()          L529
+// fn setup_py_package_roots()           L547
+// fn setup_py_root_tokens()             L562
+// struct SetupPyRootCollector           L568
+//   fn new()                            L574
+//   fn collect()                        L585
+//   fn call_function_name()             L622
+//   fn keyword_argument_value()         L633
+//   fn call_keyword_string_arg()        L662
+//   fn setup_package_dir_root()         L673
+//   fn dictionary_root_value()          L678
+//   fn python_string_literal()          L714
+// fn collect_setuptools_roots()         L749
+// fn collect_poetry_roots()             L789
+// fn collect_hatch_roots()              L814
+// fn push_project_root()                L843
+// fn index_package_root()               L867
+// fn parse_names()                      L908
+// fn split_alias()                      L939
+// fn module_binding_name()              L945
+// fn classify_kind()                    L955
+// fn has_python_top_level_entries()     L967
+// fn is_python_source()                 L986
+// fn is_python_package_dir()            L994
 // ------------------------------------------
 
 /// Cached Python workspace data: maps top-level package names and module

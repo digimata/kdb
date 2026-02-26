@@ -28,10 +28,10 @@ use crate::tree;
 // pub fn check()                    L148
 // pub fn tree()                     L165
 // pub fn symbols()                  L213
-// pub fn refs()                     L263
-// pub fn deps()                     L320
-// pub fn graph()                    L355
-// pub fn format()                   L369
+// pub fn refs()                     L264
+// pub fn deps()                     L321
+// pub fn graph()                    L356
+// pub fn format()                   L370
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.

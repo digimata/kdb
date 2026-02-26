@@ -47,29 +47,29 @@ use super::{
 //   fn from_braced()                              L500
 //   fn parse_segment()                            L554
 //   fn dedupe()                                   L582
-// pub(crate) fn collect_reexports()               L595
-// fn export_specifier_names()                     L647
-// pub(crate) fn collect_specifiers()              L662
-// pub(super) fn discover_workspace_packages()     L675
-// struct WorkspacePatternSet                      L753
-//   fn discover()                                 L760
-//   fn compile_include()                          L786
-//   fn compile_exclude()                          L790
-//   fn path_allowed()                             L794
-//   fn read_pnpm_patterns()                       L813
-//   fn read_package_json_patterns()               L859
-//   fn compile_globset()                          L896
-//   fn globset_matches()                          L912
-// struct PackageManifest                          L929
-//   fn read_name()                                L932
-//   fn read_json()                                L942
-// struct WorkspaceMatch                           L953
-//   fn find()                                     L960
-//   fn resolve()                                  L970
-//   fn split_specifier()                         L1022
-//   fn resolve_target()                          L1052
-//   fn export_target()                           L1063
-//   fn first_export_string()                     L1093
+// pub(crate) fn collect_reexports()               L597
+// fn export_specifier_names()                     L645
+// pub(crate) fn collect_specifiers()              L660
+// pub(super) fn discover_workspace_packages()     L673
+// struct WorkspacePatternSet                      L751
+//   fn discover()                                 L758
+//   fn compile_include()                          L784
+//   fn compile_exclude()                          L788
+//   fn path_allowed()                             L792
+//   fn read_pnpm_patterns()                       L811
+//   fn read_package_json_patterns()               L857
+//   fn compile_globset()                          L894
+//   fn globset_matches()                          L910
+// struct PackageManifest                          L927
+//   fn read_name()                                L930
+//   fn read_json()                                L940
+// struct WorkspaceMatch                           L951
+//   fn find()                                     L958
+//   fn resolve()                                  L968
+//   fn split_specifier()                         L1020
+//   fn resolve_target()                          L1050
+//   fn export_target()                           L1061
+//   fn first_export_string()                     L1091
 // ----------------------------------------------------
 
 const TSJS_EXTS: &[&str] = &[

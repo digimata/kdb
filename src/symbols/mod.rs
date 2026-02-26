@@ -8,24 +8,25 @@ use crate::lang::CodeLanguage;
 
 pub mod display;
 mod extract;
-// -----------------------------------------
+// ------------------------------------------
 // src/symbols/mod.rs
 //
-// pub mod display                        L9
-// mod extract                           L10
-// pub(crate) mod query                  L30
-// mod tree                              L31
-// pub enum SymbolKind                   L41
-// pub struct Symbol                     L63
-// struct SeenSymbolKey                  L76
-// pub(super) struct Extractor           L88
-//   pub(super) fn new()                 L95
-//   pub(super) fn name_from_field()    L103
-//   pub(super) fn node_text()          L108
-//   pub(super) fn push()               L112
-//   pub(super) fn finish()             L151
-// pub fn extract_symbols()             L157
-// -----------------------------------------
+// pub mod display                         L9
+// mod extract                            L10
+// pub(crate) mod query                   L31
+// mod tree                               L32
+// pub enum SymbolKind                    L42
+// pub struct Symbol                      L64
+// struct SeenSymbolKey                   L77
+// pub(super) struct Extractor            L89
+//   pub(super) fn new()                  L96
+//   pub(super) fn name_from_field()     L104
+//   pub(super) fn node_text()           L109
+//   pub(super) fn push()                L113
+//   pub(super) fn finish()              L152
+// pub fn extract_symbols()              L161
+// pub fn extract_symbols_from_tree()    L170
+// ------------------------------------------
 
 pub(crate) mod query;
 mod tree;

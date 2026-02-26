@@ -10,17 +10,20 @@ use super::{Symbol, SymbolKind};
 // -----------------------------------------
 // src/symbols/display.rs
 //
-// pub struct SymbolRow                  L28
-//   fn from()                           L56
-// pub struct SymbolBodyRow              L75
-// pub fn kind_label()                   L99
-// pub fn is_callable_kind()            L120
-// pub fn format_symbol_display()       L132
-// pub fn extract_symbol_body()         L160
-// pub fn code_symbol_body_row()        L173
-// pub fn markdown_symbol_body_row()    L188
-// pub fn print_text()                  L208
-// pub fn print_bodies_text()           L221
+// pub struct SymbolRow                  L31
+//   fn from()                           L59
+// pub struct SymbolBodyRow              L78
+// pub fn kind_label()                  L102
+// pub fn is_callable_kind()            L123
+// pub fn format_symbol_display()       L135
+// pub fn extract_symbol_body()         L163
+// pub fn extract_body_with_docs()      L180
+// fn is_doc_comment_line()             L233
+// fn is_attribute_line()               L247
+// pub fn code_symbol_body_row()        L252
+// pub fn markdown_symbol_body_row()    L267
+// pub fn print_text()                  L287
+// pub fn print_bodies_text()           L300
 // -----------------------------------------
 
 /// A formatted symbol row ready for display.
@@ -300,11 +303,7 @@ pub fn print_bodies_text(rows: &[SymbolBodyRow]) {
         return;
     }
 
-    let max_line = rows
-        .iter()
-        .map(|row| row.end_line)
-        .max()
-        .unwrap_or(0);
+    let max_line = rows.iter().map(|row| row.end_line).max().unwrap_or(0);
     let gutter_width = max_line.max(1).ilog10() as usize + 1;
 
     for (index, row) in rows.iter().enumerate() {

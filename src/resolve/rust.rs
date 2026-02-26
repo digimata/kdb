@@ -29,49 +29,49 @@ use super::{
 //   fn first_named_child_of_kind()        L194
 // fn collect_source_imports()             L202
 // pub(crate) fn collect_mod_and_use()     L207
-// pub(crate) fn collect_reexports()       L222
-// fn is_public_use_declaration()          L269
-// struct ParsedManifest                   L284
-//   fn parse()                            L293
-//   fn src_root()                         L334
-// struct LocalDependency                  L343
-// pub struct RustWorkspaceCrate           L353
-// pub struct RustWorkspaceCache           L363
-//   pub(super) fn build()                 L370
-// pub(crate) struct RustResolver          L441
-//   pub(super) fn new()                   L448
-//   fn resolve_source()                   L454
-//   fn resolve()                          L527
-// struct CrateContext                     L535
-//   fn from_workspace()                   L546
-//   fn resolve_mod_decl()                 L583
-//   fn resolve_use()                      L605
-// fn discover_manifest_paths()            L682
-// fn parse_crate_root_files()             L734
-// fn push_manifest_entry_path()           L759
-// fn default_crate_root_files()           L769
-// fn normalize_manifest_path()            L778
-// fn collect_dependency_sections()        L788
-// fn parse_local_dependency()             L821
-// fn resolve_dependency_root()            L877
-// fn crate_root_for_name()                L902
-// fn crate_import_name()                  L916
-// fn parse_use_prefix()                   L921
-// fn parse_use_head()                     L933
-// fn single_group_item_path()             L945
-// fn find_crate_root()                    L970
-// fn classify_use_kind()                  L990
-// fn rust_module_path()                  L1013
-// fn rust_crate_entry_path()             L1031
-// fn rust_file_candidates()              L1048
-// fn looks_like_module_segment()         L1057
-// fn source_segments()                   L1066
-// fn imported_names()                    L1090
-// fn split_brace_group()                 L1145
-// fn split_brace_items()                 L1160
-// fn expand_brace_imports()              L1190
-// fn last_segment()                      L1227
-// fn dedupe_names()                      L1244
+// pub(crate) fn collect_reexports()       L224
+// fn is_public_use_declaration()          L268
+// struct ParsedManifest                   L283
+//   fn parse()                            L292
+//   fn src_root()                         L333
+// struct LocalDependency                  L342
+// pub struct RustWorkspaceCrate           L352
+// pub struct RustWorkspaceCache           L362
+//   pub(super) fn build()                 L369
+// pub(crate) struct RustResolver          L440
+//   pub(super) fn new()                   L447
+//   fn resolve_source()                   L453
+//   fn resolve()                          L526
+// struct CrateContext                     L534
+//   fn from_workspace()                   L545
+//   fn resolve_mod_decl()                 L582
+//   fn resolve_use()                      L604
+// fn discover_manifest_paths()            L681
+// fn parse_crate_root_files()             L733
+// fn push_manifest_entry_path()           L758
+// fn default_crate_root_files()           L768
+// fn normalize_manifest_path()            L777
+// fn collect_dependency_sections()        L787
+// fn parse_local_dependency()             L820
+// fn resolve_dependency_root()            L876
+// fn crate_root_for_name()                L901
+// fn crate_import_name()                  L915
+// fn parse_use_prefix()                   L920
+// fn parse_use_head()                     L932
+// fn single_group_item_path()             L944
+// fn find_crate_root()                    L969
+// fn classify_use_kind()                  L989
+// fn rust_module_path()                  L1012
+// fn rust_crate_entry_path()             L1030
+// fn rust_file_candidates()              L1047
+// fn looks_like_module_segment()         L1056
+// fn source_segments()                   L1065
+// fn imported_names()                    L1089
+// fn split_brace_group()                 L1144
+// fn split_brace_items()                 L1159
+// fn expand_brace_imports()              L1189
+// fn last_segment()                      L1226
+// fn dedupe_names()                      L1243
 // --------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

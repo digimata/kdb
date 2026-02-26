@@ -26,6 +26,7 @@ pub mod project;
 pub mod resolve;
 pub mod symbols;
 pub mod tree;
+
 // ----------------------
 // src/lib.rs
 //
@@ -40,3 +41,4 @@ pub mod tree;
 // pub mod symbols    L27
 // pub mod tree       L28
 // ----------------------
+
