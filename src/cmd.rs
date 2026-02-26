@@ -212,7 +212,7 @@ pub fn tree(
 /// Print symbols for a single markdown or supported code file.
 pub fn symbols(
     path: PathBuf,
-    symbol: Option<String>,
+    selectors: Vec<String>,
     as_json: bool,
     public_only: bool,
 ) -> Result<()> {
@@ -227,21 +227,7 @@ pub fn symbols(
     let ctx = CmdContext::from_path(Some(&path))?;
     let rel_path = ctx.rel_path(&file_abs)?;
 
-    if let Some(selector) = symbol {
-        let rows = symbols::query::collect_body_rows(
-            &file_abs,
-            &rel_path,
-            selector.as_str(),
-            public_only,
-        )?;
-        if as_json {
-            let output = serde_json::to_string_pretty(&rows)
-                .context("failed to serialize symbol bodies as JSON")?;
-            println!("{output}");
-        } else {
-            symbols::display::print_bodies_text(&rows);
-        }
-    } else {
+    if selectors.is_empty() {
         let mut rows = symbols::query::collect_rows(&ctx.project.root, &file_abs, &rel_path)?;
         if public_only {
             rows.retain(|row| row.is_public);
@@ -253,6 +239,21 @@ pub fn symbols(
             println!("{output}");
         } else {
             symbols::display::print_text(&rows);
+        }
+    } else {
+        let selector_strs: Vec<&str> = selectors.iter().map(String::as_str).collect();
+        let rows = symbols::query::collect_body_rows(
+            &file_abs,
+            &rel_path,
+            &selector_strs,
+            public_only,
+        )?;
+        if as_json {
+            let output = serde_json::to_string_pretty(&rows)
+                .context("failed to serialize symbol bodies as JSON")?;
+            println!("{output}");
+        } else {
+            symbols::display::print_bodies_text(&rows);
         }
     }
 

@@ -66,9 +66,9 @@ enum Command {
     Symbols {
         /// File path to inspect.
         path: PathBuf,
-        /// Select a specific symbol by name or `Parent::name`.
-        #[arg(short = 's', long = "symbol")]
-        symbol: Option<String>,
+        /// Select symbols by name or `Parent::name` (accepts multiple).
+        #[arg(short = 's', long = "symbol", num_args = 1..)]
+        symbols: Vec<String>,
         /// Emit structured JSON output.
         #[arg(long)]
         json: bool,
@@ -147,10 +147,10 @@ async fn main() {
         ),
         Command::Symbols {
             path,
-            symbol,
+            symbols,
             json,
             public_only,
-        } => kdb::cmd::symbols(path, symbol, json, public_only),
+        } => kdb::cmd::symbols(path, symbols, json, public_only),
         Command::Refs {
             target,
             symbol,

@@ -710,9 +710,80 @@ fn symbols_selector_prints_multiple_matching_bodies() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("pub fn open(&self) -> i32"));
-    assert!(stdout.contains("pub fn open() -> i32"));
-    assert!(stdout.contains("}\n\npub fn open() -> i32"));
+    // Both matches appear with line gutter
+    assert!(stdout.contains("| pub fn open(&self) -> i32"));
+    assert!(stdout.contains("| pub fn open() -> i32"));
+    // Separate symbols are separated by a blank line
+    let parts: Vec<&str> = stdout.split("\n\n").collect();
+    assert!(parts.len() >= 2, "expected blank line between symbol bodies");
+}
+
+#[test]
+fn symbols_selector_shows_line_number_gutter() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "src/lib.rs",
+        concat!(
+            "pub struct Backend;\n\n",
+            "impl Backend {\n",
+            "    pub fn open(&self) -> i32 {\n",
+            "        1\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+
+    let output = Command::new(bin())
+        .arg("symbols")
+        .arg(temp.path().join("src/lib.rs"))
+        .arg("-s")
+        .arg("Backend::open")
+        .output()
+        .expect("run kdb symbols -s");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Line numbers reflect actual file positions (open starts at line 4)
+    assert!(stdout.contains("4 | pub fn open(&self) -> i32 {"));
+    assert!(stdout.contains("5 |         1"));
+    assert!(stdout.contains("6 |     }"));
+}
+
+#[test]
+fn symbols_selector_accepts_multiple_selectors() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "src/lib.rs",
+        concat!(
+            "pub struct Backend;\n\n",
+            "impl Backend {\n",
+            "    pub fn open(&self) -> i32 {\n",
+            "        1\n",
+            "    }\n",
+            "}\n\n",
+            "pub fn close() -> i32 {\n",
+            "    0\n",
+            "}\n",
+        ),
+    );
+
+    let output = Command::new(bin())
+        .arg("symbols")
+        .arg(temp.path().join("src/lib.rs"))
+        .arg("-s")
+        .arg("Backend::open")
+        .arg("close")
+        .output()
+        .expect("run kdb symbols -s with multiple selectors");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("| pub fn open(&self) -> i32"));
+    assert!(stdout.contains("| pub fn close() -> i32"));
 }
 
 #[test]

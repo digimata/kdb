@@ -217,20 +217,27 @@ pub fn print_text(rows: &[SymbolRow]) {
     }
 }
 
-/// Print full symbol bodies as plain text.
+/// Print full symbol bodies as plain text with a line number gutter.
 pub fn print_bodies_text(rows: &[SymbolBodyRow]) {
     if rows.is_empty() {
         println!("(no symbols)");
         return;
     }
 
+    let max_line = rows
+        .iter()
+        .map(|row| row.end_line)
+        .max()
+        .unwrap_or(0);
+    let gutter_width = max_line.max(1).ilog10() as usize + 1;
+
     for (index, row) in rows.iter().enumerate() {
         if index > 0 {
             println!();
         }
-        print!("{}", row.body);
-        if !row.body.ends_with('\n') {
-            println!();
+        for (offset, line) in row.body.lines().enumerate() {
+            let line_number = row.line + offset;
+            println!("{line_number:>gutter_width$} | {line}");
         }
     }
 }

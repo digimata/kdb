@@ -75,34 +75,41 @@ pub fn collect_rows(root: &Path, file_abs: &Path, rel_path: &Path) -> Result<Vec
     Ok(rows)
 }
 
-/// Collect full symbol bodies matching a selector for `kdb symbols -s`.
+/// Collect full symbol bodies matching one or more selectors for `kdb symbols -s`.
 pub fn collect_body_rows(
     file_abs: &Path,
     rel_path: &Path,
-    selector: &str,
+    selectors: &[&str],
     public_only: bool,
 ) -> Result<Vec<SymbolBodyRow>> {
-    let selector_display = selector.trim();
-    let rows = if is_markdown_file(rel_path) {
-        collect_markdown_body_rows(file_abs, rel_path, selector)?
-    } else {
-        collect_code_body_rows(file_abs, rel_path, selector, public_only)?
-    };
+    assert!(!selectors.is_empty(), "selectors must not be empty");
 
-    if rows.is_empty() {
-        if public_only {
+    let mut rows = Vec::new();
+    for selector in selectors {
+        let selector_display = selector.trim();
+        let matched = if is_markdown_file(rel_path) {
+            collect_markdown_body_rows(file_abs, rel_path, selector)?
+        } else {
+            collect_code_body_rows(file_abs, rel_path, selector, public_only)?
+        };
+
+        if matched.is_empty() {
+            if public_only {
+                bail!(
+                    "symbol not found: {} in {} (after --public filter)",
+                    selector_display,
+                    rel_path.display()
+                );
+            }
+
             bail!(
-                "symbol not found: {} in {} (after --public filter)",
+                "symbol not found: {} in {}",
                 selector_display,
                 rel_path.display()
             );
         }
 
-        bail!(
-            "symbol not found: {} in {}",
-            selector_display,
-            rel_path.display()
-        );
+        rows.extend(matched);
     }
 
     Ok(rows)
