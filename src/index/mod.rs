@@ -14,62 +14,6 @@
 //! 4. **Resolution** — [`resolve_target_path`] resolves a link target relative to
 //!    its source file, handling both markdown and wikilink syntax.
 
-// ------------------------------------------------------------
-// src/index/mod.rs
-//
-// pub(crate) mod cache                                     L72
-// mod code                                                 L73
-// pub mod deps                                             L74
-// mod markdown                                             L75
-// pub mod refs                                             L76
-// mod scanner                                              L77
-// mod scope                                                L78
-// pub struct VaultIndex                                   L113
-// pub struct CodeIndex                                    L131
-// pub struct SymbolKey                                    L146
-// pub struct SymbolRef                                    L161
-// pub struct ProjectIndex                                 L180
-// pub struct FileEntry                                    L189
-// pub struct Heading                                      L202
-// pub enum LinkKind                                       L218
-// pub struct LinkTarget                                   L227
-// pub struct Link                                         L236
-// pub struct HeadingKey                                   L251
-// pub struct LinkRef                                      L260
-// pub struct ParsedDocument                               L275
-// pub struct BrokenLink                                   L284
-// pub struct CheckReport                                  L299
-//   pub fn has_errors()                                   L308
-//   pub fn print()                                        L313
-//   pub fn scoped_to()                                    L370
-// fn path_is_in_check_scope()                             L379
-//   pub fn build()                                        L397
-//   pub(crate) fn build_from_cached()                     L409
-//   pub(crate) fn build_from_cached_with_symbol_refs()    L423
-//   pub fn build_with_symbol_refs()                       L441
-//   pub fn build()                                        L456
-//   pub fn build_with_ignores()                           L461
-//   pub fn build_cached()                                 L471
-//   pub fn build_cached_with_symbol_refs()                L484
-//   pub fn build_with_symbol_refs()                       L505
-//   pub fn build()                                        L520
-//   pub fn build_with_ignores()                           L528
-//   pub(crate) fn build_from_entries()                    L570
-//   pub fn upsert_file()                                  L593
-//   pub fn reload_file()                                  L616
-//   pub fn remove_file()                                  L645
-//   pub fn check()                                        L653
-//   fn populate_inbound()                                 L692
-//   fn resolve_link()                                     L745
-// enum ResolveError                                       L778
-//   fn message()                                          L785
-// fn discover_markdown_files()                            L800
-// fn resolve_target_file()                                L818
-// pub fn resolve_target_path()                            L831
-// pub fn resolve_file_target()                            L859
-// ------------------------------------------------------------
-
-pub(crate) mod cache;
 mod code;
 pub mod deps;
 mod markdown;
@@ -88,7 +32,7 @@ use crate::project::discover::discover_files;
 use crate::project::ignore::{build_ignore_globset, path_is_ignored};
 use crate::project::paths::normalize_rel_path;
 use crate::resolve::{
-    GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, WorkspaceCaches, WorkspacePackages,
+    GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, WorkspacePackages,
     build_workspace_import_index,
 };
 use crate::symbols::SymbolKind;
@@ -104,6 +48,57 @@ pub use markdown::{
 // ---------------------------------------------------------------------------
 
 // NOTE: index block managed by kdb fmt — do not update manually
+
+// -----------------------------------------
+// src/index/mod.rs
+//
+// mod code                              L17
+// pub mod deps                          L18
+// mod markdown                          L19
+// pub mod refs                          L20
+// mod scanner                           L21
+// mod scope                             L22
+// pub struct VaultIndex                L108
+// pub struct CodeIndex                 L126
+// pub struct SymbolKey                 L141
+// pub struct SymbolRef                 L156
+// pub struct ProjectIndex              L175
+// pub struct FileEntry                 L184
+// pub struct Heading                   L197
+// pub enum LinkKind                    L213
+// pub struct LinkTarget                L222
+// pub struct Link                      L231
+// pub struct HeadingKey                L246
+// pub struct LinkRef                   L255
+// pub struct ParsedDocument            L270
+// pub struct BrokenLink                L279
+// pub struct CheckReport               L294
+//   pub fn has_errors()                L303
+//   pub fn print()                     L308
+//   pub fn scoped_to()                 L365
+// fn path_is_in_check_scope()          L374
+//   pub fn build()                     L392
+//   pub fn build_for_target()          L406
+//   pub fn build_with_symbol_refs()    L424
+//   pub fn build()                     L439
+//   pub fn build_with_ignores()        L444
+//   pub fn build_for_target()          L456
+//   pub fn build_with_symbol_refs()    L471
+//   pub fn build()                     L486
+//   pub fn build_with_ignores()        L494
+//   pub fn upsert_file()               L538
+//   pub fn reload_file()               L561
+//   pub fn remove_file()               L590
+//   pub fn check()                     L598
+//   fn populate_inbound()              L637
+//   fn resolve_link()                  L690
+// enum ResolveError                    L723
+//   fn message()                       L730
+// fn discover_markdown_files()         L745
+// fn resolve_target_file()             L763
+// pub fn resolve_target_path()         L776
+// pub fn resolve_file_target()         L804
+// -----------------------------------------
 
 /// Complete index of a markdown vault.
 ///
@@ -405,54 +400,22 @@ impl CodeIndex {
         })
     }
 
-    /// Build from pre-resolved cached data (no import scanning).
-    pub(crate) fn build_from_cached(
-        code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
-        workspace_caches: &WorkspaceCaches,
-    ) -> Self {
-        Self {
-            workspace_packages: workspace_caches.workspace_packages.clone(),
-            go_workspace: workspace_caches.go_workspace.clone(),
-            rust_workspace: workspace_caches.rust_workspace.clone(),
-            code_imports,
-            symbols: SymbolIndex::default(),
-        }
-    }
-
-    /// Build from cached data and include symbol-reference maps.
-    pub(crate) fn build_from_cached_with_symbol_refs(
-        root: &Path,
-        code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
-        code_symbols: BTreeMap<PathBuf, Vec<crate::symbols::Symbol>>,
-        workspace_caches: &WorkspaceCaches,
-    ) -> Result<Self> {
-        let symbols = SymbolIndex::build_with_preloaded(root, &code_imports, code_symbols)?;
-        Ok(Self {
-            workspace_packages: workspace_caches.workspace_packages.clone(),
-            go_workspace: workspace_caches.go_workspace.clone(),
-            rust_workspace: workspace_caches.rust_workspace.clone(),
-            code_imports,
-            symbols,
-        })
-    }
-
-    /// Build from cached data with symbol refs scoped to a target file.
+    /// Build a fresh import scan + targeted symbol build for `kdb refs -s <file>`.
     ///
-    /// Only scans files that import from `target_file` for usages.
-    pub(crate) fn build_from_cached_for_target(
+    /// Only extracts symbols and scans usages for files that import from `target_file`.
+    pub fn build_for_target(
         root: &Path,
-        code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
-        code_symbols: BTreeMap<PathBuf, Vec<crate::symbols::Symbol>>,
-        workspace_caches: &WorkspaceCaches,
+        ignore_patterns: &[String],
         target_file: PathBuf,
     ) -> Result<Self> {
+        let import_index = build_workspace_import_index(root, ignore_patterns)?;
         let symbols =
-            SymbolIndex::build_for_target(root, &code_imports, code_symbols, target_file)?;
+            SymbolIndex::build_targeted(root, &import_index.file_imports, target_file)?;
         Ok(Self {
-            workspace_packages: workspace_caches.workspace_packages.clone(),
-            go_workspace: workspace_caches.go_workspace.clone(),
-            rust_workspace: workspace_caches.rust_workspace.clone(),
-            code_imports,
+            workspace_packages: import_index.workspace_packages,
+            go_workspace: import_index.go_workspace,
+            rust_workspace: import_index.rust_workspace,
+            code_imports: import_index.file_imports,
             symbols,
         })
     }
@@ -487,62 +450,20 @@ impl ProjectIndex {
         Ok(Self { vault, code })
     }
 
-    /// Build using the persistent disk cache (incremental).
-    pub fn build_cached(root: &Path, ignore_patterns: &[String], fresh: bool) -> Result<Self> {
-        let canonical = root
-            .canonicalize()
-            .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
-        let result = cache::incremental_build(&canonical, ignore_patterns, fresh, None)?;
-        let vault =
-            VaultIndex::build_from_entries(&canonical, ignore_patterns, result.vault_files)?;
-        let code = CodeIndex::build_from_cached(result.code_imports, &result.workspace_caches);
-        Ok(Self { vault, code })
-    }
-
-    /// Build using the persistent disk cache with code symbol refs enabled.
-    pub fn build_cached_with_symbol_refs(
-        root: &Path,
-        ignore_patterns: &[String],
-        fresh: bool,
-    ) -> Result<Self> {
-        let canonical = root
-            .canonicalize()
-            .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
-        let result = cache::incremental_build(&canonical, ignore_patterns, fresh, None)?;
-        let vault =
-            VaultIndex::build_from_entries(&canonical, ignore_patterns, result.vault_files)?;
-        let code = CodeIndex::build_from_cached_with_symbol_refs(
-            &canonical,
-            result.code_imports,
-            result.code_symbols,
-            &result.workspace_caches,
-        )?;
-        Ok(Self { vault, code })
-    }
-
-    /// Build using the persistent disk cache, scoped to a target file.
+    /// Build a combined project index with targeted code symbol refs.
     ///
-    /// Only scans files that import from `target_file` for usages.
-    pub fn build_cached_for_target(
+    /// Only extracts symbols and scans usages for files that import from `target_file`.
+    pub fn build_for_target(
         root: &Path,
         ignore_patterns: &[String],
-        fresh: bool,
         target_file: &str,
     ) -> Result<Self> {
         let canonical = root
             .canonicalize()
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
         let target = resolve_file_target(&canonical, target_file)?;
-        let result = cache::incremental_build(&canonical, ignore_patterns, fresh, None)?;
-        let vault =
-            VaultIndex::build_from_entries(&canonical, ignore_patterns, result.vault_files)?;
-        let code = CodeIndex::build_from_cached_for_target(
-            &canonical,
-            result.code_imports,
-            result.code_symbols,
-            &result.workspace_caches,
-            target,
-        )?;
+        let vault = VaultIndex::build_with_ignores(&canonical, ignore_patterns)?;
+        let code = CodeIndex::build_for_target(&canonical, ignore_patterns, target)?;
         Ok(Self { vault, code })
     }
 
@@ -600,27 +521,6 @@ impl VaultIndex {
             files.insert(rel_path, entry);
         }
 
-        let mut index = Self {
-            root,
-            ignore_set,
-            files,
-            file_inbound: HashMap::new(),
-            heading_inbound: HashMap::new(),
-        };
-        index.populate_inbound();
-        Ok(index)
-    }
-
-    /// Build from pre-loaded file entries (skips discovery + parse).
-    pub(crate) fn build_from_entries(
-        root: &Path,
-        ignore_patterns: &[String],
-        files: BTreeMap<PathBuf, FileEntry>,
-    ) -> Result<Self> {
-        let root = root
-            .canonicalize()
-            .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
-        let ignore_set = build_ignore_globset(ignore_patterns)?;
         let mut index = Self {
             root,
             ignore_set,

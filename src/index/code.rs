@@ -13,45 +13,53 @@ use super::scanner::{UsageScanner, scan_all_qualified_symbols};
 use super::scope::{ExportedNames, FollowedReexport, GlobSource, ModuleScope, ReexportTarget};
 use super::{SymbolKey, SymbolRef};
 
-// ----------------------------------------------
+// -----------------------------------------------
 // src/index/code.rs
 //
-// pub struct SymbolIndex                     L58
-//   pub(super) fn build()                    L67
-//   pub(crate) fn build_with_preloaded()     L78
-// struct CodeFileFacts                       L88
-//   fn new()                                 L97
-//   fn snippet_for_line()                   L108
-//   fn column_from_byte()                   L115
-// struct Indexer                            L128
-//   fn new()                                L151
-//   fn new_with_symbols()                   L167
-//   fn build()                              L186
-//   fn load_code_files()                    L210
-//   fn extract_symbols()                    L253
-//   fn build_symbol_lookup()                L274
-//   fn build_reexport_lookup()              L287
-//   fn resolve_reexport_target()            L338
-//   fn build_module_scopes()                L377
-//   fn precompute_qualified_cache()         L402
-//   fn resolution_loop()                    L418
-//   fn resolve_reexports()                  L433
-//   fn expand_qualified_access()            L473
-//   fn propagate_glob_imports()             L529
-//   fn is_module_file()                     L564
-//   fn exported_names()                     L576
-//   fn follow_reexport_target()             L607
-//   fn symbol_exists()                      L652
-//   fn symbol_keys()                        L659
-//   fn seed_definition_refs()               L670
-//   fn link_usage_refs()                    L692
-//   fn link_reexport_refs()                 L724
-//   fn link_go_same_package_refs()          L779
-//   fn insert_usage_refs()                  L863
-//   fn insert_usage_row()                   L887
-//   fn normalize_symbol_refs()              L912
-// fn symbol_key()                           L919
-// ----------------------------------------------
+// pub struct SymbolIndex                      L66
+//   pub(super) fn build()                     L75
+//   pub(super) fn build_targeted()            L86
+// struct CodeFileFacts                        L96
+//   fn new()                                 L105
+//   fn snippet_for_line()                    L116
+//   fn column_from_byte()                    L123
+// struct Indexer                             L136
+//   fn new()                                 L161
+//   fn new_targeted()                        L178
+//   fn build()                               L198
+//   fn build_targeted()                      L225
+//   fn importers_from_import_map()           L282
+//   fn load_code_files_filtered()            L299
+//   fn load_code_files()                     L343
+//   fn extract_symbols()                     L386
+//   fn build_symbol_lookup()                 L407
+//   fn build_reexport_lookup()               L420
+//   fn resolve_reexport_target()             L471
+//   fn build_module_scopes()                 L510
+//   fn build_module_scopes_filtered()        L534
+//   fn resolution_loop_filtered()            L557
+//   fn resolve_reexports_filtered()          L571
+//   fn propagate_glob_imports_filtered()     L613
+//   fn precompute_qualified_cache()          L645
+//   fn resolution_loop()                     L661
+//   fn resolve_reexports()                   L676
+//   fn expand_qualified_access()             L716
+//   fn propagate_glob_imports()              L772
+//   fn is_module_file()                      L807
+//   fn exported_names()                      L819
+//   fn follow_reexport_target()              L850
+//   fn symbol_exists()                       L895
+//   fn symbol_keys()                         L902
+//   fn seed_definition_refs()                L913
+//   fn importer_set()                        L936
+//   fn link_usage_refs()                     L951
+//   fn link_reexport_refs()                  L987
+//   fn link_go_same_package_refs()          L1042
+//   fn insert_usage_refs()                  L1135
+//   fn insert_usage_row()                   L1159
+//   fn normalize_symbol_refs()              L1184
+// fn symbol_key()                           L1191
+// -----------------------------------------------
 
 /// Declaration symbols and inbound references built for `kdb refs -s`.
 #[derive(Debug, Clone, Default)]
@@ -71,29 +79,16 @@ impl SymbolIndex {
         Indexer::new(root, code_imports).build()
     }
 
-    /// Build from pre-computed imports and pre-loaded symbols (cache path).
+    /// Build a targeted symbol index scoped to a single file.
     ///
-    /// Skips `extract_symbols()` — uses cached symbols directly. Still runs
-    /// `load_code_files()` because usage scanning needs source text.
-    pub(crate) fn build_with_preloaded(
+    /// Extracts symbols fresh (no cache), then scans only files that import
+    /// from `target_file` for usages.
+    pub(super) fn build_targeted(
         root: &Path,
         code_imports: &BTreeMap<PathBuf, Vec<ResolvedImport>>,
-        preloaded_symbols: BTreeMap<PathBuf, Vec<Symbol>>,
-    ) -> Result<Self> {
-        Indexer::new_with_symbols(root, code_imports, preloaded_symbols).build()
-    }
-
-    /// Build from pre-computed imports and symbols, scoped to a target file.
-    ///
-    /// Only scans files that import from `target_file` for usages, avoiding
-    /// the O(n) full-project usage scan.
-    pub(crate) fn build_for_target(
-        root: &Path,
-        code_imports: &BTreeMap<PathBuf, Vec<ResolvedImport>>,
-        preloaded_symbols: BTreeMap<PathBuf, Vec<Symbol>>,
         target_file: PathBuf,
     ) -> Result<Self> {
-        Indexer::new_for_target(root, code_imports, preloaded_symbols, target_file).build()
+        Indexer::new_targeted(root, code_imports, target_file).build()
     }
 }
 
@@ -179,40 +174,18 @@ impl<'a> Indexer<'a> {
         }
     }
 
-    /// Create an indexer with pre-populated symbols (from cache). Skips extraction.
-    fn new_with_symbols(
+    /// Create an indexer scoped to a target file with fresh symbol extraction.
+    fn new_targeted(
         root: &'a Path,
         code_imports: &'a BTreeMap<PathBuf, Vec<ResolvedImport>>,
-        preloaded: BTreeMap<PathBuf, Vec<Symbol>>,
-    ) -> Self {
-        Self {
-            root,
-            imports: code_imports,
-            files: BTreeMap::new(),
-            symbols: preloaded,
-            skip_extract: true,
-            target_file: None,
-            symbol_lookup: HashMap::new(),
-            reexport_lookup: HashMap::new(),
-            module_scopes: HashMap::new(),
-            symbol_refs: HashMap::new(),
-            qualified_cache: HashMap::new(),
-        }
-    }
-
-    /// Create an indexer scoped to a target file. Only scans importers for usages.
-    fn new_for_target(
-        root: &'a Path,
-        code_imports: &'a BTreeMap<PathBuf, Vec<ResolvedImport>>,
-        preloaded: BTreeMap<PathBuf, Vec<Symbol>>,
         target_file: PathBuf,
     ) -> Self {
         Self {
             root,
             imports: code_imports,
             files: BTreeMap::new(),
-            symbols: preloaded,
-            skip_extract: true,
+            symbols: BTreeMap::new(),
+            skip_extract: false,
             target_file: Some(target_file),
             symbol_lookup: HashMap::new(),
             reexport_lookup: HashMap::new(),
@@ -287,6 +260,9 @@ impl<'a> Indexer<'a> {
         }
 
         self.load_code_files_filtered(&importers)?;
+        if !self.skip_extract {
+            self.extract_symbols();
+        }
         self.build_symbol_lookup();
         self.build_reexport_lookup();
         self.build_module_scopes_filtered(&importers);

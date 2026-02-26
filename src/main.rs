@@ -5,8 +5,8 @@ use std::path::PathBuf;
 // src/main.rs
 //
 // struct Cli          L19
-// enum Command        L28
-// async fn main()    L131
+// enum Command        L25
+// async fn main()    L123
 // -----------------------
 
 #[derive(Debug, Parser)]
@@ -17,9 +17,6 @@ use std::path::PathBuf;
     after_help = "pls report bugs: https://github.com/dremnik/kdb/issues"
 )]
 struct Cli {
-    /// Force a full index rebuild, ignoring the disk cache.
-    #[arg(long, global = true)]
-    fresh: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -110,11 +107,6 @@ enum Command {
         /// Optional starting path to discover kdb root from.
         path: Option<PathBuf>,
     },
-    /// Build or rebuild the project index.
-    Index {
-        /// Optional starting path to discover kdb root from.
-        path: Option<PathBuf>,
-    },
     /// Generate or update code index headers in supported code files.
     Fmt {
         /// Optional file or directory path to format (defaults to project root).
@@ -133,7 +125,7 @@ async fn main() {
 
     let result = match cli.command {
         Command::Init { path } => kdb::cmd::init(path),
-        Command::Check { path, orphans } => match kdb::cmd::check(path, orphans, cli.fresh) {
+        Command::Check { path, orphans } => match kdb::cmd::check(path, orphans) {
             Ok(has_issues) => {
                 if has_issues {
                     std::process::exit(1);
@@ -166,10 +158,9 @@ async fn main() {
             context,
             json,
             count,
-        } => kdb::cmd::refs(target, symbol, context, json, count, cli.fresh),
-        Command::Deps { target, json } => kdb::cmd::deps(target, json, cli.fresh),
+        } => kdb::cmd::refs(target, symbol, context, json, count),
+        Command::Deps { target, json } => kdb::cmd::deps(target, json),
         Command::Graph { path } => kdb::cmd::graph(path),
-        Command::Index { path } => kdb::cmd::index(path),
         Command::Fmt { path } => kdb::cmd::format(path),
         Command::Lsp { path } => kdb::lsp::serve(path).await,
     };

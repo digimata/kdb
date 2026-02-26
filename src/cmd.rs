@@ -4,7 +4,6 @@
 //! `init`, `check`, `outline`, `tree`, `symbols`, `refs`, `deps`, `graph`, `fmt`, and `lsp`.
 
 use anyhow::{Context, Result, bail};
-use indicatif::{ProgressBar, ProgressStyle};
 use serde_json;
 use std::env;
 use std::fs;
@@ -20,20 +19,19 @@ use crate::tree;
 // --------------------------------------
 // src/cmd.rs
 //
-// pub struct CmdContext              L40
-//   pub fn from_path()               L53
-//   pub fn build_index()             L69
-//   pub fn build_project_index()     L86
-//   pub fn rel_path()                L98
-// pub fn init()                     L125
-// pub fn check()                    L178
-// pub fn tree()                     L195
-// pub fn symbols()                  L243
-// pub fn refs()                     L304
-// pub fn deps()                     L365
-// pub fn graph()                    L400
-// pub fn index()                    L414
-// pub fn format()                   L457
+// pub struct CmdContext              L38
+//   pub fn from_path()               L49
+//   pub fn build_index()             L59
+//   pub fn build_project_index()     L64
+//   pub fn rel_path()                L72
+// pub fn init()                      L99
+// pub fn check()                    L153
+// pub fn tree()                     L170
+// pub fn symbols()                  L218
+// pub fn refs()                     L279
+// pub fn deps()                     L339
+// pub fn graph()                    L374
+// pub fn format()                   L388
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -42,53 +40,29 @@ pub struct CmdContext {
     pub start: PathBuf,
     /// Discovered project context (root, ignore patterns, ignore set).
     pub project: ProjectContext,
-    /// When true, ignore the disk cache and force a full rebuild.
-    pub fresh: bool,
 }
 
 impl CmdContext {
     /// Resolve a start path and discover the project root.
     ///
     /// When `path` is `None`, falls back to the current working directory.
-    pub fn from_path(path: Option<&Path>, fresh: bool) -> Result<Self> {
+    pub fn from_path(path: Option<&Path>) -> Result<Self> {
         let start = match path {
             Some(p) => project::root::make_absolute(p)?,
             None => env::current_dir().context("failed to read current directory")?,
         };
         let project = ProjectContext::discover(&start)?;
-        Ok(Self {
-            start,
-            project,
-            fresh,
-        })
+        Ok(Self { start, project })
     }
 
     /// Build a [`VaultIndex`] (markdown only) using the project's ignore patterns.
-    ///
-    /// Uses the persistent cache when available.
     pub fn build_index(&self) -> Result<VaultIndex> {
-        let result = index::cache::incremental_build(
-            &self.project.root,
-            &self.project.ignore_patterns,
-            self.fresh,
-            None,
-        )?;
-        VaultIndex::build_from_entries(
-            &self.project.root,
-            &self.project.ignore_patterns,
-            result.vault_files,
-        )
+        VaultIndex::build_with_ignores(&self.project.root, &self.project.ignore_patterns)
     }
 
     /// Build a [`ProjectIndex`] (vault + code) using the project's ignore patterns.
-    ///
-    /// Uses the persistent cache when available.
     pub fn build_project_index(&self) -> Result<ProjectIndex> {
-        ProjectIndex::build_cached(
-            &self.project.root,
-            &self.project.ignore_patterns,
-            self.fresh,
-        )
+        ProjectIndex::build_with_ignores(&self.project.root, &self.project.ignore_patterns)
     }
 
     /// Canonicalize an absolute path and return its root-relative form.
@@ -167,10 +141,7 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
     fs::write(&ignore_path, project::ignore::DEFAULT_IGNORE)
         .with_context(|| format!("failed to write {}", ignore_path.display()))?;
 
-    println!("initialized kdb project at {}\n", root.display());
-
-    // Pre-warm the persistent index so the first refs/deps/check is instant.
-    index(Some(root))?;
+    println!("initialized kdb project at {}", root.display());
 
     Ok(())
 }
@@ -179,9 +150,9 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
 ///
 /// Returns `Ok(true)` if any issues were found (caller should exit with code 1),
 /// or `Ok(false)` if the vault is clean.
-pub fn check(path: Option<PathBuf>, list_orphans: bool, fresh: bool) -> Result<bool> {
+pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
     let has_scope = path.is_some();
-    let ctx = CmdContext::from_path(path.as_deref(), fresh)?;
+    let ctx = CmdContext::from_path(path.as_deref())?;
     let index = ctx.build_index()?;
     let mut report = index.check();
 
@@ -207,7 +178,7 @@ pub fn tree(
     pattern: Vec<String>,
 ) -> Result<()> {
     let has_explicit_path = path.is_some();
-    let ctx = CmdContext::from_path(path.as_deref(), false)?;
+    let ctx = CmdContext::from_path(path.as_deref())?;
 
     if !ctx.start.exists() {
         bail!("path does not exist: {}", ctx.start.display());
@@ -252,7 +223,7 @@ pub fn symbols(
 ) -> Result<()> {
     assert!(!paths.is_empty(), "at least one path is required");
 
-    let ctx = CmdContext::from_path(Some(&paths[0]), false)?;
+    let ctx = CmdContext::from_path(Some(&paths[0]))?;
     let files = symbols::query::expand_paths(&ctx.project, &paths)?;
     assert!(!files.is_empty(), "no supported files found in given paths");
 
@@ -311,15 +282,13 @@ pub fn refs(
     context_lines: Option<usize>,
     as_json: bool,
     count_only: bool,
-    fresh: bool,
 ) -> Result<()> {
-    let ctx = CmdContext::from_path(None, fresh)?;
+    let ctx = CmdContext::from_path(None)?;
 
     if let Some(symbol_name) = symbol {
-        let index = ProjectIndex::build_cached_for_target(
+        let index = ProjectIndex::build_for_target(
             &ctx.project.root,
             &ctx.project.ignore_patterns,
-            ctx.fresh,
             &target,
         )?;
         let inbound =
@@ -367,8 +336,8 @@ pub fn refs(
 }
 
 /// List outbound dependencies for a markdown or supported code file.
-pub fn deps(target: String, as_json: bool, fresh: bool) -> Result<()> {
-    let ctx = CmdContext::from_path(None, fresh)?;
+pub fn deps(target: String, as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
     let source_file = index::resolve_file_target(&ctx.project.root, &target)?;
     let is_markdown = source_file
         .extension()
@@ -412,56 +381,13 @@ pub fn graph(path: Option<PathBuf>) -> Result<()> {
     )
 }
 
-/// Build or rebuild the project index and write it to `.kdb/index.bin`.
-///
-/// Always forces a fresh rebuild. Shows a progress bar during file discovery
-/// and parsing.
-pub fn index(path: Option<PathBuf>) -> Result<()> {
-    let ctx = CmdContext::from_path(path.as_deref(), true)?;
-
-    let pb = ProgressBar::new(0);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{bar:40}  {percent}%  ({pos} / {len})")
-            .expect("valid progress bar template")
-            .progress_chars("█░"),
-    );
-
-    let start = std::time::Instant::now();
-    let result = index::cache::incremental_build(
-        &ctx.project.root,
-        &ctx.project.ignore_patterns,
-        true,
-        Some(&pb),
-    )?;
-
-    let vault = index::VaultIndex::build_from_entries(
-        &ctx.project.root,
-        &ctx.project.ignore_patterns,
-        result.vault_files,
-    )?;
-    let elapsed = start.elapsed();
-
-    pb.finish_and_clear();
-
-    let md_files = vault.files.len();
-    let code_files = result.code_imports.len();
-    println!(
-        "indexed {} markdown + {} code files in {:.2}s",
-        md_files,
-        code_files,
-        elapsed.as_secs_f64(),
-    );
-    Ok(())
-}
-
 /// Generate or update code index headers for supported code files.
 ///
 /// Walks the project root and rewrites Rust, TypeScript/JavaScript, Python,
 /// and Go files with a managed index block at the top of each file.
 pub fn format(path: Option<PathBuf>) -> Result<()> {
     let has_explicit_path = path.is_some();
-    let ctx = CmdContext::from_path(path.as_deref(), false)?;
+    let ctx = CmdContext::from_path(path.as_deref())?;
 
     if !ctx.start.exists() {
         bail!("path does not exist: {}", ctx.start.display());

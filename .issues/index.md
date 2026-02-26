@@ -5,8 +5,6 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | Issue | Label | Status | Priority |
 | --- | --- | --- | --- |
 | [0012 — CLI Commands (tracking)](iss-0012-cli-commands.md) | tracking | in_progress | high |
-| [0028 — Code Symbol References (`refs -s`)](iss-0028-code-symbol-refs.md) | feat | in_progress | high |
-| [0039 — `refs -s` Recall Gaps (tracking)](iss-0039-refs-recall-gaps.md) | tracking | in_progress | high |
 | [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | chore | done | high |
 | [0016 — Codemap](iss-0016-codemap.md) | feat | proposed | high |
 | [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | high |
@@ -24,6 +22,8 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0002 — Templates](iss-0002-templates.md) | feat | proposed | medium |
 | [0008 — Installable KDB Packages](iss-0008-installable-packages.md) | feat | proposed | medium |
 | [0040 — C# Language Support](iss-0040-csharp-language-support.md) | feat | proposed | medium |
+| [0052 — Remove Persistent Disk Cache](iss-0052-remove-disk-cache.md) | refactor | done | high |
+| [0053 — `refs -s` Accuracy Benchmark](iss-0053-refs-accuracy-benchmark.md) | research | proposed | high |
 | [0051 — Landing Page](iss-0051-landing-page.md) | feat | done | medium |
 | [0004 — Canvas Support](iss-0004-canvas-support.md) | feat | proposed | low |
 

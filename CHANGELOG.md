@@ -4,6 +4,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] — 2026-02-26
+
+### Removed
+
+- persistent disk cache (`src/index/cache.rs`) — with targeted scanning (iss-0046), cold `refs -s` on kubernetes runs 2.8s vs 0.93s cached; the ~2s savings doesn't justify cache invalidation, staleness detection, GC, atomic writes, and 3 extra dependencies (iss-0052)
+- `kdb index` subcommand — no longer needed without a disk cache
+- `--fresh` global flag — no longer needed without a disk cache
+- `bincode`, `seahash`, `indicatif` dependencies
+
 ## [0.15.0] — 2026-02-26
 
 ### Changed
