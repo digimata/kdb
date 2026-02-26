@@ -17,29 +17,31 @@ Tracking issue for recall gaps discovered by the correctness eval suite (`tests/
 
 ## Scorecard
 
-6 tests excluded as out of scope (see below). In-scope total: **31**.
+6 tests excluded as out of scope (see below). In-scope total: **38**.
 
 | Language | Pass | Fail | In-scope | Recall |
 |---|---|---|---|---|
-| Rust | 5 | 2 | 7 | 71% |
-| TS/JS | 7 | 3 | 10 | 70% |
-| Python | 5 | 4 | 9 | 56% |
-| Go | 4 | 1 | 5 | 80% |
-| **Total** | **22** | **9** | **31** | **71%** |
-
-Target after all sub-issues resolved: **31/31 (100%)**.
+| Rust | 11 | 0 | 11 | 100% |
+| TS/JS | 10 | 0 | 10 | 100% |
+| Python | 10 | 0 | 10 | 100% |
+| Go | 7 | 0 | 7 | 100% |
+| **Total** | **38** | **0** | **38** | **100%** |
 
 ## Sub-issues
 
+### Done (archived to GitHub #37–#45)
+
+0039.1 (Python symbol binding), 0039.2 (Go namespace access), 0039.3 (usage scanner gaps), 0039.4 (alias tracking), 0039.5 (re-export following), 0039.6 (namespace access), 0039.7 (wildcard imports), 0039.9 (Go same-package refs), 0039.12 (Rust scoped imports).
+
+### Open
+
 | Issue | Gap | Affects | Priority |
 |---|---|---|---|
-| [0039.1 — Python symbol binding](iss-0039.1-python-symbol-binding.md) | `from X import name` resolves name as submodule, not symbol | P1, P6, P7, P8, P9 | high |
-| [0039.2 — Go namespace access](iss-0039.2-go-namespace-access.md) | `pkg.Foo` — import names contain pkg alias, not symbol names | G1, G6, G7 | high |
-| [0039.3 — Usage scanner gaps](iss-0039.3-usage-scanner-gaps.md) | Parameter type filter (R9) + JSX identifier kind (T11) | R9, T11 | medium |
-| [0039.4 — Alias tracking](iss-0039.4-alias-tracking.md) | Alias name in bindings, definition name in symbol_lookup | R3, T3, P3, G2 | medium |
-| [0039.5 — Re-export following](iss-0039.5-reexport-following.md) | `pub use`, barrel files, `__init__.py` not followed | R4, T5, T6, P5 | high |
-| [0039.6 — Namespace access](iss-0039.6-namespace-access.md) | `X.name` qualified access not decomposed | T4, P2, G3 | medium |
-| [0039.7 — Wildcard imports](iss-0039.7-wildcard-imports.md) | `use X::*` / `from X import *` not expanded | R5, P4 | low |
+| [0039.8 — tsconfig path aliases](iss-0039/iss-0039.8-tsconfig-path-aliases.md) | `@/foo` path aliases not resolved in monorepo packages | real-world TS | high |
+| [0039.10 — TSX/JSX real-world](iss-0039/iss-0039.10-tsx-jsx-real-world.md) | JSX tag/expr/call identifiers not found in real TSX | real-world TSX | medium |
+| [0039.11 — Re-export as reference](iss-0039/iss-0039.11-reexport-as-reference.md) | `export { foo }` re-export not counted as usage | real-world TS/Rust | medium |
+| [0039.13 — Rust cfg-macro symbols](iss-0039/iss-0039.13-rust-cfg-macro-symbols.md) | Symbols inside `cfg_if!` / token-tree not extracted | real-world Rust | medium |
+| [0039.14 — TS member access](iss-0039/iss-0039.14-ts-member-access-imported-value.md) | `ToastState.subscribe()` — named import in member expr | real-world TS | high |
 
 ## Out of scope
 
