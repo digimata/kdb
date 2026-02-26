@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1] — 2026-02-26
+
+### Fixed
+
+- named imports used as member expression objects (e.g. `ToastState.subscribe()`) now correctly count as usages — previously the scanner treated all member expressions as namespace access patterns, causing named imports to be silently dropped (iss-0039.14)
+- added test coverage for monorepo per-package tsconfig path alias resolution via `deps` and `refs -s` (iss-0039.8)
+
 ## [0.12.0] — 2026-02-26
 
 ### Added
