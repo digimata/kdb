@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] — 2026-02-25
+
+### Fixed
+
+- recognize Rust type identifiers in parameter positions as usages, not declarations (iss-0039.3, R9)
+- recognize JSX component identifiers (`jsx_identifier`) as usages and exclude JSX element tags from declaration detection (iss-0039.3, T11)
+
 ## [0.8.3] — 2026-02-25
 
 ### Fixed

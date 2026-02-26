@@ -465,7 +465,7 @@ impl UsageScanner {
         match self.language {
             CodeLanguage::Rust => matches!(kind, "identifier" | "type_identifier"),
             CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
-                matches!(kind, "identifier" | "type_identifier")
+                matches!(kind, "identifier" | "type_identifier" | "jsx_identifier")
             }
             CodeLanguage::Python => kind == "identifier",
             CodeLanguage::Go => matches!(kind, "identifier" | "type_identifier"),
@@ -541,6 +541,14 @@ fn is_declaration_identifier(node: Node<'_>) -> bool {
         return false;
     }
 
+    // JSX element tags use the `name` field, but they're usages, not declarations.
+    if matches!(
+        parent.kind(),
+        "jsx_opening_element" | "jsx_closing_element" | "jsx_self_closing_element"
+    ) {
+        return false;
+    }
+
     if node_is_field(parent, "name", node)
         || node_is_field(parent, "alias", node)
         || node_is_field(parent, "parameter", node)
@@ -571,7 +579,6 @@ fn is_declaration_identifier(node: Node<'_>) -> bool {
             | "const_spec"
             | "var_spec"
             | "short_var_declaration"
-            | "parameter"
             | "parameters"
             | "formal_parameters"
             | "parameter_list"
