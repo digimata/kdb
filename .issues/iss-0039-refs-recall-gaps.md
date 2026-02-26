@@ -31,14 +31,13 @@ Tracking issue for recall gaps discovered by the correctness eval suite (`tests/
 
 ### Done (archived to GitHub #37–#45)
 
-0039.1 (Python symbol binding), 0039.2 (Go namespace access), 0039.3 (usage scanner gaps), 0039.4 (alias tracking), 0039.5 (re-export following), 0039.6 (namespace access), 0039.7 (wildcard imports), 0039.8 (tsconfig path aliases), 0039.9 (Go same-package refs), 0039.12 (Rust scoped imports), 0039.13 (Rust cfg-macro symbols), 0039.14 (TS member access on named import).
+0039.1 (Python symbol binding), 0039.2 (Go namespace access), 0039.3 (usage scanner gaps), 0039.4 (alias tracking), 0039.5 (re-export following), 0039.6 (namespace access), 0039.7 (wildcard imports), 0039.8 (tsconfig path aliases), 0039.9 (Go same-package refs), 0039.12 (Rust scoped imports), 0039.11 (re-export as reference), 0039.13 (Rust cfg-macro symbols), 0039.14 (TS member access on named import).
 
 ### Open
 
 | Issue | Gap | Affects | Priority |
 |---|---|---|---|
 | [0039.10 — TSX/JSX real-world](iss-0039/iss-0039.10-tsx-jsx-real-world.md) | JSX tag/expr/call identifiers not found in real TSX | real-world TSX | medium |
-| [0039.11 — Re-export as reference](iss-0039/iss-0039.11-reexport-as-reference.md) | `export { foo }` re-export not counted as usage | real-world TS/Rust | medium |
 
 ## Out of scope
 

@@ -9,26 +9,26 @@ use crate::symbols::{raw_node_text, walk_depth_first};
 //
 // pub(super) struct IdentifierUsage              L36
 // pub(super) struct UsageScanner                 L45
-//   pub fn new()                                 L53
-//   pub fn collect()                             L64
-//   fn qualified_usage_for_node()               L109
-//   fn rust_qualified_usage()                   L133
-//   fn member_expression_usage()                L159
-//   fn go_qualified_usage()                     L190
-//   fn is_part_of_qualified_usage()             L210
-//   fn is_usage_identifier()                    L221
-// pub(super) fn rust_qualified_nodes()          L237
-// pub(super) fn rust_binding_name()             L247
-// fn go_qualified_nodes()                       L262
-// fn is_go_qualified_binding_node()             L276
-// fn is_rust_qualified_binding_node()           L292
-// fn is_member_object_node()                    L307
-// pub(super) fn is_import_identifier()          L319
-// fn is_import_node()                           L330
-// pub(super) fn is_declaration_identifier()     L348
-// fn node_is_field()                            L410
-// fn same_node()                                L416
-// pub(super) fn scan_all_qualified_symbols()    L429
+//   pub fn new()                                 L55
+//   pub fn collect()                             L72
+//   fn qualified_usage_for_node()               L117
+//   fn rust_qualified_usage()                   L141
+//   fn member_expression_usage()                L167
+//   fn go_qualified_usage()                     L198
+//   fn is_part_of_qualified_usage()             L218
+//   fn is_usage_identifier()                    L243
+// pub(super) fn rust_qualified_nodes()          L259
+// pub(super) fn rust_binding_name()             L269
+// fn go_qualified_nodes()                       L284
+// fn is_go_qualified_binding_node()             L298
+// fn is_rust_qualified_binding_node()           L314
+// fn is_member_object_node()                    L329
+// pub(super) fn is_import_identifier()          L341
+// fn is_import_node()                           L352
+// pub(super) fn is_declaration_identifier()     L370
+// fn node_is_field()                            L432
+// fn same_node()                                L438
+// pub(super) fn scan_all_qualified_symbols()    L451
 // --------------------------------------------------
 
 /// A single identifier usage discovered by tree-sitter scanning.
@@ -46,15 +46,23 @@ pub(super) struct UsageScanner {
     language: CodeLanguage,
     source: String,
     imported_names: HashSet<String>,
+    namespace_names: HashSet<String>,
 }
 
 impl UsageScanner {
-    /// Create a new scanner for the given language and imported names.
-    pub fn new(language: CodeLanguage, source: &str, imported_names: HashSet<String>) -> Self {
+    /// Create a new scanner for the given language, imported names, and
+    /// namespace-imported binding names (e.g. `import * as NS`).
+    pub fn new(
+        language: CodeLanguage,
+        source: &str,
+        imported_names: HashSet<String>,
+        namespace_names: HashSet<String>,
+    ) -> Self {
         Self {
             language,
             source: source.to_string(),
             imported_names,
+            namespace_names,
         }
     }
 
@@ -79,7 +87,7 @@ impl UsageScanner {
                 return;
             }
 
-            if self.is_part_of_qualified_usage(node) {
+            if self.is_part_of_qualified_usage(node, source_bytes) {
                 return;
             }
 
@@ -154,8 +162,8 @@ impl UsageScanner {
     }
 
     /// Handle qualified access via member expressions (TS/JS `obj.prop`,
-    /// Python `obj.attr`). When the object matches a namespace import binding,
-    /// the property/attribute is treated as a usage from the target module.
+    /// Python `obj.attr`). Only fires for namespace import bindings — named
+    /// imports used as member expression objects are handled as bare usages.
     fn member_expression_usage(
         &self,
         node: Node<'_>,
@@ -171,7 +179,7 @@ impl UsageScanner {
         let property_node = node.child_by_field_name(property_field)?;
 
         let binding_name = raw_node_text(object_node, source_bytes)?;
-        if !self.imported_names.contains(binding_name) {
+        if !self.namespace_names.contains(binding_name) {
             return None;
         }
         if is_import_identifier(object_node) {
@@ -207,14 +215,28 @@ impl UsageScanner {
         })
     }
 
-    fn is_part_of_qualified_usage(&self, node: Node<'_>) -> bool {
+    fn is_part_of_qualified_usage(&self, node: Node<'_>, source_bytes: &[u8]) -> bool {
         match self.language {
             CodeLanguage::Rust => is_rust_qualified_binding_node(node),
             CodeLanguage::Go => is_go_qualified_binding_node(node),
             CodeLanguage::JavaScript | CodeLanguage::TypeScript | CodeLanguage::Tsx => {
-                is_member_object_node(node, "member_expression", "object")
+                if !is_member_object_node(node, "member_expression", "object") {
+                    return false;
+                }
+                let Some(name) = raw_node_text(node, source_bytes) else {
+                    return false;
+                };
+                self.namespace_names.contains(name)
             }
-            CodeLanguage::Python => is_member_object_node(node, "attribute", "object"),
+            CodeLanguage::Python => {
+                if !is_member_object_node(node, "attribute", "object") {
+                    return false;
+                }
+                let Some(name) = raw_node_text(node, source_bytes) else {
+                    return false;
+                };
+                self.namespace_names.contains(name)
+            }
         }
     }
 

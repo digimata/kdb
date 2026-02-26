@@ -29,9 +29,3 @@ Tracking issue for the full kdb CLI surface area.
 
 - [ ] `kdb graph` — dependency graph output (stubbed, not implemented) → [iss-0021](iss-0021-graph-command.md)
 - [ ] `kdb codemap` — unified agent-readable codebase map → [iss-0016](iss-0016-codemap.md)
-
-## Retired
-
-- `kdb orphans` → folded into `kdb check --orphans`
-- `kdb stubs` → folded into `kdb check --orphans`
-- `kdb outline` → removed, use `kdb symbols` instead

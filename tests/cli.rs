@@ -718,7 +718,10 @@ fn symbols_selector_prints_multiple_matching_bodies() {
     assert!(stdout.contains("| pub fn open() -> i32"));
     // Separate symbols are separated by a blank line
     let parts: Vec<&str> = stdout.split("\n\n").collect();
-    assert!(parts.len() >= 2, "expected blank line between symbol bodies");
+    assert!(
+        parts.len() >= 2,
+        "expected blank line between symbol bodies"
+    );
 }
 
 #[test]

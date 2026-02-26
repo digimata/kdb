@@ -262,11 +262,7 @@ pub(crate) fn incremental_build(
     progress: Option<&ProgressBar>,
 ) -> Result<IncrementalBuildResult> {
     // 1. Load cache (unless fresh).
-    let mut cache = if fresh {
-        None
-    } else {
-        IndexCache::load(root)
-    };
+    let mut cache = if fresh { None } else { IndexCache::load(root) };
 
     // 2. Check manifest_key — if changed, discard cache entirely.
     let current_manifest_key = manifest_key(root);
@@ -561,7 +557,12 @@ fn from_import(i: &ResolvedImport) -> CachedImport {
         kind: import_kind_to_u8(i.kind),
         names: CachedImportNames {
             locals: i.names.locals.clone(),
-            aliases: i.names.aliases.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            aliases: i
+                .names
+                .aliases
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
             is_namespace: i.names.is_namespace,
         },
         line: i.line as u32,

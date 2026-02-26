@@ -426,8 +426,7 @@ impl CodeIndex {
         code_symbols: BTreeMap<PathBuf, Vec<crate::symbols::Symbol>>,
         workspace_caches: &WorkspaceCaches,
     ) -> Result<Self> {
-        let symbols =
-            SymbolIndex::build_with_preloaded(root, &code_imports, code_symbols)?;
+        let symbols = SymbolIndex::build_with_preloaded(root, &code_imports, code_symbols)?;
         Ok(Self {
             workspace_packages: workspace_caches.workspace_packages.clone(),
             go_workspace: workspace_caches.go_workspace.clone(),
@@ -475,8 +474,7 @@ impl ProjectIndex {
         let result = cache::incremental_build(&canonical, ignore_patterns, fresh, None)?;
         let vault =
             VaultIndex::build_from_entries(&canonical, ignore_patterns, result.vault_files)?;
-        let code =
-            CodeIndex::build_from_cached(result.code_imports, &result.workspace_caches);
+        let code = CodeIndex::build_from_cached(result.code_imports, &result.workspace_caches);
         Ok(Self { vault, code })
     }
 

@@ -16,40 +16,41 @@ use super::{SymbolKey, SymbolRef};
 // ----------------------------------------------
 // src/index/code.rs
 //
-// pub struct SymbolIndex                     L57
-//   pub(super) fn build()                    L66
-//   pub(crate) fn build_with_preloaded()     L77
-// struct CodeFileFacts                       L87
-//   fn new()                                 L96
-//   fn snippet_for_line()                   L107
-//   fn column_from_byte()                   L114
-// struct Indexer                            L127
-//   fn new()                                L150
-//   fn new_with_symbols()                   L166
-//   fn build()                              L185
-//   fn load_code_files()                    L208
-//   fn extract_symbols()                    L251
-//   fn build_symbol_lookup()                L272
-//   fn build_reexport_lookup()              L285
-//   fn resolve_reexport_target()            L335
-//   fn build_module_scopes()                L374
-//   fn precompute_qualified_cache()         L399
-//   fn resolution_loop()                    L415
-//   fn resolve_reexports()                  L430
-//   fn expand_qualified_access()            L470
-//   fn propagate_glob_imports()             L526
-//   fn is_module_file()                     L561
-//   fn exported_names()                     L573
-//   fn follow_reexport_target()             L604
-//   fn symbol_exists()                      L649
-//   fn symbol_keys()                        L656
-//   fn seed_definition_refs()               L667
-//   fn link_usage_refs()                    L689
-//   fn link_go_same_package_refs()          L716
-//   fn insert_usage_refs()                  L794
-//   fn insert_usage_row()                   L818
-//   fn normalize_symbol_refs()              L843
-// fn symbol_key()                           L850
+// pub struct SymbolIndex                     L58
+//   pub(super) fn build()                    L67
+//   pub(crate) fn build_with_preloaded()     L78
+// struct CodeFileFacts                       L88
+//   fn new()                                 L97
+//   fn snippet_for_line()                   L108
+//   fn column_from_byte()                   L115
+// struct Indexer                            L128
+//   fn new()                                L151
+//   fn new_with_symbols()                   L167
+//   fn build()                              L186
+//   fn load_code_files()                    L210
+//   fn extract_symbols()                    L253
+//   fn build_symbol_lookup()                L274
+//   fn build_reexport_lookup()              L287
+//   fn resolve_reexport_target()            L338
+//   fn build_module_scopes()                L377
+//   fn precompute_qualified_cache()         L402
+//   fn resolution_loop()                    L418
+//   fn resolve_reexports()                  L433
+//   fn expand_qualified_access()            L473
+//   fn propagate_glob_imports()             L529
+//   fn is_module_file()                     L564
+//   fn exported_names()                     L576
+//   fn follow_reexport_target()             L607
+//   fn symbol_exists()                      L652
+//   fn symbol_keys()                        L659
+//   fn seed_definition_refs()               L670
+//   fn link_usage_refs()                    L692
+//   fn link_reexport_refs()                 L724
+//   fn link_go_same_package_refs()          L779
+//   fn insert_usage_refs()                  L863
+//   fn insert_usage_row()                   L887
+//   fn normalize_symbol_refs()              L912
+// fn symbol_key()                           L919
 // ----------------------------------------------
 
 /// Declaration symbols and inbound references built for `kdb refs -s`.
@@ -193,6 +194,7 @@ impl<'a> Indexer<'a> {
         self.resolution_loop();
         self.seed_definition_refs();
         self.link_usage_refs();
+        self.link_reexport_refs();
         self.link_go_same_package_refs();
         self.normalize_symbol_refs();
         Ok(SymbolIndex {
@@ -312,6 +314,7 @@ impl<'a> Indexer<'a> {
                         .insert(ReexportTarget {
                             target_file,
                             definition_name: binding.definition_name,
+                            line: binding.line,
                         });
                 }
 
@@ -700,7 +703,12 @@ impl<'a> Indexer<'a> {
         let scan_results: Vec<_> = scan_inputs
             .par_iter()
             .map(|(file, facts, scope)| {
-                let scanner = UsageScanner::new(facts.language, &facts.source, scope.names());
+                let scanner = UsageScanner::new(
+                    facts.language,
+                    &facts.source,
+                    scope.names(),
+                    scope.namespace_bindings.clone(),
+                );
                 let usages = scanner.collect(&facts.tree);
                 (file, facts, scope, usages)
             })
@@ -708,6 +716,61 @@ impl<'a> Indexer<'a> {
 
         for (source_file, facts, scope, usages) in scan_results {
             self.insert_usage_refs(source_file, facts, scope, usages);
+        }
+    }
+
+    /// Emit `SymbolRef` rows for re-export bindings so barrel files appear
+    /// as usages of the original symbol.
+    fn link_reexport_refs(&mut self) {
+        // Snapshot the lookup to avoid borrowing `self` while mutating refs.
+        let lookup: Vec<_> = self
+            .reexport_lookup
+            .iter()
+            .map(|(file, by_name)| (file.clone(), by_name.clone()))
+            .collect();
+
+        let mut seen: HashSet<(SymbolKey, PathBuf, usize)> = HashSet::new();
+
+        for (source_file, by_name) in &lookup {
+            let facts = match self.files.get(source_file) {
+                Some(f) => f,
+                None => continue,
+            };
+
+            for (exported_name, targets) in by_name {
+                for target in targets {
+                    // Try direct lookup at the target file.
+                    let keys = self
+                        .symbol_keys(&target.target_file, &target.definition_name)
+                        .or_else(|| {
+                            // Fallback: follow the re-export chain to the final
+                            // definition site (handles multi-hop re-exports).
+                            let followed =
+                                self.follow_reexport_target(source_file, exported_name)?;
+                            self.symbol_keys(&followed.target_file, &followed.lookup_name)
+                        });
+
+                    let Some(keys) = keys else {
+                        continue;
+                    };
+
+                    let snippet = facts.snippet_for_line(target.line);
+                    for key in &keys {
+                        let dedup_key = (key.clone(), source_file.clone(), target.line);
+                        if !seen.insert(dedup_key) {
+                            continue;
+                        }
+                        let row = SymbolRef {
+                            source_file: source_file.clone(),
+                            line: target.line,
+                            column: 1,
+                            snippet: snippet.clone(),
+                            is_definition: false,
+                        };
+                        self.symbol_refs.entry(key.clone()).or_default().push(row);
+                    }
+                }
+            }
         }
     }
 
@@ -770,6 +833,7 @@ impl<'a> Indexer<'a> {
                         .collect(),
                     aliases: HashMap::new(),
                     namespace_targets: Vec::new(),
+                    namespace_bindings: HashSet::new(),
                     glob_sources: Vec::new(),
                 };
 
@@ -780,7 +844,12 @@ impl<'a> Indexer<'a> {
         let scan_results: Vec<_> = scan_inputs
             .par_iter()
             .map(|(file, facts, scope)| {
-                let scanner = UsageScanner::new(facts.language, &facts.source, scope.names());
+                let scanner = UsageScanner::new(
+                    facts.language,
+                    &facts.source,
+                    scope.names(),
+                    scope.namespace_bindings.clone(),
+                );
                 let usages = scanner.collect(&facts.tree);
                 (file, facts, scope, usages)
             })

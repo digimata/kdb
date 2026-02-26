@@ -158,7 +158,7 @@ fn rust_r04_pub_use_reexport() {
         "Foo",
     );
     assert_eq!(defs, 1, "expected 1 definition");
-    assert_eq!(usages, 1, "expected 1 usage via re-export");
+    assert_eq!(usages, 2, "expected 2 usages: caller + re-export in facade");
 }
 
 #[test]
@@ -286,8 +286,8 @@ fn rust_r13_multi_item_brace_group() {
     );
     assert_eq!(defs, 1, "expected 1 definition");
     assert_eq!(
-        usages, 1,
-        "expected 1 usage via multi-item brace group + qualified access"
+        usages, 2,
+        "expected 2 usages: qualified access in net.rs + re-export in mod.rs"
     );
 }
 
@@ -311,7 +311,10 @@ fn rust_r14_multi_hop_reexport() {
         "Foo",
     );
     assert_eq!(defs, 1, "expected 1 definition");
-    assert_eq!(usages, 1, "expected 1 usage via multi-hop re-export chain");
+    assert_eq!(
+        usages, 3,
+        "expected 3 usages: caller + mid re-export + facade re-export"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -392,7 +395,10 @@ fn tsjs_t05_barrel_reexport() {
         "foo",
     );
     assert_eq!(defs, 1, "expected 1 definition");
-    assert_eq!(usages, 1, "expected 1 usage via barrel re-export");
+    assert_eq!(
+        usages, 2,
+        "expected 2 usages: caller + barrel re-export in index"
+    );
 }
 
 #[test]
@@ -410,7 +416,10 @@ fn tsjs_t06_default_reexport() {
         "foo",
     );
     assert_eq!(defs, 1, "expected 1 definition");
-    assert_eq!(usages, 1, "expected 1 usage via default re-export");
+    assert_eq!(
+        usages, 2,
+        "expected 2 usages: caller + default re-export in index"
+    );
 }
 
 #[test]
@@ -485,6 +494,29 @@ fn tsjs_t11_jsx_component() {
     );
     assert_eq!(defs, 1, "expected 1 definition");
     assert_eq!(usages, 1, "expected 1 usage as JSX component");
+}
+
+#[test]
+fn tsjs_t12_member_access_named_import() {
+    let (defs, usages) = eval_refs(
+        &[
+            (
+                "src/state.ts",
+                "export const ToastState = { subscribe() {}, dismiss() {} };\n",
+            ),
+            (
+                "src/caller.ts",
+                "import { ToastState } from './state';\nToastState.subscribe();\nToastState.dismiss();\n",
+            ),
+        ],
+        "src/state.ts",
+        "ToastState",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(
+        usages, 2,
+        "expected 2 usages of ToastState via member access"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -580,7 +612,10 @@ fn python_p05_all_reexport() {
         "foo",
     );
     assert_eq!(defs, 1, "expected 1 definition");
-    assert_eq!(usages, 1, "expected 1 usage via __all__ re-export");
+    assert_eq!(
+        usages, 2,
+        "expected 2 usages: caller + __init__.py re-export"
+    );
 }
 
 #[test]

@@ -11,6 +11,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - named imports used as member expression objects (e.g. `ToastState.subscribe()`) now correctly count as usages — previously the scanner treated all member expressions as namespace access patterns, causing named imports to be silently dropped (iss-0039.14)
 - added test coverage for monorepo per-package tsconfig path alias resolution via `deps` and `refs -s` (iss-0039.8)
 - `kdb symbols` now extracts definitions inside `cfg_if!` and other structural macro token trees via heuristic re-parsing — deduplicates across cfg branches (iss-0039.13)
+- re-export statements (`export { foo } from './bar'`, `pub use inner::Foo`) now count as references in `refs -s` results — barrel files show up as usage sites (iss-0039.11)
 
 ## [0.12.0] — 2026-02-26
 

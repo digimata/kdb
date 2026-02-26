@@ -354,11 +354,14 @@ impl<'a> PythonImportResolver<'a> {
 fn extract_python_all(source: &str) -> Option<Vec<String>> {
     for line in source.lines() {
         let trimmed = line.trim();
-        let rest = trimmed
+        let rest = match trimmed
             .strip_prefix("__all__")
-            .map(str::trim)?
-            .strip_prefix('=')?
-            .trim();
+            .map(str::trim)
+            .and_then(|s| s.strip_prefix('='))
+        {
+            Some(r) => r.trim(),
+            None => continue,
+        };
 
         let body = rest
             .trim_start_matches('[')
@@ -1001,4 +1004,33 @@ fn is_python_package_dir(path: &Path) -> bool {
         .into_iter()
         .filter_map(std::result::Result::ok)
         .any(|entry| is_python_source(entry.path()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_python_all_simple() {
+        let source = r#"__all__ = ["foo", "bar"]"#;
+        assert_eq!(
+            extract_python_all(source),
+            Some(vec!["foo".to_string(), "bar".to_string()])
+        );
+    }
+
+    #[test]
+    fn extract_python_all_skips_leading_lines() {
+        let source = "import os\nimport sys\n\n__all__ = ['alpha', 'beta']\n";
+        assert_eq!(
+            extract_python_all(source),
+            Some(vec!["alpha".to_string(), "beta".to_string()])
+        );
+    }
+
+    #[test]
+    fn extract_python_all_returns_none_when_absent() {
+        let source = "import os\n\ndef foo():\n    pass\n";
+        assert_eq!(extract_python_all(source), None);
+    }
 }

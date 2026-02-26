@@ -7,17 +7,17 @@ use crate::resolve::ResolvedImport;
 // src/index/scope.rs
 //
 // pub(super) struct ModuleScope          L27
-//   pub fn from_imports()                L42
-//   pub fn is_empty()                    L86
-//   pub fn names()                       L91
-//   pub fn targets()                     L96
-//   pub fn definition_name()            L103
-// pub(super) struct GlobSource          L110
-// pub(super) struct ExportedNames       L117
-//   pub fn public_names()               L126
-//   pub fn has()                        L137
-// pub(super) struct ReexportTarget      L143
-// pub(super) struct FollowedReexport    L149
+//   pub fn from_imports()                L44
+//   pub fn is_empty()                    L93
+//   pub fn names()                       L98
+//   pub fn targets()                    L103
+//   pub fn definition_name()            L110
+// pub(super) struct GlobSource          L117
+// pub(super) struct ExportedNames       L124
+//   pub fn public_names()               L133
+//   pub fn has()                        L144
+// pub(super) struct ReexportTarget      L150
+// pub(super) struct FollowedReexport    L157
 // ------------------------------------------
 
 /// Per-file map of visible names, aliases, namespace targets, and glob sources.
@@ -32,6 +32,8 @@ pub(super) struct ModuleScope {
     /// Target files from namespace/dot imports whose symbols are directly in
     /// scope (Go dot imports).
     pub namespace_targets: Vec<PathBuf>,
+    /// Binding names that come from namespace imports (`import * as NS`).
+    pub namespace_bindings: HashSet<String>,
     /// Wildcard import sources (Rust `use foo::*`, Python `from foo import *`).
     pub glob_sources: Vec<GlobSource>,
 }
@@ -43,6 +45,7 @@ impl ModuleScope {
         let mut bindings: HashMap<String, BTreeSet<PathBuf>> = HashMap::new();
         let mut aliases = HashMap::new();
         let mut namespace_targets = BTreeSet::new();
+        let mut namespace_bindings = HashSet::new();
         let mut glob_sources = Vec::new();
 
         for import in imports {
@@ -51,6 +54,9 @@ impl ModuleScope {
             };
             if import.names.is_namespace {
                 namespace_targets.insert(target_file.clone());
+                for name in &import.names.locals {
+                    namespace_bindings.insert(name.clone());
+                }
             }
 
             // Record glob sources for wildcard imports.
@@ -78,6 +84,7 @@ impl ModuleScope {
             bindings,
             aliases,
             namespace_targets: namespace_targets.into_iter().collect(),
+            namespace_bindings,
             glob_sources,
         }
     }
@@ -143,6 +150,7 @@ impl ExportedNames {
 pub(super) struct ReexportTarget {
     pub target_file: PathBuf,
     pub definition_name: String,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
