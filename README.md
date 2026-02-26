@@ -63,6 +63,7 @@ kdb check [--orphans]  # report broken links and warnings (orphans with --orphan
 kdb tree [path]        # print filtered directory tree
 kdb symbols <path>     # print markdown/code symbols for a file
 kdb refs <target>      # find inbound refs to a file or heading (--json, --count)
+kdb refs <file> -s <s> # code symbol refs (import-resolved); spec: docs/specs/refs.md
 kdb deps <file>        # list outbound deps for a markdown/code file (--json)
 kdb graph              # output dependency graph (dot format)
 kdb lsp                # start the language server (stdio)

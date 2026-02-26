@@ -3,17 +3,51 @@ use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
 
-// ---------------------------------------------------------------------------
+// -----------------------------------------------------
 // tests/refs_eval.rs
 //
-// Correctness evaluation fixture suite for `refs -s`.
-// Each test exercises one reference category from iss-0028.1.
-//
-// Convention:
-//   - `cargo test refs_eval` — runs passing tests (what works)
-//   - `cargo test refs_eval -- --ignored` — runs gap tests (what's broken)
-//   - The ratio is the scorecard
-// ---------------------------------------------------------------------------
+// fn write_file()                                   L52
+// fn write_root_config()                            L60
+// fn eval_refs()                                    L68
+// fn rust_r01_direct_import()                       L89
+// fn rust_r02_grouped_import()                     L107
+// fn rust_r03_aliased_import()                     L125
+// fn rust_r04_pub_use_reexport()                   L143
+// fn rust_r05_wildcard_import()                    L165
+// fn rust_r09_type_in_signature()                  L183
+// fn rust_r10_type_in_generic()                    L201
+// fn rust_r11_module_qualified_access()            L219
+// fn rust_r12_grouped_module_qualified_access()    L241
+// fn rust_r13_multi_item_brace_group()             L266
+// fn rust_r14_multi_hop_reexport()                 L295
+// fn tsjs_t01_named_import()                       L322
+// fn tsjs_t02_default_import()                     L336
+// fn tsjs_t03_aliased_import()                     L350
+// fn tsjs_t04_namespace_import()                   L367
+// fn tsjs_t05_barrel_reexport()                    L384
+// fn tsjs_t06_default_reexport()                   L399
+// fn tsjs_t08_commonjs_require()                   L417
+// fn tsjs_t09_type_import()                        L437
+// fn tsjs_t10_destructured_usage()                 L454
+// fn tsjs_t11_jsx_component()                      L474
+// fn python_p01_direct_import()                    L495
+// fn python_p02_module_import()                    L509
+// fn python_p03_aliased_import()                   L523
+// fn python_p04_wildcard_import()                  L537
+// fn python_p04b_wildcard_all_filtering()          L551
+// fn python_p05_all_reexport()                     L569
+// fn python_p06_relative_import()                  L587
+// fn python_p07_decorator_usage()                  L602
+// fn python_p08_type_annotation()                  L619
+// fn python_p09_class_instantiation()              L636
+// fn go_g01_package_import()                       L654
+// fn go_g02_aliased_import()                       L676
+// fn go_g03_dot_import()                           L698
+// fn go_g06_type_usage()                           L720
+// fn go_g07_composite_literal()                    L742
+// fn go_g08_same_package()                         L767
+// fn go_g09_same_package_type()                    L785
+// -----------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
     let path = root.join(rel_path);
@@ -48,7 +82,7 @@ fn eval_refs(files: &[(&str, &str)], target_file: &str, symbol: &str) -> (usize,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Rust (R1–R10)
+// Rust (R1–R14)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -201,6 +235,83 @@ fn rust_r11_module_qualified_access() {
     );
     assert_eq!(defs, 1, "expected 1 definition");
     assert_eq!(usages, 1, "expected 1 usage via module-qualified path");
+}
+
+#[test]
+fn rust_r12_grouped_module_qualified_access() {
+    let (defs, usages) = eval_refs(
+        &[
+            ("src/lib.rs", "pub mod event;\npub mod net;\n"),
+            ("src/event.rs", "pub trait Source {}\n"),
+            (
+                "src/net.rs",
+                concat!(
+                    "use crate::{event};\n",
+                    "pub struct UdpSocket;\n",
+                    "impl event::Source for UdpSocket {}\n",
+                ),
+            ),
+        ],
+        "src/event.rs",
+        "Source",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(
+        usages, 1,
+        "expected 1 usage via grouped module-qualified path"
+    );
+}
+
+#[test]
+fn rust_r13_multi_item_brace_group() {
+    let (defs, usages) = eval_refs(
+        &[
+            ("src/lib.rs", "pub mod event;\npub mod net;\n"),
+            (
+                "src/event/mod.rs",
+                "mod source;\npub use self::source::Source;\n",
+            ),
+            ("src/event/source.rs", "pub trait Source {}\n"),
+            (
+                "src/net.rs",
+                concat!(
+                    "use crate::{event, Token};\n",
+                    "pub struct Foo;\n",
+                    "impl event::Source for Foo {}\n",
+                ),
+            ),
+        ],
+        "src/event/source.rs",
+        "Source",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(
+        usages, 1,
+        "expected 1 usage via multi-item brace group + qualified access"
+    );
+}
+
+#[test]
+fn rust_r14_multi_hop_reexport() {
+    let (defs, usages) = eval_refs(
+        &[
+            (
+                "src/lib.rs",
+                "pub mod inner;\npub mod mid;\npub mod facade;\npub mod caller;\n",
+            ),
+            ("src/inner.rs", "pub struct Foo;\n"),
+            ("src/mid.rs", "pub use crate::inner::Foo;\n"),
+            ("src/facade.rs", "pub use crate::mid::Foo;\n"),
+            (
+                "src/caller.rs",
+                "use crate::facade::Foo;\npub fn run() {\n    let _ = Foo;\n}\n",
+            ),
+        ],
+        "src/inner.rs",
+        "Foo",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 usage via multi-hop re-export chain");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -660,10 +771,7 @@ fn go_g08_same_package() {
             ("pkg/target.go", "package pkg\n\nfunc Foo() {}\n"),
             (
                 "pkg/other.go",
-                concat!(
-                    "package pkg\n\n",
-                    "func Bar() {\n\tFoo()\n}\n",
-                ),
+                concat!("package pkg\n\n", "func Bar() {\n\tFoo()\n}\n",),
             ),
         ],
         "pkg/target.go",
@@ -684,10 +792,7 @@ fn go_g09_same_package_type() {
             ),
             (
                 "pkg/other.go",
-                concat!(
-                    "package pkg\n\n",
-                    "func (kl *Kubelet) GetPods() {}\n",
-                ),
+                concat!("package pkg\n\n", "func (kl *Kubelet) GetPods() {}\n",),
             ),
         ],
         "pkg/target.go",

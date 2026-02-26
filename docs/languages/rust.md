@@ -30,6 +30,8 @@ Each category describes a way a symbol can be referenced after being imported. S
 | R8 | Macro-generated usage | `macro_rules!` that expands to use a symbol | out of scope — requires macro expansion |
 | R9 | Type in signature | `fn f(x: Bar)` where Bar is imported | fail — `is_declaration_identifier` filters type in `parameter` parent (iss-0039.3) |
 | R10 | Type in generic | `Vec<Bar>` where Bar is imported | pass |
+| R11 | Module-qualified access | `use crate::event; event::Source` | pass |
+| R12 | Grouped module-qualified access | `use crate::{event}; event::Source` | pass (but real-world needs 0039.5 re-export following for `mod.rs` → inner file) |
 
 ## Known gaps
 
