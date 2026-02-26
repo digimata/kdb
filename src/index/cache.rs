@@ -6,6 +6,7 @@
 
 use anyhow::{Context, Result};
 use bincode::{Decode, Encode};
+use indicatif::ProgressBar;
 use rayon::prelude::*;
 use seahash::SeaHasher;
 use std::collections::{BTreeMap, HashMap};
@@ -237,10 +238,14 @@ pub(crate) struct IncrementalBuildResult {
 }
 
 /// Run an incremental build: load cache, diff against disk, re-parse stale files, save.
+///
+/// When `progress` is `Some`, the bar's length is set to the total file count
+/// and incremented once per processed file.
 pub(crate) fn incremental_build(
     root: &Path,
     ignore_patterns: &[String],
     fresh: bool,
+    progress: Option<&ProgressBar>,
 ) -> Result<IncrementalBuildResult> {
     // 1. Load cache (unless fresh).
     let mut cache = if fresh {
@@ -280,6 +285,11 @@ pub(crate) fn incremental_build(
         .cloned()
         .collect();
 
+    let total_files = md_files.len() + code_files.len();
+    if let Some(pb) = progress {
+        pb.set_length(total_files as u64);
+    }
+
     let now = now_millis();
     let cached_files = cache.as_ref().map(|c| &c.files);
 
@@ -305,6 +315,9 @@ pub(crate) fn incremental_build(
                             headings: headings.iter().map(to_heading).collect(),
                             links: links.iter().map(to_link).collect(),
                         };
+                        if let Some(pb) = progress {
+                            pb.inc(1);
+                        }
                         return Some((rel_path.clone(), entry, key, true));
                     }
                 }
@@ -319,6 +332,9 @@ pub(crate) fn incremental_build(
                 headings: parsed.headings,
                 links: parsed.links,
             };
+            if let Some(pb) = progress {
+                pb.inc(1);
+            }
             Some((rel_path.clone(), entry, key, false))
         })
         .collect();
@@ -342,6 +358,9 @@ pub(crate) fn incremental_build(
                     {
                         let syms: Vec<Symbol> = symbols.iter().map(to_symbol).collect();
                         let imps: Vec<ResolvedImport> = imports.iter().map(to_import).collect();
+                        if let Some(pb) = progress {
+                            pb.inc(1);
+                        }
                         return Some((rel_path.clone(), syms, imps, key, true));
                     }
                 }
@@ -353,6 +372,9 @@ pub(crate) fn incremental_build(
             let symbols = extract_symbols(language, &source).ok()?;
             let imports =
                 resolve_imports_for_language(root, rel_path, &source, language, &workspace_caches);
+            if let Some(pb) = progress {
+                pb.inc(1);
+            }
             Some((rel_path.clone(), symbols, imports, key, false))
         })
         .collect();

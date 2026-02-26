@@ -466,7 +466,7 @@ impl ProjectIndex {
         let canonical = root
             .canonicalize()
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
-        let result = cache::incremental_build(&canonical, ignore_patterns, fresh)?;
+        let result = cache::incremental_build(&canonical, ignore_patterns, fresh, None)?;
         let vault =
             VaultIndex::build_from_entries(&canonical, ignore_patterns, result.vault_files)?;
         let code =
@@ -483,7 +483,7 @@ impl ProjectIndex {
         let canonical = root
             .canonicalize()
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
-        let result = cache::incremental_build(&canonical, ignore_patterns, fresh)?;
+        let result = cache::incremental_build(&canonical, ignore_patterns, fresh, None)?;
         let vault =
             VaultIndex::build_from_entries(&canonical, ignore_patterns, result.vault_files)?;
         let code = CodeIndex::build_from_cached_with_symbol_refs(

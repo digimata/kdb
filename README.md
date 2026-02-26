@@ -51,6 +51,7 @@ kdb refs <target>       # find inbound references to a file or heading
 kdb refs <file> -s <s>  # find who imports a code symbol
 kdb deps <file>         # list outbound dependencies (links, imports)
 kdb check               # report broken links and orphan files
+kdb index               # build or rebuild the project index
 kdb tree [path]         # print filtered directory tree
 kdb graph               # output dependency graph (dot format)
 kdb fmt [path]          # generate/update code index headers

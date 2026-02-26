@@ -58,6 +58,9 @@ node_modules
 flake.lock
 /default.nix
 
+## kdb
+.kdb/index.bin
+
 ## Project
 .tasks/
 opencode.json

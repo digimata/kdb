@@ -4,6 +4,7 @@
 //! `init`, `check`, `outline`, `tree`, `symbols`, `refs`, `deps`, `graph`, `fmt`, and `lsp`.
 
 use anyhow::{Context, Result, bail};
+use indicatif::{ProgressBar, ProgressStyle};
 use serde_json;
 use std::env;
 use std::fs;
@@ -19,19 +20,20 @@ use crate::tree;
 // --------------------------------------
 // src/cmd.rs
 //
-// pub struct CmdContext              L38
-//   pub fn from_path()               L49
-//   pub fn build_index()             L59
-//   pub fn build_project_index()     L64
-//   pub fn rel_path()                L72
-// pub fn init()                      L99
-// pub fn check()                    L148
-// pub fn tree()                     L165
-// pub fn symbols()                  L213
-// pub fn refs()                     L274
-// pub fn deps()                     L331
-// pub fn graph()                    L366
-// pub fn format()                   L380
+// pub struct CmdContext              L40
+//   pub fn from_path()               L53
+//   pub fn build_index()             L69
+//   pub fn build_project_index()     L86
+//   pub fn rel_path()                L98
+// pub fn init()                     L125
+// pub fn check()                    L178
+// pub fn tree()                     L195
+// pub fn symbols()                  L243
+// pub fn refs()                     L304
+// pub fn deps()                     L365
+// pub fn graph()                    L400
+// pub fn index()                    L414
+// pub fn format()                   L456
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -69,6 +71,7 @@ impl CmdContext {
             &self.project.root,
             &self.project.ignore_patterns,
             self.fresh,
+            None,
         )?;
         VaultIndex::build_from_entries(
             &self.project.root,
@@ -160,7 +163,11 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
     fs::write(&config, default_config)
         .with_context(|| format!("failed to write {}", config.display()))?;
 
-    println!("initialized kdb project at {}", root.display());
+    println!("initialized kdb project at {}\n", root.display());
+
+    // Pre-warm the persistent index so the first refs/deps/check is instant.
+    index(Some(root))?;
+
     Ok(())
 }
 
@@ -401,14 +408,39 @@ pub fn graph(path: Option<PathBuf>) -> Result<()> {
 }
 
 /// Build or rebuild the project index and write it to `.kdb/index.bin`.
+///
+/// Always forces a fresh rebuild. Shows a progress bar during file discovery
+/// and parsing.
 pub fn index(path: Option<PathBuf>) -> Result<()> {
     let ctx = CmdContext::from_path(path.as_deref(), true)?;
+
+    let pb = ProgressBar::new(0);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{bar:40}  {percent}%  ({pos} / {len})")
+            .expect("valid progress bar template")
+            .progress_chars("█░"),
+    );
+
     let start = std::time::Instant::now();
-    let pi = ctx.build_project_index()?;
+    let result = index::cache::incremental_build(
+        &ctx.project.root,
+        &ctx.project.ignore_patterns,
+        true,
+        Some(&pb),
+    )?;
+
+    let vault = index::VaultIndex::build_from_entries(
+        &ctx.project.root,
+        &ctx.project.ignore_patterns,
+        result.vault_files,
+    )?;
     let elapsed = start.elapsed();
 
-    let md_files = pi.vault.files.len();
-    let code_files = pi.code.code_imports.len();
+    pb.finish_and_clear();
+
+    let md_files = vault.files.len();
+    let code_files = result.code_imports.len();
     println!(
         "indexed {} markdown + {} code files in {:.2}s",
         md_files,
