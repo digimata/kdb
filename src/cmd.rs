@@ -28,10 +28,10 @@ use crate::tree;
 // pub fn check()                    L148
 // pub fn tree()                     L165
 // pub fn symbols()                  L213
-// pub fn refs()                     L268
-// pub fn deps()                     L325
-// pub fn graph()                    L360
-// pub fn format()                   L374
+// pub fn refs()                     L274
+// pub fn deps()                     L331
+// pub fn graph()                    L366
+// pub fn format()                   L380
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -40,29 +40,52 @@ pub struct CmdContext {
     pub start: PathBuf,
     /// Discovered project context (root, ignore patterns, ignore set).
     pub project: ProjectContext,
+    /// When true, ignore the disk cache and force a full rebuild.
+    pub fresh: bool,
 }
 
 impl CmdContext {
     /// Resolve a start path and discover the project root.
     ///
     /// When `path` is `None`, falls back to the current working directory.
-    pub fn from_path(path: Option<&Path>) -> Result<Self> {
+    pub fn from_path(path: Option<&Path>, fresh: bool) -> Result<Self> {
         let start = match path {
             Some(p) => project::root::make_absolute(p)?,
             None => env::current_dir().context("failed to read current directory")?,
         };
         let project = ProjectContext::discover(&start)?;
-        Ok(Self { start, project })
+        Ok(Self {
+            start,
+            project,
+            fresh,
+        })
     }
 
     /// Build a [`VaultIndex`] (markdown only) using the project's ignore patterns.
+    ///
+    /// Uses the persistent cache when available.
     pub fn build_index(&self) -> Result<VaultIndex> {
-        VaultIndex::build_with_ignores(&self.project.root, &self.project.ignore_patterns)
+        let result = index::cache::incremental_build(
+            &self.project.root,
+            &self.project.ignore_patterns,
+            self.fresh,
+        )?;
+        VaultIndex::build_from_entries(
+            &self.project.root,
+            &self.project.ignore_patterns,
+            result.vault_files,
+        )
     }
 
     /// Build a [`ProjectIndex`] (vault + code) using the project's ignore patterns.
+    ///
+    /// Uses the persistent cache when available.
     pub fn build_project_index(&self) -> Result<ProjectIndex> {
-        ProjectIndex::build_with_ignores(&self.project.root, &self.project.ignore_patterns)
+        ProjectIndex::build_cached(
+            &self.project.root,
+            &self.project.ignore_patterns,
+            self.fresh,
+        )
     }
 
     /// Canonicalize an absolute path and return its root-relative form.
@@ -145,9 +168,9 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
 ///
 /// Returns `Ok(true)` if any issues were found (caller should exit with code 1),
 /// or `Ok(false)` if the vault is clean.
-pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
+pub fn check(path: Option<PathBuf>, list_orphans: bool, fresh: bool) -> Result<bool> {
     let has_scope = path.is_some();
-    let ctx = CmdContext::from_path(path.as_deref())?;
+    let ctx = CmdContext::from_path(path.as_deref(), fresh)?;
     let index = ctx.build_index()?;
     let mut report = index.check();
 
@@ -173,7 +196,7 @@ pub fn tree(
     pattern: Vec<String>,
 ) -> Result<()> {
     let has_explicit_path = path.is_some();
-    let ctx = CmdContext::from_path(path.as_deref())?;
+    let ctx = CmdContext::from_path(path.as_deref(), false)?;
 
     if !ctx.start.exists() {
         bail!("path does not exist: {}", ctx.start.display());
@@ -218,13 +241,16 @@ pub fn symbols(
 ) -> Result<()> {
     assert!(!paths.is_empty(), "at least one path is required");
 
-    let ctx = CmdContext::from_path(Some(&paths[0]))?;
+    let ctx = CmdContext::from_path(Some(&paths[0]), false)?;
     let files = symbols::query::expand_paths(&ctx.project, &paths)?;
     assert!(!files.is_empty(), "no supported files found in given paths");
 
     let multi = files.len() > 1;
     if multi && !selectors.is_empty() {
-        bail!("-s/--symbol requires a single definition file, got {} files", files.len());
+        bail!(
+            "-s/--symbol requires a single definition file, got {} files",
+            files.len()
+        );
     }
 
     if selectors.is_empty() {
@@ -274,12 +300,16 @@ pub fn refs(
     context_lines: Option<usize>,
     as_json: bool,
     count_only: bool,
+    fresh: bool,
 ) -> Result<()> {
-    let ctx = CmdContext::from_path(None)?;
+    let ctx = CmdContext::from_path(None, fresh)?;
 
     if let Some(symbol_name) = symbol {
-        let index =
-            ProjectIndex::build_with_symbol_refs(&ctx.project.root, &ctx.project.ignore_patterns)?;
+        let index = ProjectIndex::build_cached_with_symbol_refs(
+            &ctx.project.root,
+            &ctx.project.ignore_patterns,
+            ctx.fresh,
+        )?;
         let inbound =
             refs::collect_symbol_refs(&index.code, &ctx.project.root, &target, &symbol_name)?;
 
@@ -325,8 +355,8 @@ pub fn refs(
 }
 
 /// List outbound dependencies for a markdown or supported code file.
-pub fn deps(target: String, as_json: bool) -> Result<()> {
-    let ctx = CmdContext::from_path(None)?;
+pub fn deps(target: String, as_json: bool, fresh: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None, fresh)?;
     let source_file = index::resolve_file_target(&ctx.project.root, &target)?;
     let is_markdown = source_file
         .extension()
@@ -376,7 +406,7 @@ pub fn graph(path: Option<PathBuf>) -> Result<()> {
 /// and Go files with a managed index block at the top of each file.
 pub fn format(path: Option<PathBuf>) -> Result<()> {
     let has_explicit_path = path.is_some();
-    let ctx = CmdContext::from_path(path.as_deref())?;
+    let ctx = CmdContext::from_path(path.as_deref(), false)?;
 
     if !ctx.start.exists() {
         bail!("path does not exist: {}", ctx.start.display());

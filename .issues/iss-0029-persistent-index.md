@@ -1,11 +1,13 @@
 ---
 id: 29
 title: Persistent disk-backed index
-status: proposed
+status: done
 priority: medium
 labels:
   - perf
   - index
+depends:
+  - 28
 ---
 
 # ISS-0029 :: Persistent disk-backed index

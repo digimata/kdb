@@ -4,6 +4,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] — 2026-02-26
+
+### Added
+
+- persistent disk-backed index cache at `.kdb/index.bin` — cross-file commands (`refs`, `deps`, `check`) now incrementally rebuild, only re-parsing files whose mtime/size changed (iss-0029)
+- `--fresh` global CLI flag to force a full index rebuild, bypassing the cache
+- mtime-based staleness detection with seahash, manifest-keyed invalidation (Cargo.toml, go.mod, etc.), 30-day GC for deleted files, and atomic writes via tempfile
+- graceful degradation: corrupt or missing cache silently falls back to full build
+
 ## [0.11.0] — 2026-02-26
 
 ### Added

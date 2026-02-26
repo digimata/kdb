@@ -67,6 +67,18 @@ impl SymbolIndex {
     ) -> Result<Self> {
         Indexer::new(root, code_imports).build()
     }
+
+    /// Build from pre-computed imports and pre-loaded symbols (cache path).
+    ///
+    /// Skips `extract_symbols()` — uses cached symbols directly. Still runs
+    /// `load_code_files()` because usage scanning needs source text.
+    pub(crate) fn build_with_preloaded(
+        root: &Path,
+        code_imports: &BTreeMap<PathBuf, Vec<ResolvedImport>>,
+        preloaded_symbols: BTreeMap<PathBuf, Vec<Symbol>>,
+    ) -> Result<Self> {
+        Indexer::new_with_symbols(root, code_imports, preloaded_symbols).build()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -115,6 +127,8 @@ struct Indexer<'a> {
     imports: &'a BTreeMap<PathBuf, Vec<ResolvedImport>>,
     files: BTreeMap<PathBuf, CodeFileFacts>,
     symbols: BTreeMap<PathBuf, Vec<Symbol>>,
+    /// When true, skip `extract_symbols()` — symbols are pre-populated from cache.
+    skip_extract: bool,
     symbol_lookup: HashMap<PathBuf, HashMap<String, Vec<SymbolKey>>>,
     reexport_lookup: HashMap<PathBuf, HashMap<String, Vec<ReexportTarget>>>,
     module_scopes: HashMap<PathBuf, ModuleScope>,
@@ -137,6 +151,27 @@ impl<'a> Indexer<'a> {
             imports: code_imports,
             files: BTreeMap::new(),
             symbols: BTreeMap::new(),
+            skip_extract: false,
+            symbol_lookup: HashMap::new(),
+            reexport_lookup: HashMap::new(),
+            module_scopes: HashMap::new(),
+            symbol_refs: HashMap::new(),
+            qualified_cache: HashMap::new(),
+        }
+    }
+
+    /// Create an indexer with pre-populated symbols (from cache). Skips extraction.
+    fn new_with_symbols(
+        root: &'a Path,
+        code_imports: &'a BTreeMap<PathBuf, Vec<ResolvedImport>>,
+        preloaded: BTreeMap<PathBuf, Vec<Symbol>>,
+    ) -> Self {
+        Self {
+            root,
+            imports: code_imports,
+            files: BTreeMap::new(),
+            symbols: preloaded,
+            skip_extract: true,
             symbol_lookup: HashMap::new(),
             reexport_lookup: HashMap::new(),
             module_scopes: HashMap::new(),
@@ -147,7 +182,9 @@ impl<'a> Indexer<'a> {
 
     fn build(mut self) -> Result<SymbolIndex> {
         self.load_code_files()?;
-        self.extract_symbols();
+        if !self.skip_extract {
+            self.extract_symbols();
+        }
         self.build_symbol_lookup();
         self.build_reexport_lookup();
         self.build_module_scopes();

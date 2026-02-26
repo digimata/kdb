@@ -17,6 +17,9 @@ use std::path::PathBuf;
     after_help = "pls report bugs: https://github.com/dremnik/kdb/issues"
 )]
 struct Cli {
+    /// Force a full index rebuild, ignoring the disk cache.
+    #[arg(long, global = true)]
+    fresh: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -125,7 +128,7 @@ async fn main() {
 
     let result = match cli.command {
         Command::Init { path } => kdb::cmd::init(path),
-        Command::Check { path, orphans } => match kdb::cmd::check(path, orphans) {
+        Command::Check { path, orphans } => match kdb::cmd::check(path, orphans, cli.fresh) {
             Ok(has_issues) => {
                 if has_issues {
                     std::process::exit(1);
@@ -158,8 +161,8 @@ async fn main() {
             context,
             json,
             count,
-        } => kdb::cmd::refs(target, symbol, context, json, count),
-        Command::Deps { target, json } => kdb::cmd::deps(target, json),
+        } => kdb::cmd::refs(target, symbol, context, json, count, cli.fresh),
+        Command::Deps { target, json } => kdb::cmd::deps(target, json, cli.fresh),
         Command::Graph { path } => kdb::cmd::graph(path),
         Command::Fmt { path } => kdb::cmd::format(path),
         Command::Lsp { path } => kdb::lsp::serve(path).await,

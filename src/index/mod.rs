@@ -14,6 +14,7 @@
 //! 4. **Resolution** — [`resolve_target_path`] resolves a link target relative to
 //!    its source file, handling both markdown and wikilink syntax.
 
+pub(crate) mod cache;
 mod code;
 pub mod deps;
 mod markdown;
@@ -32,7 +33,7 @@ use crate::project::discover::discover_files;
 use crate::project::ignore::{ALWAYS_IGNORED_DIRS, build_ignore_globset, path_is_ignored};
 use crate::project::paths::normalize_rel_path;
 use crate::resolve::{
-    GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, WorkspacePackages,
+    GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, WorkspaceCaches, WorkspacePackages,
     build_workspace_import_index,
 };
 use crate::symbols::SymbolKind;
@@ -398,6 +399,38 @@ impl CodeIndex {
         })
     }
 
+    /// Build from pre-resolved cached data (no import scanning).
+    pub(crate) fn build_from_cached(
+        code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
+        workspace_caches: &WorkspaceCaches,
+    ) -> Self {
+        Self {
+            workspace_packages: workspace_caches.workspace_packages.clone(),
+            go_workspace: workspace_caches.go_workspace.clone(),
+            rust_workspace: workspace_caches.rust_workspace.clone(),
+            code_imports,
+            symbols: SymbolIndex::default(),
+        }
+    }
+
+    /// Build from cached data and include symbol-reference maps.
+    pub(crate) fn build_from_cached_with_symbol_refs(
+        root: &Path,
+        code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
+        code_symbols: BTreeMap<PathBuf, Vec<crate::symbols::Symbol>>,
+        workspace_caches: &WorkspaceCaches,
+    ) -> Result<Self> {
+        let symbols =
+            SymbolIndex::build_with_preloaded(root, &code_imports, code_symbols)?;
+        Ok(Self {
+            workspace_packages: workspace_caches.workspace_packages.clone(),
+            go_workspace: workspace_caches.go_workspace.clone(),
+            rust_workspace: workspace_caches.rust_workspace.clone(),
+            code_imports,
+            symbols,
+        })
+    }
+
     /// Build a code index and include symbol-reference maps for `kdb refs -s`.
     pub fn build_with_symbol_refs(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
         let import_index = build_workspace_import_index(root, ignore_patterns)?;
@@ -425,6 +458,40 @@ impl ProjectIndex {
             .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
         let vault = VaultIndex::build_with_ignores(&canonical, ignore_patterns)?;
         let code = CodeIndex::build(&canonical, ignore_patterns)?;
+        Ok(Self { vault, code })
+    }
+
+    /// Build using the persistent disk cache (incremental).
+    pub fn build_cached(root: &Path, ignore_patterns: &[String], fresh: bool) -> Result<Self> {
+        let canonical = root
+            .canonicalize()
+            .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
+        let result = cache::incremental_build(&canonical, ignore_patterns, fresh)?;
+        let vault =
+            VaultIndex::build_from_entries(&canonical, ignore_patterns, result.vault_files)?;
+        let code =
+            CodeIndex::build_from_cached(result.code_imports, &result.workspace_caches);
+        Ok(Self { vault, code })
+    }
+
+    /// Build using the persistent disk cache with code symbol refs enabled.
+    pub fn build_cached_with_symbol_refs(
+        root: &Path,
+        ignore_patterns: &[String],
+        fresh: bool,
+    ) -> Result<Self> {
+        let canonical = root
+            .canonicalize()
+            .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
+        let result = cache::incremental_build(&canonical, ignore_patterns, fresh)?;
+        let vault =
+            VaultIndex::build_from_entries(&canonical, ignore_patterns, result.vault_files)?;
+        let code = CodeIndex::build_from_cached_with_symbol_refs(
+            &canonical,
+            result.code_imports,
+            result.code_symbols,
+            &result.workspace_caches,
+        )?;
         Ok(Self { vault, code })
     }
 
@@ -482,6 +549,27 @@ impl VaultIndex {
             files.insert(rel_path, entry);
         }
 
+        let mut index = Self {
+            root,
+            ignore_set,
+            files,
+            file_inbound: HashMap::new(),
+            heading_inbound: HashMap::new(),
+        };
+        index.populate_inbound();
+        Ok(index)
+    }
+
+    /// Build from pre-loaded file entries (skips discovery + parse).
+    pub(crate) fn build_from_entries(
+        root: &Path,
+        ignore_patterns: &[String],
+        files: BTreeMap<PathBuf, FileEntry>,
+    ) -> Result<Self> {
+        let root = root
+            .canonicalize()
+            .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
+        let ignore_set = build_ignore_globset(ignore_patterns)?;
         let mut index = Self {
             root,
             ignore_set,
