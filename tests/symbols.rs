@@ -4,11 +4,12 @@ use kdb::symbols::{Symbol, SymbolKind, extract_symbols};
 // --------------------------------------------------------------------------
 // tests/symbols.rs
 //
-// fn extract_symbols_rust_tracks_visibility_and_display_kind()           L15
-// fn extract_symbols_typescript_tracks_visibility_and_display_kind()     L77
-// fn extract_symbols_python_tracks_visibility_and_display_kind()        L155
-// fn extract_symbols_go_tracks_visibility_and_display_kind()            L226
-// fn find()                                                             L275
+// fn extract_symbols_rust_tracks_visibility_and_display_kind()           L16
+// fn extract_symbols_typescript_tracks_visibility_and_display_kind()     L78
+// fn extract_symbols_python_tracks_visibility_and_display_kind()        L156
+// fn extract_symbols_go_tracks_visibility_and_display_kind()            L227
+// fn extract_symbols_rust_cfg_macro_items()                             L277
+// fn find()                                                             L319
 // --------------------------------------------------------------------------
 
 #[test]
@@ -269,6 +270,55 @@ fn extract_symbols_go_tracks_visibility_and_display_kind() {
     assert_eq!(
         find(&symbols, SymbolKind::Variable, "local", None).display_kind,
         "var"
+    );
+}
+
+#[test]
+fn extract_symbols_rust_cfg_macro_items() {
+    let source = concat!(
+        "cfg_if::cfg_if! {\n",
+        "    if #[cfg(unix)] {\n",
+        "        pub struct TcpStream { fd: i32 }\n",
+        "        impl TcpStream {\n",
+        "            pub fn connect() -> Self { todo!() }\n",
+        "        }\n",
+        "    } else {\n",
+        "        pub struct TcpStream { handle: u64 }\n",
+        "        impl TcpStream {\n",
+        "            pub fn connect() -> Self { todo!() }\n",
+        "        }\n",
+        "    }\n",
+        "}\n",
+    );
+
+    let symbols = extract_symbols(CodeLanguage::Rust, source).expect("extract rust cfg_if symbols");
+
+    // TcpStream struct should be extracted.
+    let tcp = find(&symbols, SymbolKind::Struct, "TcpStream", None);
+    assert!(tcp.is_public);
+
+    // connect method should be extracted with parent TcpStream.
+    let connect = find(&symbols, SymbolKind::Method, "connect", Some("TcpStream"));
+    assert!(connect.is_public);
+
+    // Dedup: only one TcpStream, not two.
+    let tcp_count = symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::Struct && s.name == "TcpStream")
+        .count();
+    assert_eq!(
+        tcp_count, 1,
+        "TcpStream should be deduplicated across cfg branches"
+    );
+
+    // Dedup: only one connect method.
+    let connect_count = symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::Method && s.name == "connect")
+        .count();
+    assert_eq!(
+        connect_count, 1,
+        "connect should be deduplicated across cfg branches"
     );
 }
 

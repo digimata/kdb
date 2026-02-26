@@ -11,7 +11,7 @@ use super::{Extractor, Symbol, SymbolKind};
 // Re-export tree-sitter helpers used by language files.
 use super::tree::{
     decorated_parent_or_self, extract_go_receiver_type, nearest_ancestor, normalize_type_name,
-    walk_depth_first,
+    parse_tree, walk_depth_first,
 };
 
 // Re-export per-language extract functions for symbols/mod.rs dispatch.

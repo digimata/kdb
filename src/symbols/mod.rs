@@ -13,19 +13,20 @@ mod extract;
 //
 // pub mod display                         L9
 // mod extract                            L10
-// pub(crate) mod query                   L31
-// mod tree                               L32
-// pub enum SymbolKind                    L42
-// pub struct Symbol                      L64
-// struct SeenSymbolKey                   L77
-// pub(super) struct Extractor            L89
-//   pub(super) fn new()                  L96
-//   pub(super) fn name_from_field()     L104
-//   pub(super) fn node_text()           L109
-//   pub(super) fn push()                L113
-//   pub(super) fn finish()              L152
-// pub fn extract_symbols()              L161
-// pub fn extract_symbols_from_tree()    L170
+// pub(crate) mod query                   L32
+// mod tree                               L33
+// pub enum SymbolKind                    L43
+// pub struct Symbol                      L65
+// struct SeenSymbolKey                   L78
+// pub(super) struct Extractor            L90
+//   pub(super) fn new()                  L97
+//   pub(super) fn name_from_field()     L105
+//   pub(super) fn node_text()           L110
+//   pub(super) fn push()                L114
+//   pub(super) fn push_raw()            L154
+//   pub(super) fn finish()              L171
+// pub fn extract_symbols()              L180
+// pub fn extract_symbols_from_tree()    L189
 // ------------------------------------------
 
 pub(crate) mod query;
@@ -119,8 +120,8 @@ impl<'src> Extractor<'src> {
         display_kind: String,
         is_public: bool,
     ) {
-        let line = node.start_position().row as usize + 1;
-        let end_line = node.end_position().row as usize + 1;
+        let line = node.start_position().row + 1;
+        let end_line = node.end_position().row + 1;
         let start_byte = node.start_byte();
         let end_byte = node.end_byte();
         let key = SeenSymbolKey {
@@ -146,6 +147,24 @@ impl<'src> Extractor<'src> {
                 end_byte,
                 is_public,
             });
+        }
+    }
+
+    /// Push a pre-built symbol, deduplicating by the same key as [`push`].
+    pub(super) fn push_raw(&mut self, symbol: Symbol) {
+        let key = SeenSymbolKey {
+            line: symbol.line,
+            end_line: symbol.end_line,
+            start_byte: symbol.start_byte,
+            name: symbol.name.clone(),
+            parent: symbol.parent.clone(),
+            kind: symbol.kind,
+            display_kind: symbol.display_kind.clone(),
+            is_public: symbol.is_public,
+        };
+
+        if self.seen.insert(key) {
+            self.symbols.push(symbol);
         }
     }
 
