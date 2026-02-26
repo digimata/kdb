@@ -66,26 +66,25 @@ fetch_latest_tag() {
 }
 
 download_and_verify() {
-    local tmpdir
-    tmpdir="$(mktemp -d)"
-    trap 'rm -rf "$tmpdir"' EXIT
+    TMPDIR="$(mktemp -d)"
+    trap 'rm -rf "$TMPDIR"' EXIT
 
     info "downloading $ARCHIVE..."
-    curl -fsSL -o "$tmpdir/$ARCHIVE" "$BASE_URL/$ARCHIVE"
-    curl -fsSL -o "$tmpdir/checksums.txt" "$BASE_URL/checksums.txt"
+    curl -fsSL -o "$TMPDIR/$ARCHIVE" "$BASE_URL/$ARCHIVE"
+    curl -fsSL -o "$TMPDIR/checksums.txt" "$BASE_URL/checksums.txt"
 
     info "verifying checksum..."
     local expected actual
-    expected="$(grep "$ARCHIVE" "$tmpdir/checksums.txt" | awk '{print $1}')"
+    expected="$(grep "$ARCHIVE" "$TMPDIR/checksums.txt" | awk '{print $1}')"
     if [ -z "$expected" ]; then
         err "archive not found in checksums.txt"
         exit 1
     fi
 
     if command -v sha256sum &>/dev/null; then
-        actual="$(sha256sum "$tmpdir/$ARCHIVE" | awk '{print $1}')"
+        actual="$(sha256sum "$TMPDIR/$ARCHIVE" | awk '{print $1}')"
     elif command -v shasum &>/dev/null; then
-        actual="$(shasum -a 256 "$tmpdir/$ARCHIVE" | awk '{print $1}')"
+        actual="$(shasum -a 256 "$TMPDIR/$ARCHIVE" | awk '{print $1}')"
     else
         err "no sha256sum or shasum found — cannot verify checksum"
         exit 1
@@ -100,8 +99,8 @@ download_and_verify() {
 
     info "checksum ok"
 
-    tar xzf "$tmpdir/$ARCHIVE" -C "$tmpdir"
-    BINARY="$tmpdir/kdb"
+    tar xzf "$TMPDIR/$ARCHIVE" -C "$TMPDIR"
+    BINARY="$TMPDIR/kdb"
 }
 
 install_binary() {
