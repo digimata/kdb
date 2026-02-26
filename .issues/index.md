@@ -4,7 +4,6 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 
 | Issue | Label | Status | Priority |
 | --- | --- | --- | --- |
-| [0012 — CLI Commands (tracking)](iss-0012-cli-commands.md) | tracking | in_progress | high |
 | [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | feat | in_progress | high |
 | [0016 — Codemap](iss-0016-codemap.md) | feat | proposed | high |
 | [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | high |
