@@ -3,7 +3,12 @@ const GITHUB_API = "https://api.github.com/repos/dremnik/kdb/releases/latest";
 /** GET /latest — returns the latest kdb release tag as plain text. */
 export async function GET() {
   const res = await fetch(GITHUB_API, {
-    headers: { Accept: "application/vnd.github+json" },
+    headers: {
+      Accept: "application/vnd.github+json",
+      ...(process.env.GITHUB_TOKEN && {
+        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      }),
+    },
     next: { revalidate: 300 },
   });
 
