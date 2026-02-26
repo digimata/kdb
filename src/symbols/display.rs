@@ -169,6 +169,82 @@ pub fn extract_symbol_body(source: &str, symbol: &Symbol) -> Result<String> {
         })
 }
 
+/// Extend a symbol body upward to include any preceding doc comment block.
+///
+/// Returns `(extended_body, start_line)` where `start_line` is adjusted to
+/// reflect the first line of the doc comment (or the original symbol line if
+/// no doc comment was found).
+pub fn extract_body_with_docs(source: &str, symbol: &Symbol) -> Result<(String, usize)> {
+    let lines: Vec<&str> = source.lines().collect();
+    // symbol.line is 1-based
+    let sym_idx = symbol.line.saturating_sub(1);
+
+    // Walk backward from the line before the symbol looking for doc comments.
+    let mut doc_start_idx = sym_idx;
+    let mut idx = sym_idx;
+    while idx > 0 {
+        idx -= 1;
+        let trimmed = lines[idx].trim();
+        if trimmed.is_empty() {
+            // Allow one blank line between doc comment blocks and attrs.
+            // But only if the line above is still a comment.
+            continue;
+        }
+        if is_doc_comment_line(trimmed) || is_attribute_line(trimmed) {
+            doc_start_idx = idx;
+        } else {
+            break;
+        }
+    }
+
+    // Strip any leading blank lines from the doc region.
+    while doc_start_idx < sym_idx && lines[doc_start_idx].trim().is_empty() {
+        doc_start_idx += 1;
+    }
+
+    let body_str = source
+        .get(symbol.start_byte..symbol.end_byte)
+        .with_context(|| {
+            format!(
+                "invalid symbol span {}..{} for `{}`",
+                symbol.start_byte, symbol.end_byte, symbol.name
+            )
+        })?;
+
+    if doc_start_idx >= sym_idx {
+        return Ok((body_str.to_string(), symbol.line));
+    }
+
+    let doc_lines = &lines[doc_start_idx..sym_idx];
+    let mut extended = String::new();
+    for line in doc_lines {
+        extended.push_str(line);
+        extended.push('\n');
+    }
+    extended.push_str(body_str);
+
+    Ok((extended, doc_start_idx + 1))
+}
+
+/// Check whether a line looks like a doc comment across supported languages.
+fn is_doc_comment_line(trimmed: &str) -> bool {
+    // Rust: ///, //!, /**, block comment continuations
+    // Go, TS/JS: //, /**, block comment continuations
+    trimmed.starts_with("///")
+        || trimmed.starts_with("//!")
+        || trimmed.starts_with("/**")
+        || trimmed.starts_with("* ")
+        || trimmed == "*"
+        || trimmed == "*/"
+        || trimmed.starts_with("// ")
+        || trimmed == "//"
+}
+
+/// Check whether a line is a language attribute/decorator (e.g. `#[...]`, `@decorator`).
+fn is_attribute_line(trimmed: &str) -> bool {
+    trimmed.starts_with("#[") || trimmed.starts_with("#![") || trimmed.starts_with('@')
+}
+
 /// Convert a code symbol and source body into a body output row.
 pub fn code_symbol_body_row(file: &str, symbol: Symbol, body: String) -> SymbolBodyRow {
     SymbolBodyRow {

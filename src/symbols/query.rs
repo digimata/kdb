@@ -7,7 +7,7 @@ use crate::lang::CodeLanguage;
 use crate::project::config;
 
 use super::display::{self, SymbolBodyRow, SymbolRow};
-use super::{Symbol, extract_symbol_body, extract_symbols};
+use super::{Symbol, extract_symbols};
 
 // ----------------------------------------
 // src/symbols/query.rs
@@ -144,14 +144,17 @@ fn collect_code_body_rows(
         .into_iter()
         .filter(|symbol| selector.matches(symbol))
         .map(|symbol| {
-            let body = extract_symbol_body(&source, &symbol).with_context(|| {
-                format!(
-                    "failed to extract body for symbol `{}` in {}",
-                    selector.display(),
-                    rel_path.display()
-                )
-            })?;
-            Ok(display::code_symbol_body_row(&file, symbol, body))
+            let (body, start_line) =
+                display::extract_body_with_docs(&source, &symbol).with_context(|| {
+                    format!(
+                        "failed to extract body for symbol `{}` in {}",
+                        selector.display(),
+                        rel_path.display()
+                    )
+                })?;
+            let mut row = display::code_symbol_body_row(&file, symbol, body);
+            row.line = start_line;
+            Ok(row)
         })
         .collect::<Result<Vec<_>>>()
 }

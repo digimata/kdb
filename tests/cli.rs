@@ -787,6 +787,70 @@ fn symbols_selector_accepts_multiple_selectors() {
 }
 
 #[test]
+fn symbols_selector_includes_doc_comments() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "src/lib.rs",
+        concat!(
+            "/// Create a new backend instance.\n",
+            "///\n",
+            "/// Returns the default backend.\n",
+            "pub fn create() -> i32 {\n",
+            "    1\n",
+            "}\n",
+        ),
+    );
+
+    let output = Command::new(bin())
+        .arg("symbols")
+        .arg(temp.path().join("src/lib.rs"))
+        .arg("-s")
+        .arg("create")
+        .output()
+        .expect("run kdb symbols -s create");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Doc comments are included before the function body
+    assert!(stdout.contains("| /// Create a new backend instance."));
+    assert!(stdout.contains("| /// Returns the default backend."));
+    assert!(stdout.contains("| pub fn create() -> i32 {"));
+    // Start line is the first doc comment line, not the fn line
+    assert!(stdout.starts_with("1 | ///"));
+}
+
+#[test]
+fn symbols_selector_includes_attributes_with_docs() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "src/lib.rs",
+        concat!(
+            "/// A backend type.\n",
+            "#[derive(Debug)]\n",
+            "pub struct Backend;\n",
+        ),
+    );
+
+    let output = Command::new(bin())
+        .arg("symbols")
+        .arg(temp.path().join("src/lib.rs"))
+        .arg("-s")
+        .arg("Backend")
+        .output()
+        .expect("run kdb symbols -s Backend");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("| /// A backend type."));
+    assert!(stdout.contains("| #[derive(Debug)]"));
+    assert!(stdout.contains("| pub struct Backend;"));
+}
+
+#[test]
 fn symbols_selector_supports_qualified_names() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());

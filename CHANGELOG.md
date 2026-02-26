@@ -10,6 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `symbols -s` now accepts multiple selectors (`-s Builder new find_paths`) (iss-0043)
 - `symbols -s` text output includes a line number gutter with actual file line numbers (iss-0043)
+- `symbols -s` body output includes preceding doc comments and attributes (iss-0043)
 
 ## [0.8.6] — 2026-02-25
 
