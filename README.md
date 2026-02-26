@@ -25,6 +25,12 @@ Both sides share the same model — symbols, references, dependencies — and th
 1. Install:
 
 ```
+curl -fsSL https://kernl.sh/kdb/install | bash
+```
+
+Or from source (requires Rust):
+
+```
 cargo install --path .
 ```
 

@@ -7,7 +7,7 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0012 — CLI Commands (tracking)](iss-0012-cli-commands.md) | tracking | in_progress | high |
 | [0028 — Code Symbol References (`refs -s`)](iss-0028-code-symbol-refs.md) | feat | in_progress | high |
 | [0039 — `refs -s` Recall Gaps (tracking)](iss-0039-refs-recall-gaps.md) | tracking | in_progress | high |
-| [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | chore | proposed | high |
+| [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | chore | done | high |
 | [0016 — Codemap](iss-0016-codemap.md) | feat | proposed | high |
 | [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | high |
 | [0005 — Code Comment Links Into KDB Docs](iss-0005-code-comment-links.md) | feat | proposed | high |

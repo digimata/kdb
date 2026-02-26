@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] — 2026-02-26
+
+### Added
+
+- GitHub Actions release workflow — builds prebuilt binaries on tag push for macOS (arm64, x86_64) and Linux (x86_64, arm64), uploads to GitHub Releases with SHA256 checksums (iss-0011)
+- install script (`install.sh`) — one-liner install via `curl -fsSL https://kernl.sh/kdb/install | bash`, detects OS/arch, downloads and verifies the correct binary (iss-0011)
+
 ## [0.12.1] — 2026-02-26
 
 ### Fixed
