@@ -12,8 +12,10 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0039.3 — Usage Scanner Gaps](iss-0039.3-usage-scanner-gaps.md) | bug | done | medium |
 | [0039.4 — Alias Tracking](iss-0039.4-alias-tracking.md) | bug | done | medium |
 | [0039.5 — Re-export Following](iss-0039.5-reexport-following.md) | enhancement | proposed | high |
-| [0039.6 — Namespace Access](iss-0039.6-namespace-access.md) | bug | done | medium |
+| [0039.6 — Namespace Access](iss-0039.6-namespace-access.md) | bug | in_progress | medium |
 | [0039.7 — Wildcard Imports](iss-0039.7-wildcard-imports.md) | enhancement | proposed | low |
+| [0039.8 — tsconfig Path Aliases](iss-0039.8-tsconfig-path-aliases.md) | bug | proposed | high |
+| [0039.9 — Go Same-Package Refs](iss-0039.9-go-same-package-refs.md) | enhancement | done | medium |
 | [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | chore | proposed | high |
 | [0016 — Codemap](iss-0016-codemap.md) | feat | proposed | high |
 | [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | high |

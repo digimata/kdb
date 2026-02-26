@@ -256,6 +256,7 @@ impl<'a> Indexer<'a> {
         self.build_reexport_lookup();
         self.seed_definition_refs();
         self.link_usage_refs()?;
+        self.link_go_same_package_refs()?;
         self.normalize_symbol_refs();
         Ok(SymbolIndex {
             symbols: self.code_symbols,
@@ -482,6 +483,74 @@ impl<'a> Indexer<'a> {
             let usages = scanner.collect()?;
             self.insert_usage_refs(&source_file, &facts, &bindings, usages);
         }
+        Ok(())
+    }
+
+    /// Scan Go files for same-package references — symbols used across files
+    /// in the same directory without an import statement.
+    fn link_go_same_package_refs(&mut self) -> Result<()> {
+        // Group Go files by parent directory (= Go package boundary).
+        let mut packages: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
+        for (file, facts) in &self.code_files {
+            if facts.language != CodeLanguage::Go {
+                continue;
+            }
+            let dir = file.parent().unwrap_or(Path::new("")).to_path_buf();
+            packages.entry(dir).or_default().push(file.clone());
+        }
+
+        // Snapshot symbol names per file to avoid holding refs into self.
+        let pkg_symbol_names: HashMap<PathBuf, Vec<String>> = self
+            .symbol_lookup
+            .iter()
+            .map(|(file, by_name)| (file.clone(), by_name.keys().cloned().collect()))
+            .collect();
+
+        for (_dir, files) in &packages {
+            if files.len() < 2 {
+                continue;
+            }
+
+            for source_file in files {
+                let Some(facts) = self.code_files.get(source_file).cloned() else {
+                    continue;
+                };
+
+                // Build bindings from all *other* files in the same package.
+                let mut by_name: HashMap<String, Vec<PathBuf>> = HashMap::new();
+                for def_file in files {
+                    if def_file == source_file {
+                        continue;
+                    }
+                    let Some(names) = pkg_symbol_names.get(def_file) else {
+                        continue;
+                    };
+                    for name in names {
+                        by_name
+                            .entry(name.clone())
+                            .or_default()
+                            .push(def_file.clone());
+                    }
+                }
+
+                if by_name.is_empty() {
+                    continue;
+                }
+
+                let imported_names: HashSet<String> = by_name.keys().cloned().collect();
+                let bindings = ImportedBindings {
+                    by_name,
+                    aliases: HashMap::new(),
+                    namespace_targets: Vec::new(),
+                };
+
+                let scanner =
+                    UsageScanner::new(facts.language, &facts.source, imported_names);
+                let usages = scanner.collect()?;
+                self.insert_usage_refs(source_file, &facts, &bindings, usages);
+            }
+        }
+
         Ok(())
     }
 

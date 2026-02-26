@@ -4,6 +4,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.6] — 2026-02-25
+
+### Added
+
+- scan Go same-package files for symbol references without import statements (iss-0039.9)
+
 ## [0.8.5] — 2026-02-25
 
 ### Fixed

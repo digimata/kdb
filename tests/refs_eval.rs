@@ -181,6 +181,28 @@ fn rust_r10_type_in_generic() {
     assert_eq!(usages, 1, "expected 1 usage as type in generic");
 }
 
+#[test]
+fn rust_r11_module_qualified_access() {
+    let (defs, usages) = eval_refs(
+        &[
+            ("src/lib.rs", "pub mod target;\npub mod caller;\n"),
+            ("src/target.rs", "pub trait Source {}\n"),
+            (
+                "src/caller.rs",
+                concat!(
+                    "use crate::target;\n",
+                    "pub struct Foo;\n",
+                    "impl target::Source for Foo {}\n",
+                ),
+            ),
+        ],
+        "src/target.rs",
+        "Source",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 usage via module-qualified path");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TypeScript / JavaScript (T1–T11)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -628,4 +650,49 @@ fn go_g07_composite_literal() {
     );
     assert_eq!(defs, 1, "expected 1 definition");
     assert_eq!(usages, 1, "expected 1 usage as composite literal");
+}
+
+#[test]
+fn go_g08_same_package() {
+    let (defs, usages) = eval_refs(
+        &[
+            ("go.mod", "module example.com/proj\n\ngo 1.21\n"),
+            ("pkg/target.go", "package pkg\n\nfunc Foo() {}\n"),
+            (
+                "pkg/other.go",
+                concat!(
+                    "package pkg\n\n",
+                    "func Bar() {\n\tFoo()\n}\n",
+                ),
+            ),
+        ],
+        "pkg/target.go",
+        "Foo",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 same-package usage");
+}
+
+#[test]
+fn go_g09_same_package_type() {
+    let (defs, usages) = eval_refs(
+        &[
+            ("go.mod", "module example.com/proj\n\ngo 1.21\n"),
+            (
+                "pkg/target.go",
+                "package pkg\n\ntype Kubelet struct {\n\tName string\n}\n",
+            ),
+            (
+                "pkg/other.go",
+                concat!(
+                    "package pkg\n\n",
+                    "func (kl *Kubelet) GetPods() {}\n",
+                ),
+            ),
+        ],
+        "pkg/target.go",
+        "Kubelet",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 same-package type usage");
 }
