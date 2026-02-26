@@ -12,9 +12,9 @@ use crate::lang::CodeLanguage;
 use crate::symbols::{raw_node_text, walk_depth_first};
 
 use super::{
-    ALWAYS_IGNORED_DIRS, ImportKind, LanguageResolver, ResolvedImport, WorkspacePackages,
-    normalize_identifier, normalize_rel_path, path_is_ignored, resolve_file, resolve_with_exts,
-    sanitize_specifier, slash_path, to_root_relative,
+    ALWAYS_IGNORED_DIRS, ImportKind, ImportNames, LanguageResolver, ResolvedImport,
+    WorkspacePackages, normalize_identifier, normalize_rel_path, path_is_ignored, resolve_file,
+    resolve_with_exts, sanitize_specifier, slash_path, to_root_relative,
 };
 
 // ---------------------------------------------------
@@ -89,10 +89,10 @@ enum ImportPattern {
     RequireCall,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct ImportRequest {
     raw: String,
-    names: Vec<String>,
+    names: ImportNames,
     line: usize,
 }
 
@@ -196,7 +196,7 @@ impl<'a> TsjsResolver<'a> {
         });
 
         let mut seen = HashSet::new();
-        requests.retain(|request| seen.insert(request.clone()));
+        requests.retain(|request| seen.insert((request.raw.clone(), request.line)));
         requests
     }
 
@@ -280,14 +280,14 @@ impl ImportPattern {
             }
             Self::SideEffect => Some(ImportRequest {
                 raw: Self::source_field(node, source)?,
-                names: Vec::new(),
+                names: ImportNames::default(),
                 line,
             }),
             Self::ExportFrom => Some(ImportRequest {
                 raw: node
                     .child_by_field_name("source")
                     .and_then(|n| Self::string_literal_value(n, source))?,
-                names: Vec::new(),
+                names: ImportNames::default(),
                 line,
             }),
             Self::RequireAssign => {
@@ -301,7 +301,7 @@ impl ImportPattern {
             }
             Self::RequireCall => Some(ImportRequest {
                 raw: Self::require_arg(node, source)?,
-                names: Vec::new(),
+                names: ImportNames::default(),
                 line,
             }),
         }
@@ -399,52 +399,59 @@ struct ImportBindings;
 impl ImportBindings {
     /// Parse ES import bindings: `import X, { Y as Z } from '...'`
     ///
-    /// Handles default imports, namespace imports (`* as X`), named imports (`{ X, Y as Z }`),
-    /// and combinations (`X, { Y }`). Strips `type` prefixes.
-    fn from_import(raw: &str) -> Vec<String> {
-        let mut names = Vec::new();
+    /// Handles default imports, namespace imports (`* as X`), named imports
+    /// (`{ X, Y as Z }`), and combinations (`X, { Y }`). Strips `type` prefixes.
+    fn from_import(raw: &str) -> ImportNames {
+        let mut result = ImportNames::default();
         let binding = raw.trim().trim_start_matches("type ").trim();
 
         if let Some((default_part, rest)) = binding.split_once(',') {
             if let Some(name) = normalize_identifier(default_part) {
-                names.push(name);
+                result.locals.push(name);
             }
-            names.extend(Self::parse_segment(rest));
+            let segment = Self::parse_segment(rest);
+            result.locals.extend(segment.locals);
+            result.aliases.extend(segment.aliases);
         } else {
-            names.extend(Self::parse_segment(binding));
+            let segment = Self::parse_segment(binding);
+            result.locals.extend(segment.locals);
+            result.aliases.extend(segment.aliases);
         }
 
-        Self::dedupe(names)
+        result.locals = Self::dedupe(result.locals);
+        result
     }
 
     /// Parse require bindings: `const X = require(...)` or `const { X } = require(...)`
-    fn from_require(raw: &str) -> Vec<String> {
+    fn from_require(raw: &str) -> ImportNames {
         let binding = raw.trim();
         if binding.starts_with('{') {
             return Self::from_braced(binding);
         }
 
-        normalize_identifier(binding)
-            .map(|name| vec![name])
-            .unwrap_or_default()
+        ImportNames::new(
+            normalize_identifier(binding)
+                .map(|name| vec![name])
+                .unwrap_or_default(),
+        )
     }
 
     /// Parse `{ foo as bar, type Baz }` or `{ foo: bar, baz = 1 }`.
     ///
     /// Handles ES `as` aliases, require `:` renames, default values (`= ...`),
     /// and `type` prefixes.
-    fn from_braced(raw: &str) -> Vec<String> {
+    fn from_braced(raw: &str) -> ImportNames {
         let start = raw.find('{');
         let end = raw.rfind('}');
         let Some((start, end)) = start.zip(end) else {
-            return Vec::new();
+            return ImportNames::default();
         };
         if end <= start {
-            return Vec::new();
+            return ImportNames::default();
         }
 
         let inner = &raw[start + 1..end];
-        let mut names = Vec::new();
+        let mut result = ImportNames::default();
 
         for item in inner.split(',') {
             let token = item.trim().trim_start_matches("type ").trim();
@@ -452,28 +459,45 @@ impl ImportBindings {
                 continue;
             }
 
-            let local = token
-                .split_once(" as ")
-                .map(|(_, alias)| alias)
-                .or_else(|| token.split_once(':').map(|(_, value)| value))
-                .unwrap_or(token)
-                .split_once('=')
-                .map(|(value, _)| value)
-                .unwrap_or(token)
-                .trim();
+            let (original, local) = if let Some((orig, alias)) = token.split_once(" as ") {
+                (Some(orig.trim()), alias.trim())
+            } else if let Some((_, value)) = token.split_once(':') {
+                let value = value
+                    .split_once('=')
+                    .map(|(v, _)| v)
+                    .unwrap_or(value)
+                    .trim();
+                (None, value)
+            } else {
+                let value = token
+                    .split_once('=')
+                    .map(|(v, _)| v)
+                    .unwrap_or(token)
+                    .trim();
+                (None, value)
+            };
 
-            if let Some(name) = normalize_identifier(local) {
-                names.push(name);
+            if let Some(local_name) = normalize_identifier(local) {
+                result.locals.push(local_name.clone());
+                if let Some(orig) = original {
+                    if let Some(orig_name) = normalize_identifier(orig) {
+                        if orig_name != local_name {
+                            result.aliases.insert(local_name, orig_name);
+                        }
+                    }
+                }
             }
         }
 
-        Self::dedupe(names)
+        result.locals = Self::dedupe(result.locals);
+        result
     }
 
-    fn parse_segment(raw: &str) -> Vec<String> {
+    /// Parse a single binding segment (braced group, namespace `* as X`, or bare identifier).
+    fn parse_segment(raw: &str) -> ImportNames {
         let segment = raw.trim();
         if segment.is_empty() {
-            return Vec::new();
+            return ImportNames::default();
         }
 
         if segment.starts_with('{') {
@@ -486,12 +510,14 @@ impl ImportBindings {
             .and_then(|value| value.strip_prefix("as "))
             .and_then(normalize_identifier)
         {
-            return vec![alias];
+            return ImportNames::new(vec![alias]);
         }
 
-        normalize_identifier(segment)
-            .map(|value| vec![value])
-            .unwrap_or_default()
+        ImportNames::new(
+            normalize_identifier(segment)
+                .map(|value| vec![value])
+                .unwrap_or_default(),
+        )
     }
 
     fn dedupe(names: Vec<String>) -> Vec<String> {

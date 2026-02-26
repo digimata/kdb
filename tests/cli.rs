@@ -340,7 +340,6 @@ fn check_errors_when_root_marker_missing() {
     assert!(stderr.contains("could not find .kdb"));
 }
 
-
 #[test]
 fn fmt_generates_code_index_headers_for_supported_files() {
     let temp = tempdir().expect("tempdir");

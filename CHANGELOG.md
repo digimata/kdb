@@ -4,6 +4,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] — 2026-02-25
+
+### Fixed
+
+- resolve aliased imports across all languages: introduce `ImportNames` struct carrying local→definition alias map, thread through all four resolvers and usage scanner (iss-0039.4)
+
+### Changed
+
+- remove `#[ignore]` from all refs eval tests — gap tests now fail instead of being silently skipped
+
 ## [0.8.1] — 2026-02-25
 
 ### Fixed

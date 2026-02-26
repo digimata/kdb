@@ -8,7 +8,9 @@ use walkdir::WalkDir;
 
 use crate::symbols::walk_depth_first;
 
-use super::{ImportKind, LanguageResolver, ResolvedImport, normalize_identifier, resolve_file};
+use super::{
+    ImportKind, ImportNames, LanguageResolver, ResolvedImport, normalize_identifier, resolve_file,
+};
 
 // --------------------------------------------
 // src/resolve/rust.rs
@@ -395,7 +397,7 @@ impl<'a> RustResolver<'a> {
                         raw: format!("mod {name}"),
                         resolved_path,
                         kind,
-                        names: vec![name],
+                        names: ImportNames::new(vec![name]),
                         line,
                     });
                 }
@@ -949,12 +951,12 @@ fn source_segments(source_file: &Path, src_root: &Path) -> Option<Vec<String>> {
     Some(segments)
 }
 
-/// Extract the imported names from a Rust `use` path, handling brace groups,
-/// `as` aliases, and `self`/`*`.
-fn imported_names(path: &str) -> Vec<String> {
+/// Extract the imported names and alias map from a Rust `use` path, handling
+/// brace groups, `as` aliases, and `self`/`*`.
+fn imported_names(path: &str) -> ImportNames {
     let trimmed = path.trim();
     if let Some((prefix, body)) = split_brace_group(trimmed) {
-        let mut names = Vec::new();
+        let mut result = ImportNames::default();
         for item in body.split(',') {
             let token = item.trim();
             if token.is_empty() || token == "*" {
@@ -963,29 +965,46 @@ fn imported_names(path: &str) -> Vec<String> {
 
             if token == "self" {
                 if let Some(name) = last_segment(prefix) {
-                    names.push(name);
+                    result.locals.push(name);
                 }
                 continue;
             }
 
-            let local = token
-                .split_once(" as ")
-                .map(|(_, alias)| alias)
-                .unwrap_or(token);
-            if let Some(name) = last_segment(local) {
-                names.push(name);
+            if let Some((original, alias)) = token.split_once(" as ") {
+                if let Some(local_name) = last_segment(alias) {
+                    if let Some(def_name) = last_segment(original) {
+                        if local_name != def_name {
+                            result.aliases.insert(local_name.clone(), def_name);
+                        }
+                    }
+                    result.locals.push(local_name);
+                }
+            } else if let Some(name) = last_segment(token) {
+                result.locals.push(name);
             }
         }
-        return dedupe_names(names);
+        result.locals = dedupe_names(result.locals);
+        return result;
     }
 
-    let local = trimmed
-        .split_once(" as ")
-        .map(|(_, alias)| alias)
-        .unwrap_or(trimmed);
-    last_segment(local)
-        .map(|name| vec![name])
-        .unwrap_or_default()
+    if let Some((original, alias)) = trimmed.split_once(" as ") {
+        let local_name = last_segment(alias);
+        let def_name = last_segment(original);
+        let mut result = ImportNames::default();
+        if let (Some(local), Some(def)) = (&local_name, &def_name) {
+            if local != def {
+                result.aliases.insert(local.clone(), def.clone());
+            }
+        }
+        result.locals = local_name.into_iter().collect();
+        return result;
+    }
+
+    ImportNames::new(
+        last_segment(trimmed)
+            .map(|name| vec![name])
+            .unwrap_or_default(),
+    )
 }
 
 /// Split a use path at the outermost `{...}` brace group.

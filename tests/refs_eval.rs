@@ -31,11 +31,7 @@ fn write_root_config(root: &Path) {
 ///
 /// Returns (definition_count, usage_count) — the definition row plus all
 /// non-definition rows.
-fn eval_refs(
-    files: &[(&str, &str)],
-    target_file: &str,
-    symbol: &str,
-) -> (usize, usize) {
+fn eval_refs(files: &[(&str, &str)], target_file: &str, symbol: &str) -> (usize, usize) {
     let tmp = tempdir().expect("tempdir");
     write_root_config(tmp.path());
     for (path, content) in files {
@@ -43,9 +39,8 @@ fn eval_refs(
     }
     let pi = ProjectIndex::build_with_symbol_refs(tmp.path(), &[])
         .expect("build project index with symbol refs");
-    let rows =
-        kdb::index::refs::collect_symbol_refs(&pi.code, tmp.path(), target_file, symbol)
-            .expect("collect symbol refs");
+    let rows = kdb::index::refs::collect_symbol_refs(&pi.code, tmp.path(), target_file, symbol)
+        .expect("collect symbol refs");
 
     let defs = rows.iter().filter(|r| r.is_definition).count();
     let usages = rows.iter().filter(|r| !r.is_definition).count();
@@ -93,7 +88,6 @@ fn rust_r02_grouped_import() {
 }
 
 #[test]
-#[ignore] // gap: alias name stored in ResolvedImport.names, symbol_lookup has definition name
 fn rust_r03_aliased_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -112,7 +106,6 @@ fn rust_r03_aliased_import() {
 }
 
 #[test]
-#[ignore] // gap: pub use re-exports not followed — caller's import resolves to mod, not inner
 fn rust_r04_pub_use_reexport() {
     let (defs, usages) = eval_refs(
         &[
@@ -135,7 +128,6 @@ fn rust_r04_pub_use_reexport() {
 }
 
 #[test]
-#[ignore] // gap: wildcard imports not resolved
 fn rust_r05_wildcard_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -154,7 +146,6 @@ fn rust_r05_wildcard_import() {
 }
 
 #[test]
-#[ignore] // gap: no type tracking — method resolved to struct, not method symbol
 fn rust_r06_method_on_imported_type() {
     let (defs, usages) = eval_refs(
         &[
@@ -176,7 +167,6 @@ fn rust_r06_method_on_imported_type() {
 }
 
 #[test]
-#[ignore] // gap: no trait dispatch tracking
 fn rust_r07_trait_method_call() {
     let (defs, usages) = eval_refs(
         &[
@@ -213,7 +203,6 @@ fn rust_r07_trait_method_call() {
 }
 
 #[test]
-#[ignore] // gap: no macro expansion
 fn rust_r08_macro_generated_usage() {
     let (defs, usages) = eval_refs(
         &[
@@ -282,10 +271,7 @@ fn tsjs_t01_named_import() {
     let (defs, usages) = eval_refs(
         &[
             ("src/target.ts", "export function foo() {}\n"),
-            (
-                "src/caller.ts",
-                "import { foo } from './target';\nfoo();\n",
-            ),
+            ("src/caller.ts", "import { foo } from './target';\nfoo();\n"),
         ],
         "src/target.ts",
         "foo",
@@ -309,7 +295,6 @@ fn tsjs_t02_default_import() {
 }
 
 #[test]
-#[ignore] // gap: alias name stored in ResolvedImport.names, symbol_lookup has definition name
 fn tsjs_t03_aliased_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -327,7 +312,6 @@ fn tsjs_t03_aliased_import() {
 }
 
 #[test]
-#[ignore] // gap: namespace imports not resolved
 fn tsjs_t04_namespace_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -345,16 +329,12 @@ fn tsjs_t04_namespace_import() {
 }
 
 #[test]
-#[ignore] // gap: barrel re-exports not followed
 fn tsjs_t05_barrel_reexport() {
     let (defs, usages) = eval_refs(
         &[
             ("src/inner.ts", "export function foo() {}\n"),
             ("src/index.ts", "export { foo } from './inner';\n"),
-            (
-                "src/caller.ts",
-                "import { foo } from './index';\nfoo();\n",
-            ),
+            ("src/caller.ts", "import { foo } from './index';\nfoo();\n"),
         ],
         "src/inner.ts",
         "foo",
@@ -364,7 +344,6 @@ fn tsjs_t05_barrel_reexport() {
 }
 
 #[test]
-#[ignore] // gap: default re-exports not followed
 fn tsjs_t06_default_reexport() {
     let (defs, usages) = eval_refs(
         &[
@@ -373,10 +352,7 @@ fn tsjs_t06_default_reexport() {
                 "src/index.ts",
                 "export { default as foo } from './inner';\n",
             ),
-            (
-                "src/caller.ts",
-                "import { foo } from './index';\nfoo();\n",
-            ),
+            ("src/caller.ts", "import { foo } from './index';\nfoo();\n"),
         ],
         "src/inner.ts",
         "foo",
@@ -386,7 +362,6 @@ fn tsjs_t06_default_reexport() {
 }
 
 #[test]
-#[ignore] // gap: dynamic imports not resolved
 fn tsjs_t07_dynamic_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -407,7 +382,10 @@ fn tsjs_t07_dynamic_import() {
 fn tsjs_t08_commonjs_require() {
     let (defs, usages) = eval_refs(
         &[
-            ("src/target.js", "function foo() {}\nmodule.exports = { foo };\n"),
+            (
+                "src/target.js",
+                "function foo() {}\nmodule.exports = { foo };\n",
+            ),
             (
                 "src/caller.js",
                 "const { foo } = require('./target');\nfoo();\n",
@@ -441,7 +419,10 @@ fn tsjs_t09_type_import() {
 fn tsjs_t10_destructured_usage() {
     let (defs, usages) = eval_refs(
         &[
-            ("src/target.ts", "export function foo() { return { a: 1, b: 2 }; }\n"),
+            (
+                "src/target.ts",
+                "export function foo() { return { a: 1, b: 2 }; }\n",
+            ),
             (
                 "src/caller.ts",
                 "import { foo } from './target';\nconst { a, b } = foo();\n",
@@ -490,7 +471,6 @@ fn python_p01_direct_import() {
 }
 
 #[test]
-#[ignore] // gap: module-level namespace access not resolved (import target; target.foo())
 fn python_p02_module_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -505,7 +485,6 @@ fn python_p02_module_import() {
 }
 
 #[test]
-#[ignore] // gap: alias name stored in ResolvedImport.names, symbol_lookup has definition name
 fn python_p03_aliased_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -520,7 +499,6 @@ fn python_p03_aliased_import() {
 }
 
 #[test]
-#[ignore] // gap: wildcard imports not resolved
 fn python_p04_wildcard_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -535,11 +513,13 @@ fn python_p04_wildcard_import() {
 }
 
 #[test]
-#[ignore] // gap: __all__ re-exports not followed
 fn python_p05_all_reexport() {
     let (defs, usages) = eval_refs(
         &[
-            ("pkg/__init__.py", "from .inner import foo\n__all__ = ['foo']\n"),
+            (
+                "pkg/__init__.py",
+                "from .inner import foo\n__all__ = ['foo']\n",
+            ),
             ("pkg/inner.py", "def foo():\n    pass\n"),
             ("caller.py", "from pkg import foo\nfoo()\n"),
         ],
@@ -604,10 +584,7 @@ fn python_p09_class_instantiation() {
     let (defs, usages) = eval_refs(
         &[
             ("target.py", "class Bar:\n    pass\n"),
-            (
-                "caller.py",
-                "from target import Bar\nx = Bar()\n",
-            ),
+            ("caller.py", "from target import Bar\nx = Bar()\n"),
         ],
         "target.py",
         "Bar",
@@ -643,7 +620,6 @@ fn go_g01_package_import() {
 }
 
 #[test]
-#[ignore] // gap: alias name stored in ResolvedImport.names, symbol_lookup has definition name
 fn go_g02_aliased_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -666,7 +642,6 @@ fn go_g02_aliased_import() {
 }
 
 #[test]
-#[ignore] // gap: dot imports not resolved
 fn go_g03_dot_import() {
     let (defs, usages) = eval_refs(
         &[
@@ -689,7 +664,6 @@ fn go_g03_dot_import() {
 }
 
 #[test]
-#[ignore] // gap: no type tracking for interface method dispatch
 fn go_g04_interface_method() {
     let (defs, usages) = eval_refs(
         &[
@@ -716,7 +690,6 @@ fn go_g04_interface_method() {
 }
 
 #[test]
-#[ignore] // gap: no type tracking for promoted methods via embedded structs
 fn go_g05_embedded_struct() {
     let (defs, usages) = eval_refs(
         &[

@@ -107,6 +107,7 @@ impl CodeFileFacts {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct IdentifierUsage {
     name: String,
+    binding_name: Option<String>,
     line: usize,
     column: usize,
 }
@@ -114,17 +115,20 @@ struct IdentifierUsage {
 #[derive(Debug, Clone, Default)]
 struct ImportedBindings {
     by_name: HashMap<String, Vec<PathBuf>>,
+    /// Maps local alias → definition name across all imports for this file.
+    aliases: HashMap<String, String>,
 }
 
 impl ImportedBindings {
     fn from_imports(imports: &[ResolvedImport]) -> Self {
         let mut by_name: HashMap<String, BTreeSet<PathBuf>> = HashMap::new();
+        let mut aliases = HashMap::new();
 
         for import in imports {
             let Some(target_file) = import.resolved_path.as_ref() else {
                 continue;
             };
-            for name in &import.names {
+            for name in &import.names.locals {
                 if name.is_empty() {
                     continue;
                 }
@@ -133,6 +137,7 @@ impl ImportedBindings {
                     .or_default()
                     .insert(target_file.clone());
             }
+            aliases.extend(import.names.aliases.clone());
         }
 
         let by_name = by_name
@@ -140,7 +145,7 @@ impl ImportedBindings {
             .map(|(name, targets)| (name, targets.into_iter().collect()))
             .collect();
 
-        Self { by_name }
+        Self { by_name, aliases }
     }
 
     fn is_empty(&self) -> bool {
@@ -153,6 +158,11 @@ impl ImportedBindings {
 
     fn targets(&self, name: &str) -> Option<&[PathBuf]> {
         self.by_name.get(name).map(Vec::as_slice)
+    }
+
+    /// Return the definition name for a local alias, if one exists.
+    fn definition_name(&self, local: &str) -> Option<&str> {
+        self.aliases.get(local).map(String::as_str)
     }
 }
 
@@ -297,11 +307,20 @@ impl<'a> Indexer<'a> {
         usages: Vec<IdentifierUsage>,
     ) {
         for usage in usages {
-            let Some(target_files) = bindings.targets(&usage.name) else {
+            let binding_key = usage.binding_name.as_deref().unwrap_or(&usage.name);
+            let target_files = bindings.targets(binding_key);
+
+            let Some(target_files) = target_files else {
                 continue;
             };
+
+            let lookup_name = if usage.binding_name.is_some() {
+                usage.name.as_str()
+            } else {
+                bindings.definition_name(binding_key).unwrap_or(&usage.name)
+            };
             for target_file in target_files {
-                self.insert_usage_row(source_file, facts, target_file, &usage);
+                self.insert_usage_row(source_file, facts, target_file, &usage, lookup_name);
             }
         }
     }
@@ -312,11 +331,12 @@ impl<'a> Indexer<'a> {
         facts: &CodeFileFacts,
         target_file: &Path,
         usage: &IdentifierUsage,
+        lookup_name: &str,
     ) {
         let Some(keys) = self
             .symbol_lookup
             .get(target_file)
-            .and_then(|symbols_by_name| symbols_by_name.get(&usage.name))
+            .and_then(|symbols_by_name| symbols_by_name.get(lookup_name))
         else {
             return;
         };
@@ -367,9 +387,19 @@ impl UsageScanner {
         let mut usages = Vec::new();
 
         walk_depth_first(tree.root_node(), |node| {
+            if let Some(usage) = self.qualified_usage_for_node(node, source_bytes) {
+                usages.push(usage);
+                return;
+            }
+
             if !self.is_usage_identifier(node.kind()) {
                 return;
             }
+
+            if self.is_part_of_qualified_usage(node) {
+                return;
+            }
+
             let Some(name) = raw_node_text(node, source_bytes) else {
                 return;
             };
@@ -382,6 +412,7 @@ impl UsageScanner {
 
             usages.push(IdentifierUsage {
                 name: name.to_string(),
+                binding_name: None,
                 line: node.start_position().row + 1,
                 column: node.start_position().column + 1,
             });
@@ -390,6 +421,44 @@ impl UsageScanner {
         usages.sort();
         usages.dedup();
         Ok(usages)
+    }
+
+    fn qualified_usage_for_node(
+        &self,
+        node: Node<'_>,
+        source_bytes: &[u8],
+    ) -> Option<IdentifierUsage> {
+        match self.language {
+            CodeLanguage::Go => self.go_qualified_usage(node, source_bytes),
+            _ => None,
+        }
+    }
+
+    fn go_qualified_usage(&self, node: Node<'_>, source_bytes: &[u8]) -> Option<IdentifierUsage> {
+        let (binding_node, symbol_node) = go_qualified_nodes(node)?;
+        let binding_name = raw_node_text(binding_node, source_bytes)?;
+        if !self.imported_names.contains(binding_name) {
+            return None;
+        }
+
+        if is_import_identifier(symbol_node) || is_declaration_identifier(symbol_node) {
+            return None;
+        }
+
+        let name = raw_node_text(symbol_node, source_bytes)?;
+        Some(IdentifierUsage {
+            name: name.to_string(),
+            binding_name: Some(binding_name.to_string()),
+            line: symbol_node.start_position().row + 1,
+            column: symbol_node.start_position().column + 1,
+        })
+    }
+
+    fn is_part_of_qualified_usage(&self, node: Node<'_>) -> bool {
+        match self.language {
+            CodeLanguage::Go => is_go_qualified_binding_node(node),
+            _ => false,
+        }
     }
 
     fn is_usage_identifier(&self, kind: &str) -> bool {
@@ -401,6 +470,36 @@ impl UsageScanner {
             CodeLanguage::Python => kind == "identifier",
             CodeLanguage::Go => matches!(kind, "identifier" | "type_identifier"),
         }
+    }
+}
+
+fn go_qualified_nodes(node: Node<'_>) -> Option<(Node<'_>, Node<'_>)> {
+    match node.kind() {
+        "selector_expression" => Some((
+            node.child_by_field_name("operand")?,
+            node.child_by_field_name("field")?,
+        )),
+        "qualified_type" => Some((
+            node.child_by_field_name("package")?,
+            node.child_by_field_name("name")?,
+        )),
+        _ => None,
+    }
+}
+
+fn is_go_qualified_binding_node(node: Node<'_>) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+
+    match parent.kind() {
+        "selector_expression" => parent
+            .child_by_field_name("operand")
+            .is_some_and(|operand| same_node(operand, node)),
+        "qualified_type" => parent
+            .child_by_field_name("package")
+            .is_some_and(|package| same_node(package, node)),
+        _ => false,
     }
 }
 
@@ -437,6 +536,10 @@ fn is_declaration_identifier(node: Node<'_>) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
+
+    if parent.kind() == "qualified_type" {
+        return false;
+    }
 
     if node_is_field(parent, "name", node)
         || node_is_field(parent, "alias", node)

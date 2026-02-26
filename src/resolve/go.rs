@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::{
-    ImportKind, LanguageResolver, ResolvedImport, list_go_package_files, normalize_identifier,
-    normalize_rel_path, to_root_relative,
+    ImportKind, ImportNames, LanguageResolver, ResolvedImport, list_go_package_files,
+    normalize_identifier, normalize_rel_path, to_root_relative,
 };
 
 // -------------------------------------
@@ -243,7 +243,7 @@ impl<'a> GoResolver<'a> {
                 raw: spec.to_string(),
                 resolved_path: None,
                 kind,
-                names,
+                names: names.clone(),
                 line,
             });
             return;
@@ -361,20 +361,26 @@ fn parse_import_line(line: &str) -> Option<(Option<String>, String)> {
 }
 
 /// Derive the local binding name from an import alias or the last path segment.
-fn import_names(alias: Option<&str>, spec: &str) -> Vec<String> {
+///
+/// When an explicit alias differs from the package's default name (last path
+/// segment), records the mapping in `ImportNames.aliases`.
+fn import_names(alias: Option<&str>, spec: &str) -> ImportNames {
+    let default_name = spec.rsplit('/').next().and_then(normalize_identifier);
+
     if let Some(alias) = alias {
         if alias != "_" && alias != "." {
-            return normalize_identifier(alias)
-                .map(|name| vec![name])
-                .unwrap_or_default();
+            let local = normalize_identifier(alias);
+            let mut result = ImportNames::new(local.clone().into_iter().collect());
+            if let (Some(local), Some(def)) = (&local, &default_name) {
+                if local != def {
+                    result.aliases.insert(local.clone(), def.clone());
+                }
+            }
+            return result;
         }
     }
 
-    spec.rsplit('/')
-        .next()
-        .and_then(normalize_identifier)
-        .map(|name| vec![name])
-        .unwrap_or_default()
+    ImportNames::new(default_name.into_iter().collect())
 }
 
 /// Classify a Go import specifier as relative, workspace, or external.

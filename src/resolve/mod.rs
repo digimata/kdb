@@ -94,6 +94,27 @@ pub enum ImportKind {
     External,
 }
 
+/// The bindings introduced by a single import statement.
+///
+/// `locals` are the names visible in the importing file's scope. `aliases`
+/// maps each local alias back to its definition name — only populated when
+/// an `as` rename makes the two differ.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ImportNames {
+    pub locals: Vec<String>,
+    pub aliases: HashMap<String, String>,
+}
+
+impl ImportNames {
+    /// Create bindings with no aliases.
+    pub fn new(locals: Vec<String>) -> Self {
+        Self {
+            locals,
+            aliases: HashMap::new(),
+        }
+    }
+}
+
 /// A single resolved import: the raw specifier, its resolved file path (if
 /// local), its kind, the names it introduces, and its source line number.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -101,7 +122,7 @@ pub struct ResolvedImport {
     pub raw: String,
     pub resolved_path: Option<PathBuf>,
     pub kind: ImportKind,
-    pub names: Vec<String>,
+    pub names: ImportNames,
     pub line: usize,
 }
 

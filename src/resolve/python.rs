@@ -164,9 +164,7 @@ impl<'a> PythonImportResolver<'a> {
             let local = module_binding_name(module_name, alias);
             let def = module_binding_name(module_name, None);
 
-            let mut names = ImportNames::new(
-                local.clone().into_iter().collect(),
-            );
+            let mut names = ImportNames::new(local.clone().into_iter().collect());
             if let (Some(local), Some(def)) = (&local, &def) {
                 if local != def {
                     names.aliases.insert(local.clone(), def.clone());
@@ -231,9 +229,7 @@ impl<'a> PythonImportResolver<'a> {
             let kind = classify_kind(module, resolved_path.is_some());
             let local = normalize_identifier(&local_name);
 
-            let mut names = ImportNames::new(
-                local.clone().into_iter().collect(),
-            );
+            let mut names = ImportNames::new(local.clone().into_iter().collect());
             if let Some(ref local) = local {
                 if *local != name {
                     names.aliases.insert(local.clone(), name.clone());

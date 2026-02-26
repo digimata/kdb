@@ -432,13 +432,13 @@ fn project_index_build_populates_code_import_maps_for_typescript() {
         import.raw == "@app/utils"
             && import.resolved_path.as_deref() == Some(Path::new("src/utils.ts"))
             && import.kind == ImportKind::TsconfigPath
-            && import.names.iter().any(|name| name == "Util")
+            && import.names.locals.iter().any(|name| name == "Util")
     }));
     assert!(imports.iter().any(|import| {
         import.raw == "./local"
             && import.resolved_path.as_deref() == Some(Path::new("web/local.ts"))
             && import.kind == ImportKind::Relative
-            && import.names.iter().any(|name| name == "local")
+            && import.names.locals.iter().any(|name| name == "local")
     }));
 }
 
