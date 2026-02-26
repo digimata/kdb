@@ -175,7 +175,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="inline-flex items-center gap-2 rounded-lg bg-(--accent) text-(--bg) px-5 py-2.5 text-sm font-medium transition-all hover:opacity-80 active:scale-[0.98] cursor-pointer"
+      className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-(--accent) px-5 py-2.5 text-sm font-medium text-(--bg) transition-all hover:opacity-80 active:scale-[0.98]"
     >
       {copied ? (
         <>
@@ -208,14 +208,14 @@ function CodeBlock({
   }
 
   return (
-    <div className="relative group">
-      <pre className="rounded-lg border border-(--code-border) bg-(--code-bg) p-4 text-sm leading-relaxed overflow-x-auto">
+    <div className="group relative">
+      <pre className="overflow-x-auto rounded-lg border border-(--code-border) bg-(--code-bg) p-4 text-sm leading-relaxed">
         <code>{children}</code>
       </pre>
       {copyable && (
         <button
           onClick={handleCopy}
-          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity rounded-md border border-(--border) bg-(--code-bg) px-2 py-1 text-xs text-(--muted) hover:text-(--fg) cursor-pointer"
+          className="absolute top-3 right-3 cursor-pointer rounded-md border border-(--border) bg-(--code-bg) px-2 py-1 text-xs text-(--muted) opacity-0 transition-opacity group-hover:opacity-100 hover:text-(--fg)"
         >
           {copied ? "Copied" : "Copy"}
         </button>
@@ -226,13 +226,13 @@ function CodeBlock({
 
 function TerminalBlock({ children }: { children: string }) {
   return (
-    <div className="rounded-lg border border-(--code-border) bg-(--code-bg) overflow-hidden">
-      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-(--code-border)">
-        <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-        <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-        <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+    <div className="overflow-hidden rounded-lg border border-(--code-border) bg-(--code-bg)">
+      <div className="flex items-center gap-1.5 border-b border-(--code-border) px-4 py-2.5">
+        <div className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+        <div className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+        <div className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
       </div>
-      <pre className="p-4 text-sm leading-relaxed overflow-x-auto">
+      <pre className="overflow-x-auto p-4 text-sm leading-relaxed">
         <code>{children}</code>
       </pre>
     </div>
@@ -243,15 +243,15 @@ function TerminalBlock({ children }: { children: string }) {
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-[720px] px-6 py-24 space-y-32">
+    <main className="mx-auto max-w-180 space-y-32 px-6 py-24">
       {/* ---- Hero ---- */}
       <section className="space-y-6 text-center">
         <h1 className="text-6xl font-bold tracking-tight sm:text-7xl">kdb</h1>
-        <p className="text-xl text-(--fg) leading-relaxed sm:text-2xl">
+        <p className="text-xl leading-relaxed text-(--fg) sm:text-2xl">
           The fastest way for agents to navigate
           <br className="hidden sm:block" /> code + knowledge bases
         </p>
-        <p className="text-(--muted) text-base max-w-lg mx-auto leading-relaxed">
+        <p className="mx-auto max-w-lg text-base leading-relaxed text-(--muted)">
           Built with Rust. Your agents explore code faster and burn fewer
           tokens. Fast, precise, no overhead.
         </p>
@@ -261,7 +261,7 @@ export default function Home() {
             href="https://github.com/dremnik/kdb"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-lg border border-(--border) px-4 py-2.5 text-sm text-(--muted) transition-colors hover:text-(--fg) hover:border-(--muted)"
+            className="inline-flex items-center justify-center rounded-lg border border-(--border) px-4 py-2.5 text-sm text-(--muted) transition-colors hover:border-(--muted) hover:text-(--fg)"
           >
             <GithubIcon />
           </a>
@@ -273,10 +273,8 @@ export default function Home() {
         <h2 className="text-center text-lg font-medium text-(--muted)">
           See the difference
         </h2>
-        <div className="aspect-video rounded-lg border border-(--code-border) bg-(--code-bg) flex items-center justify-center">
-          <p className="text-(--muted) text-sm">
-            Demo video — coming soon
-          </p>
+        <div className="flex aspect-video items-center justify-center rounded-lg border border-(--code-border) bg-(--code-bg)">
+          <p className="text-sm text-(--muted)">Demo video — coming soon</p>
         </div>
         <p className="text-center text-sm text-(--muted)">
           Agent codebase exploration — with vs without kdb
@@ -287,7 +285,7 @@ export default function Home() {
       <section className="space-y-6">
         <div className="space-y-2 text-center">
           <h2 className="text-2xl font-semibold">What your agent gets</h2>
-          <p className="text-(--muted) text-sm">
+          <p className="text-sm text-(--muted)">
             The install prompt adds these instructions to your agent&apos;s
             system prompt.
           </p>
@@ -298,7 +296,7 @@ export default function Home() {
 
       {/* ---- Usage ---- */}
       <section className="space-y-6">
-        <h2 className="text-2xl font-semibold text-center">Usage</h2>
+        <h2 className="text-center text-2xl font-semibold">Usage</h2>
         <div className="space-y-4">
           <TerminalBlock>{EXAMPLE_SYMBOLS}</TerminalBlock>
           <TerminalBlock>{EXAMPLE_REFS}</TerminalBlock>
@@ -308,14 +306,14 @@ export default function Home() {
 
       {/* ---- Features ---- */}
       <section className="space-y-12">
-        <h2 className="text-2xl font-semibold text-center">Features</h2>
+        <h2 className="text-center text-2xl font-semibold">Features</h2>
         {FEATURES.map((feat) => (
           <div key={feat.name} className="space-y-3">
             <div>
               <h3 className="text-lg font-medium">
                 <code className="text-(--green)">kdb {feat.name}</code>
               </h3>
-              <p className="text-(--muted) text-sm mt-1">{feat.desc}</p>
+              <p className="mt-1 text-sm text-(--muted)">{feat.desc}</p>
             </div>
             <TerminalBlock>{feat.example}</TerminalBlock>
           </div>
@@ -323,13 +321,13 @@ export default function Home() {
       </section>
 
       {/* ---- Footer ---- */}
-      <footer className="border-t border-(--border) pt-8 flex items-center justify-between text-sm text-(--muted)">
+      <footer className="flex items-center justify-between border-t border-(--border) pt-8 text-sm text-(--muted)">
         <span>kdb</span>
         <a
           href="https://github.com/dremnik/kdb"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-(--fg) transition-colors"
+          className="transition-colors hover:text-(--fg)"
         >
           GitHub
         </a>
