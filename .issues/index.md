@@ -13,6 +13,7 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0036 — Language Plugin Interface](iss-0036-language-plugin-interface.md) | refactor | proposed | medium |
 | [0016 — Codemap](iss-0016-codemap.md) | feat | proposed | medium |
 | [0013 — Code File Links](iss-0013-code-file-links.md) | feat | proposed | medium |
+| [0056 — `tree` Absolute Root Path](iss-0056-tree-absolute-root.md) | feat | done | medium |
 | [0005 — Code Comment Links Into KDB Docs](iss-0005-code-comment-links.md) | feat | proposed | medium |
 | [0003 — Databases and Bases](iss-0003-databases-bases.md) | feat | proposed | medium |
 | [0035 — Root-Relative Path Support](iss-0035-root-relative-paths.md) | feat | proposed | medium |

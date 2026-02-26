@@ -4,6 +4,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] — 2026-02-26
+
+### Changed
+
+- `kdb tree` now prints the absolute path as the tree root, giving agents a reliable anchor for deriving file paths (iss-0056)
+
 ## [0.18.0] — 2026-02-26
 
 ### Added

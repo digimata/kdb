@@ -143,7 +143,7 @@ fn build_node(
 
     let display_path = display_rel_path(rel_path);
     let name = if depth == 0 {
-        display_path.clone()
+        abs_path.to_string_lossy().to_string()
     } else if options.full_paths {
         display_path.clone()
     } else {

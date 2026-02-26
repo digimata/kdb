@@ -477,7 +477,11 @@ fn tree_prints_filtered_directory_structure() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.lines().next().is_some_and(|line| line == "."));
+    let first_line = stdout.lines().next().expect("non-empty output");
+    assert!(
+        std::path::Path::new(first_line).is_absolute(),
+        "tree root should be an absolute path, got: {first_line}"
+    );
     assert!(stdout.contains("notes"));
     assert!(stdout.contains("src"));
     assert!(!stdout.contains(".hidden.md"));
@@ -501,8 +505,10 @@ fn tree_level_option_matches_tree_l_flag() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("a"));
-    assert!(!stdout.contains("b"));
+    // Skip the root line (absolute path) — only check tree body for children.
+    let body: String = stdout.lines().skip(1).collect::<Vec<_>>().join("\n");
+    assert!(body.contains("a"));
+    assert!(!body.contains("b"));
 }
 
 #[test]
