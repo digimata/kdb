@@ -22,7 +22,6 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0002 — Templates](iss-0002-templates.md) | feat | proposed | medium |
 | [0008 — Installable KDB Packages](iss-0008-installable-packages.md) | feat | proposed | medium |
 | [0040 — C# Language Support](iss-0040-csharp-language-support.md) | feat | proposed | medium |
-| [0043 — symbols -s: line gutter + multi-selector](iss-0043-symbols-selector-line-numbers.md) | enhancement | done | low |
 | [0004 — Canvas Support](iss-0004-canvas-support.md) | feat | proposed | low |
 
 Labels: `feat` · `bug` · `refactor` · `chore`
