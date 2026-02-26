@@ -16,7 +16,7 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 | [0036 — Language Plugin Interface](iss-0036-language-plugin-interface.md) | refactor | proposed | medium |
 | [0042 — Symbols: Directory Target](iss-0042-symbols-directory-target.md) | enhancement | done | medium |
 | [0044 — Symbols: Multi-Path Arguments](iss-0044-symbols-multi-path.md) | enhancement | done | medium |
-| [0046 — Profile and Optimize `refs -s` Performance](iss-0046-refs-performance.md) | perf | proposed | medium |
+| [0046 — Profile and Optimize `refs -s` Performance](iss-0046-refs-performance.md) | perf | done | medium |
 | [0050 — Configurable Ignore Patterns via `.kdb/ignore`](iss-0050-configurable-ignore-patterns.md) | enhancement | done | medium |
 | [0047 — Benchmark Agent Performance With/Without kdb](iss-0047-agent-benchmark.md) | research | proposed | medium |
 | [0021 — kdb graph Command](iss-0021-graph-command.md) | feat | proposed | medium |

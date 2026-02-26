@@ -436,6 +436,27 @@ impl CodeIndex {
         })
     }
 
+    /// Build from cached data with symbol refs scoped to a target file.
+    ///
+    /// Only scans files that import from `target_file` for usages.
+    pub(crate) fn build_from_cached_for_target(
+        root: &Path,
+        code_imports: BTreeMap<PathBuf, Vec<ResolvedImport>>,
+        code_symbols: BTreeMap<PathBuf, Vec<crate::symbols::Symbol>>,
+        workspace_caches: &WorkspaceCaches,
+        target_file: PathBuf,
+    ) -> Result<Self> {
+        let symbols =
+            SymbolIndex::build_for_target(root, &code_imports, code_symbols, target_file)?;
+        Ok(Self {
+            workspace_packages: workspace_caches.workspace_packages.clone(),
+            go_workspace: workspace_caches.go_workspace.clone(),
+            rust_workspace: workspace_caches.rust_workspace.clone(),
+            code_imports,
+            symbols,
+        })
+    }
+
     /// Build a code index and include symbol-reference maps for `kdb refs -s`.
     pub fn build_with_symbol_refs(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
         let import_index = build_workspace_import_index(root, ignore_patterns)?;
@@ -495,6 +516,32 @@ impl ProjectIndex {
             result.code_imports,
             result.code_symbols,
             &result.workspace_caches,
+        )?;
+        Ok(Self { vault, code })
+    }
+
+    /// Build using the persistent disk cache, scoped to a target file.
+    ///
+    /// Only scans files that import from `target_file` for usages.
+    pub fn build_cached_for_target(
+        root: &Path,
+        ignore_patterns: &[String],
+        fresh: bool,
+        target_file: &str,
+    ) -> Result<Self> {
+        let canonical = root
+            .canonicalize()
+            .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
+        let target = resolve_file_target(&canonical, target_file)?;
+        let result = cache::incremental_build(&canonical, ignore_patterns, fresh, None)?;
+        let vault =
+            VaultIndex::build_from_entries(&canonical, ignore_patterns, result.vault_files)?;
+        let code = CodeIndex::build_from_cached_for_target(
+            &canonical,
+            result.code_imports,
+            result.code_symbols,
+            &result.workspace_caches,
+            target,
         )?;
         Ok(Self { vault, code })
     }

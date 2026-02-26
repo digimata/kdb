@@ -1,7 +1,7 @@
 ---
 id: 46
 title: "Profile and optimize refs -s performance"
-status: proposed
+status: done
 priority: medium
 labels:
   - perf

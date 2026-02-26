@@ -4,7 +4,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.14.1] — 2026-02-26
+## [0.15.0] — 2026-02-26
+
+### Changed
+
+- `refs -s` now scopes usage scanning to files that import from the target — computes importer set from the cached import map instead of scanning all project files; includes transitive re-export consumers and Go same-package files (iss-0046)
+
+### Performance
+
+| Repo | Files | Before | After | Speedup |
+|---|---|---|---|---|
+| kubernetes (Go) | ~16k | 7.2s | 0.96s | 7.5x |
 
 ### Fixed
 

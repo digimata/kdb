@@ -82,6 +82,19 @@ impl SymbolIndex {
     ) -> Result<Self> {
         Indexer::new_with_symbols(root, code_imports, preloaded_symbols).build()
     }
+
+    /// Build from pre-computed imports and symbols, scoped to a target file.
+    ///
+    /// Only scans files that import from `target_file` for usages, avoiding
+    /// the O(n) full-project usage scan.
+    pub(crate) fn build_for_target(
+        root: &Path,
+        code_imports: &BTreeMap<PathBuf, Vec<ResolvedImport>>,
+        preloaded_symbols: BTreeMap<PathBuf, Vec<Symbol>>,
+        target_file: PathBuf,
+    ) -> Result<Self> {
+        Indexer::new_for_target(root, code_imports, preloaded_symbols, target_file).build()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -132,6 +145,8 @@ struct Indexer<'a> {
     symbols: BTreeMap<PathBuf, Vec<Symbol>>,
     /// When true, skip `extract_symbols()` — symbols are pre-populated from cache.
     skip_extract: bool,
+    /// When set, scope usage scanning to files that import from this target.
+    target_file: Option<PathBuf>,
     symbol_lookup: HashMap<PathBuf, HashMap<String, Vec<SymbolKey>>>,
     reexport_lookup: HashMap<PathBuf, HashMap<String, Vec<ReexportTarget>>>,
     module_scopes: HashMap<PathBuf, ModuleScope>,
@@ -155,6 +170,7 @@ impl<'a> Indexer<'a> {
             files: BTreeMap::new(),
             symbols: BTreeMap::new(),
             skip_extract: false,
+            target_file: None,
             symbol_lookup: HashMap::new(),
             reexport_lookup: HashMap::new(),
             module_scopes: HashMap::new(),
@@ -175,6 +191,29 @@ impl<'a> Indexer<'a> {
             files: BTreeMap::new(),
             symbols: preloaded,
             skip_extract: true,
+            target_file: None,
+            symbol_lookup: HashMap::new(),
+            reexport_lookup: HashMap::new(),
+            module_scopes: HashMap::new(),
+            symbol_refs: HashMap::new(),
+            qualified_cache: HashMap::new(),
+        }
+    }
+
+    /// Create an indexer scoped to a target file. Only scans importers for usages.
+    fn new_for_target(
+        root: &'a Path,
+        code_imports: &'a BTreeMap<PathBuf, Vec<ResolvedImport>>,
+        preloaded: BTreeMap<PathBuf, Vec<Symbol>>,
+        target_file: PathBuf,
+    ) -> Self {
+        Self {
+            root,
+            imports: code_imports,
+            files: BTreeMap::new(),
+            symbols: preloaded,
+            skip_extract: true,
+            target_file: Some(target_file),
             symbol_lookup: HashMap::new(),
             reexport_lookup: HashMap::new(),
             module_scopes: HashMap::new(),
@@ -184,6 +223,9 @@ impl<'a> Indexer<'a> {
     }
 
     fn build(mut self) -> Result<SymbolIndex> {
+        if self.target_file.is_some() {
+            return self.build_targeted();
+        }
         self.load_code_files()?;
         if !self.skip_extract {
             self.extract_symbols();
@@ -203,9 +245,124 @@ impl<'a> Indexer<'a> {
         })
     }
 
+    /// Targeted build: only load and scan files that import from the target.
+    ///
+    /// Computes importers directly from the import map, loads only those files,
+    /// then runs scope resolution and usage scanning on the reduced set.
+    fn build_targeted(mut self) -> Result<SymbolIndex> {
+        let target = self.target_file.as_ref().unwrap().clone();
+
+        // Compute importer set from raw imports — no file loading needed.
+        let mut importers = self.importers_from_import_map(&target);
+        // Include the target itself (for definition seeding).
+        importers.insert(target.clone());
+        // For Go: include same-package files.
+        let target_dir = target.parent().map(Path::to_path_buf);
+        if let Some(ref dir) = target_dir {
+            for file in self.imports.keys() {
+                if file.parent().map(Path::to_path_buf).as_ref() == Some(dir) {
+                    if CodeLanguage::from_path(file) == Some(CodeLanguage::Go) {
+                        importers.insert(file.clone());
+                    }
+                }
+            }
+        }
+
+        // Transitively include files that import from direct importers
+        // (catches re-export barrel files that import from target, then are
+        // imported by consumers).
+        let direct = importers.clone();
+        for (file, file_imports) in self.imports.iter() {
+            if direct.contains(file) {
+                continue;
+            }
+            let imports_from_direct = file_imports.iter().any(|imp| {
+                imp.resolved_path
+                    .as_ref()
+                    .is_some_and(|p| direct.contains(p))
+            });
+            if imports_from_direct {
+                importers.insert(file.clone());
+            }
+        }
+
+        self.load_code_files_filtered(&importers)?;
+        self.build_symbol_lookup();
+        self.build_reexport_lookup();
+        self.build_module_scopes_filtered(&importers);
+        self.resolution_loop_filtered(&importers);
+        self.seed_definition_refs();
+        self.link_usage_refs();
+        self.link_reexport_refs();
+        self.link_go_same_package_refs();
+        self.normalize_symbol_refs();
+        Ok(SymbolIndex {
+            symbols: self.symbols,
+            refs: self.symbol_refs,
+        })
+    }
+
+    /// Find files whose resolved imports point to the target file.
+    fn importers_from_import_map(&self, target: &Path) -> HashSet<PathBuf> {
+        self.imports
+            .iter()
+            .filter(|(_, file_imports)| {
+                file_imports
+                    .iter()
+                    .any(|imp| imp.resolved_path.as_deref() == Some(target))
+            })
+            .map(|(file, _)| file.clone())
+            .collect()
+    }
+
     // -----------------------------------------------------------------------
     // Phase 1: Load and extract
     // -----------------------------------------------------------------------
+
+    /// Load only files in the given set (for targeted builds).
+    fn load_code_files_filtered(&mut self, filter: &HashSet<PathBuf>) -> Result<()> {
+        let root = self.root;
+        let results: Vec<_> = self
+            .imports
+            .keys()
+            .filter(|rel_path| filter.contains(*rel_path))
+            .filter_map(|rel_path| {
+                let language = CodeLanguage::from_path(rel_path)?;
+                Some((rel_path.clone(), language))
+            })
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .filter_map(|(rel_path, language)| {
+                let abs_path = root.join(&rel_path);
+                let source = match fs::read_to_string(&abs_path) {
+                    Ok(source) => source,
+                    Err(error)
+                        if matches!(error.kind(), ErrorKind::InvalidData | ErrorKind::NotFound) =>
+                    {
+                        return None;
+                    }
+                    Err(error) => {
+                        return Some(
+                            Err(error)
+                                .with_context(|| format!("failed to read {}", rel_path.display())),
+                        );
+                    }
+                };
+
+                let facts = match CodeFileFacts::new(language, source) {
+                    Ok(facts) => facts,
+                    Err(error) => return Some(Err(error)),
+                };
+                Some(Ok((rel_path, facts)))
+            })
+            .collect();
+
+        for result in results {
+            let (rel_path, facts) = result?;
+            self.files.insert(rel_path, facts);
+        }
+        Ok(())
+    }
 
     fn load_code_files(&mut self) -> Result<()> {
         let root = self.root;
@@ -395,6 +552,116 @@ impl<'a> Indexer<'a> {
 
             self.module_scopes.insert(source_file.clone(), scope);
         }
+    }
+
+    /// Build module scopes only for files in the filter set.
+    fn build_module_scopes_filtered(&mut self, filter: &HashSet<PathBuf>) {
+        for (source_file, imports) in self.imports {
+            if !filter.contains(source_file) {
+                continue;
+            }
+            let mut scope = ModuleScope::from_imports(imports);
+            for target in &scope.namespace_targets.clone() {
+                let Some(symbols_by_name) = self.symbol_lookup.get(target) else {
+                    continue;
+                };
+                for name in symbols_by_name.keys() {
+                    scope
+                        .bindings
+                        .entry(name.clone())
+                        .or_default()
+                        .insert(target.clone());
+                }
+            }
+            self.module_scopes.insert(source_file.clone(), scope);
+        }
+    }
+
+    /// Resolution loop operating only on loaded files.
+    fn resolution_loop_filtered(&mut self, filter: &HashSet<PathBuf>) {
+        self.precompute_qualified_cache();
+        loop {
+            let mut changed = false;
+            changed |= self.resolve_reexports_filtered(filter);
+            changed |= self.expand_qualified_access();
+            changed |= self.propagate_glob_imports_filtered(filter);
+            if !changed {
+                break;
+            }
+        }
+    }
+
+    /// Resolve reexports only for scoped files.
+    fn resolve_reexports_filtered(&mut self, filter: &HashSet<PathBuf>) -> bool {
+        let mut changed = false;
+        let scope_files: Vec<PathBuf> = self
+            .module_scopes
+            .keys()
+            .filter(|f| filter.contains(*f))
+            .cloned()
+            .collect();
+        for source_file in scope_files {
+            let scope = &self.module_scopes[&source_file];
+            let entries: Vec<(String, Vec<PathBuf>)> = scope
+                .bindings
+                .iter()
+                .map(|(name, targets)| (name.clone(), targets.iter().cloned().collect()))
+                .collect();
+
+            for (name, targets) in entries {
+                let lookup_name = self.module_scopes[&source_file]
+                    .definition_name(&name)
+                    .unwrap_or(&name)
+                    .to_string();
+
+                for target_file in &targets {
+                    if self.symbol_exists(target_file, &lookup_name) {
+                        continue;
+                    }
+                    if let Some(followed) = self.follow_reexport_target(target_file, &lookup_name) {
+                        let scope = self.module_scopes.get_mut(&source_file).unwrap();
+                        let inserted = scope
+                            .bindings
+                            .entry(name.clone())
+                            .or_default()
+                            .insert(followed.target_file);
+                        changed |= inserted;
+                    }
+                }
+            }
+        }
+        changed
+    }
+
+    /// Propagate glob imports only for scoped files.
+    fn propagate_glob_imports_filtered(&mut self, filter: &HashSet<PathBuf>) -> bool {
+        let mut changed = false;
+        let glob_work: Vec<(PathBuf, Vec<GlobSource>)> = self
+            .module_scopes
+            .iter()
+            .filter(|(file, scope)| filter.contains(*file) && !scope.glob_sources.is_empty())
+            .map(|(file, scope)| (file.clone(), scope.glob_sources.clone()))
+            .collect();
+
+        for (source_file, glob_sources) in glob_work {
+            for glob in &glob_sources {
+                let exported = self.exported_names(&glob.target_file);
+                let names: Vec<String> = match &glob.all_filter {
+                    Some(all) => all.iter().filter(|n| exported.has(n)).cloned().collect(),
+                    None => exported.public_names(),
+                };
+                let scope = self.module_scopes.get_mut(&source_file).unwrap();
+                for name in names {
+                    let inserted = scope
+                        .bindings
+                        .entry(name)
+                        .or_default()
+                        .insert(glob.target_file.clone());
+                    changed |= inserted;
+                }
+            }
+        }
+        changed
     }
 
     /// Pre-compute qualified access patterns for all files in parallel.
@@ -689,11 +956,31 @@ impl<'a> Indexer<'a> {
         }
     }
 
+    /// Compute the set of files whose module scope bindings point to the target.
+    fn importer_set(&self) -> Option<HashSet<PathBuf>> {
+        let target = self.target_file.as_ref()?;
+        let mut importers = HashSet::new();
+        for (file, scope) in &self.module_scopes {
+            let imports_target = scope
+                .bindings
+                .values()
+                .any(|targets| targets.contains(target));
+            if imports_target {
+                importers.insert(file.clone());
+            }
+        }
+        Some(importers)
+    }
+
     fn link_usage_refs(&mut self) {
+        let importers = self.importer_set();
         let scan_inputs: Vec<_> = self
             .module_scopes
             .iter()
             .filter(|(_, scope)| !scope.is_empty())
+            .filter(|(file, _)| {
+                importers.as_ref().map_or(true, |set| set.contains(*file))
+            })
             .filter_map(|(file, scope)| {
                 let facts = self.files.get(file)?;
                 Some((file.clone(), facts.clone(), scope.clone()))
@@ -778,12 +1065,21 @@ impl<'a> Indexer<'a> {
     /// in the same directory without an import statement.
     fn link_go_same_package_refs(&mut self) {
         // Group Go files by parent directory (= Go package boundary).
+        let target_dir = self
+            .target_file
+            .as_ref()
+            .and_then(|t| t.parent())
+            .map(Path::to_path_buf);
+
         let mut packages: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
         for (file, facts) in &self.files {
             if facts.language != CodeLanguage::Go {
                 continue;
             }
             let dir = file.parent().unwrap_or(Path::new("")).to_path_buf();
+            if target_dir.as_ref().is_some_and(|td| td != &dir) {
+                continue;
+            }
             packages.entry(dir).or_default().push(file.clone());
         }
 

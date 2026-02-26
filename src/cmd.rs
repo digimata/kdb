@@ -316,10 +316,11 @@ pub fn refs(
     let ctx = CmdContext::from_path(None, fresh)?;
 
     if let Some(symbol_name) = symbol {
-        let index = ProjectIndex::build_cached_with_symbol_refs(
+        let index = ProjectIndex::build_cached_for_target(
             &ctx.project.root,
             &ctx.project.ignore_patterns,
             ctx.fresh,
+            &target,
         )?;
         let inbound =
             refs::collect_symbol_refs(&index.code, &ctx.project.root, &target, &symbol_name)?;

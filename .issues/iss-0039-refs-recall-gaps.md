@@ -17,27 +17,25 @@ Tracking issue for recall gaps discovered by the correctness eval suite (`tests/
 
 ## Scorecard
 
-6 tests excluded as out of scope (see below). In-scope total: **38**.
+6 tests excluded as out of scope (see below). In-scope total: **47**.
 
 | Language | Pass | Fail | In-scope | Recall |
 |---|---|---|---|---|
 | Rust | 11 | 0 | 11 | 100% |
-| TS/JS | 10 | 0 | 10 | 100% |
+| TS/JS | 19 | 0 | 19 | 100% |
 | Python | 10 | 0 | 10 | 100% |
 | Go | 7 | 0 | 7 | 100% |
-| **Total** | **38** | **0** | **38** | **100%** |
+| **Total** | **47** | **0** | **47** | **100%** |
 
 ## Sub-issues
 
 ### Done (archived to GitHub #37–#51)
 
-0039.1 (Python symbol binding), 0039.2 (Go namespace access), 0039.3 (usage scanner gaps), 0039.4 (alias tracking), 0039.5 (re-export following), 0039.6 (namespace access), 0039.7 (wildcard imports), 0039.8 (tsconfig path aliases), 0039.9 (Go same-package refs), 0039.12 (Rust scoped imports), 0039.11 (re-export as reference), 0039.13 (Rust cfg-macro symbols), 0039.14 (TS member access on named import).
+0039.1 (Python symbol binding), 0039.2 (Go namespace access), 0039.3 (usage scanner gaps), 0039.4 (alias tracking), 0039.5 (re-export following), 0039.6 (namespace access), 0039.7 (wildcard imports), 0039.8 (tsconfig path aliases), 0039.9 (Go same-package refs), 0039.10 (TSX/JSX real-world), 0039.11 (re-export as reference), 0039.12 (Rust scoped imports), 0039.13 (Rust cfg-macro symbols), 0039.14 (TS member access on named import).
 
 ### Open
 
-| Issue | Gap | Affects | Priority |
-|---|---|---|---|
-| [0039.10 — TSX/JSX real-world](iss-0039/iss-0039.10-tsx-jsx-real-world.md) | JSX tag/expr/call identifiers not found in real TSX | real-world TSX | medium |
+None — all sub-issues resolved.
 
 ## Out of scope
 
