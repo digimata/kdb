@@ -4,6 +4,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] — 2026-02-26
+
+### Changed
+
+- `refs -s` default text output now groups references by file with `── file` headers instead of repeating file paths on every line
+
+### Added
+
+- `refs --files` / `-l` flag prints only unique file paths containing references (symbol and markdown modes)
+
 ## [landing-0.2.0] — 2026-02-26
 
 ### Added

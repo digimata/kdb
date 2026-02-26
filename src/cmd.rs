@@ -29,9 +29,9 @@ use crate::tree;
 // pub fn tree()                     L170
 // pub fn symbols()                  L218
 // pub fn refs()                     L279
-// pub fn deps()                     L339
-// pub fn graph()                    L374
-// pub fn format()                   L388
+// pub fn deps()                     L350
+// pub fn graph()                    L385
+// pub fn format()                   L399
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -282,6 +282,7 @@ pub fn refs(
     context_lines: Option<usize>,
     as_json: bool,
     count_only: bool,
+    files_only: bool,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
 
@@ -296,6 +297,11 @@ pub fn refs(
 
         if count_only {
             println!("{}", inbound.len());
+            return Ok(());
+        }
+
+        if files_only {
+            refs::print_symbol_refs_files(&inbound);
             return Ok(());
         }
 
@@ -321,6 +327,11 @@ pub fn refs(
 
     if count_only {
         println!("{}", inbound.len());
+        return Ok(());
+    }
+
+    if files_only {
+        refs::print_files(&inbound);
         return Ok(());
     }
 

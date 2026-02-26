@@ -1214,11 +1214,11 @@ fn refs_symbol_lists_inbound_references_for_code_symbol() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("src/project/root.rs:"));
+    assert!(stdout.contains("── src/project/root.rs"));
     assert!(stdout.contains("pub fn find_root(start: &Path)"));
-    assert!(stdout.contains("src/cmd.rs:"));
+    assert!(stdout.contains("── src/cmd.rs"));
     assert!(stdout.contains("find_root(Path::new(\".\"))"));
-    assert!(stdout.contains("src/lsp/backend.rs:"));
+    assert!(stdout.contains("── src/lsp/backend.rs"));
     assert!(stdout.contains("find_root(Path::new(\"/tmp\"))"));
 }
 
@@ -1315,8 +1315,8 @@ fn refs_symbol_context_zero_keeps_single_line_output() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("src/project/root.rs:"));
-    assert!(stdout.contains("src/cmd.rs:"));
+    assert!(stdout.contains("── src/project/root.rs"));
+    assert!(stdout.contains("── src/cmd.rs"));
     assert!(!stdout.contains(" | "));
 }
 

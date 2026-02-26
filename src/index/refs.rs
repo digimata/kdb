@@ -11,42 +11,44 @@ use super::{
 // ---------------------------------------------
 // src/index/refs.rs
 //
-// pub struct RefsTarget                     L54
-// pub fn parse_target()                     L60
-// pub fn collect_inbound()                  L80
-// pub fn print_text()                      L136
-// pub struct SymbolRefRenderOptions        L155
-//   pub fn new()                           L161
-// struct ContextWindow                     L167
-//   fn around()                            L174
-//   fn line_width()                        L192
-// struct SourceContext                     L198
-//   fn from_source()                       L203
-//   fn line_count()                        L208
-//   fn line_text()                         L212
-// trait LineSource                         L217
-// struct FsLineSource                      L222
-//   fn new()                               L228
-//   fn load_context()                      L235
-//   fn context_for()                       L247
-// struct SymbolRefTextRenderer             L263
-//   fn new()                               L269
-//   fn render()                            L276
-//   fn render_compact()                    L290
-//   fn render_with_context()               L302
-//   fn render_context_block()              L312
-//   fn render_context_line()               L326
-// pub fn collect_symbol_refs()             L342
-// pub fn print_symbol_refs_text()          L377
-// fn collect_symbol_keys()                 L385
-// pub(super) fn normalize_symbol_refs()    L407
-// struct SymbolSelector                    L427
-//   fn parse()                             L433
-//   fn matches()                           L460
-//   fn display()                           L470
-// fn line_marker()                         L478
-// fn fallback_line_text()                  L482
-// fn normalize_symbol_name()               L490
+// pub struct RefsTarget                     L56
+// pub fn parse_target()                     L62
+// pub fn collect_inbound()                  L82
+// pub fn print_text()                      L138
+// pub struct SymbolRefRenderOptions        L157
+//   pub fn new()                           L163
+// struct ContextWindow                     L169
+//   fn around()                            L176
+//   fn line_width()                        L194
+// struct SourceContext                     L200
+//   fn from_source()                       L205
+//   fn line_count()                        L210
+//   fn line_text()                         L214
+// trait LineSource                         L219
+// struct FsLineSource                      L224
+//   fn new()                               L230
+//   fn load_context()                      L237
+//   fn context_for()                       L249
+// struct SymbolRefTextRenderer             L265
+//   fn new()                               L271
+//   fn render()                            L278
+//   fn render_compact()                    L292
+//   fn render_with_context()               L309
+//   fn render_context_block()              L319
+//   fn render_context_line()               L333
+// pub fn collect_symbol_refs()             L349
+// pub fn print_symbol_refs_text()          L384
+// pub fn print_symbol_refs_files()         L393
+// pub fn print_files()                     L406
+// fn collect_symbol_keys()                 L418
+// pub(super) fn normalize_symbol_refs()    L440
+// struct SymbolSelector                    L460
+//   fn parse()                             L466
+//   fn matches()                           L493
+//   fn display()                           L503
+// fn line_marker()                         L511
+// fn fallback_line_text()                  L515
+// fn normalize_symbol_name()               L523
 // ---------------------------------------------
 
 /// Parsed target for `kdb refs`: a file path with an optional heading anchor.
@@ -288,14 +290,19 @@ impl<'a> SymbolRefTextRenderer<'a> {
     }
 
     fn render_compact(&self, inbound: &[SymbolRef]) {
+        let mut first_group = true;
+        let mut current_file: Option<&Path> = None;
+
         for row in inbound {
-            println!(
-                "{}:{}:{}  {}",
-                row.source_file.display(),
-                row.line,
-                row.column,
-                row.snippet
-            );
+            if current_file != Some(row.source_file.as_path()) {
+                if !first_group {
+                    println!();
+                }
+                println!("── {}", row.source_file.display());
+                current_file = Some(row.source_file.as_path());
+                first_group = false;
+            }
+            println!("  {}:{}   {}", row.line, row.column, row.snippet);
         }
     }
 
@@ -380,6 +387,32 @@ pub fn print_symbol_refs_text(
     options: SymbolRefRenderOptions,
 ) -> Result<()> {
     SymbolRefTextRenderer::new(root, options).render(inbound)
+}
+
+/// Print unique file paths from symbol references, one per line.
+pub fn print_symbol_refs_files(inbound: &[SymbolRef]) {
+    let mut seen = Vec::new();
+    for row in inbound {
+        if !seen.contains(&row.source_file) {
+            seen.push(row.source_file.clone());
+        }
+    }
+    for path in &seen {
+        println!("{}", path.display());
+    }
+}
+
+/// Print unique file paths from markdown link references, one per line.
+pub fn print_files(inbound: &[LinkRef]) {
+    let mut seen = Vec::new();
+    for row in inbound {
+        if !seen.contains(&row.source_file) {
+            seen.push(row.source_file.clone());
+        }
+    }
+    for path in &seen {
+        println!("{}", path.display());
+    }
 }
 
 fn collect_symbol_keys(

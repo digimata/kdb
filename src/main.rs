@@ -6,7 +6,7 @@ use std::path::PathBuf;
 //
 // struct Cli          L19
 // enum Command        L25
-// async fn main()    L123
+// async fn main()    L126
 // -----------------------
 
 #[derive(Debug, Parser)]
@@ -93,6 +93,9 @@ enum Command {
         /// Print only the number of inbound references.
         #[arg(long)]
         count: bool,
+        /// Print only unique file paths containing references.
+        #[arg(short = 'l', long = "files")]
+        files: bool,
     },
     /// Print direct dependencies for a file/symbol target.
     Deps {
@@ -158,7 +161,8 @@ async fn main() {
             context,
             json,
             count,
-        } => kdb::cmd::refs(target, symbol, context, json, count),
+            files,
+        } => kdb::cmd::refs(target, symbol, context, json, count, files),
         Command::Deps { target, json } => kdb::cmd::deps(target, json),
         Command::Graph { path } => kdb::cmd::graph(path),
         Command::Fmt { path } => kdb::cmd::format(path),
