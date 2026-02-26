@@ -462,14 +462,22 @@ impl ImportBindings {
         let mut result = ImportNames::default();
         let binding = raw.trim().trim_start_matches("type ").trim();
 
-        if let Some((default_part, rest)) = binding.split_once(',') {
-            if let Some(name) = normalize_identifier(default_part) {
-                result.locals.push(name);
+        // Only split on comma for `Default, { Named }` or `Default, * as NS`
+        // patterns — the binding must start with a bare identifier, not `{`
+        // or `*`, to avoid splitting inside a braced group like `{ A, B }`.
+        let has_default_prefix =
+            !binding.starts_with('{') && !binding.starts_with('*') && binding.contains(',');
+
+        if has_default_prefix {
+            if let Some((default_part, rest)) = binding.split_once(',') {
+                if let Some(name) = normalize_identifier(default_part) {
+                    result.locals.push(name);
+                }
+                let segment = Self::parse_segment(rest);
+                result.is_namespace |= segment.is_namespace;
+                result.locals.extend(segment.locals);
+                result.aliases.extend(segment.aliases);
             }
-            let segment = Self::parse_segment(rest);
-            result.is_namespace |= segment.is_namespace;
-            result.locals.extend(segment.locals);
-            result.aliases.extend(segment.aliases);
         } else {
             let segment = Self::parse_segment(binding);
             result.is_namespace |= segment.is_namespace;
@@ -1114,8 +1122,55 @@ mod tests {
         let requests = TsjsResolver::collect_requests(&source_file, source);
         assert_eq!(requests.len(), 1);
         let names = &requests[0].names;
-        eprintln!("locals: {:?}", names.locals);
         assert!(names.locals.contains(&"Foo".to_string()), "missing Foo");
         assert!(names.locals.contains(&"Bar".to_string()), "missing Bar");
     }
+
+    #[test]
+    fn three_named_imports() {
+        let source = "import { Foo, Bar, Baz } from './target';\n";
+        let source_file = PathBuf::from("src/caller.ts");
+        let requests = TsjsResolver::collect_requests(&source_file, source);
+        assert_eq!(requests.len(), 1);
+        let names = &requests[0].names;
+        assert_eq!(names.locals.len(), 3);
+        assert!(names.locals.contains(&"Foo".to_string()));
+        assert!(names.locals.contains(&"Bar".to_string()));
+        assert!(names.locals.contains(&"Baz".to_string()));
+    }
+
+    #[test]
+    fn default_plus_named_imports() {
+        let source = "import Def, { Foo, Bar } from './target';\n";
+        let source_file = PathBuf::from("src/caller.ts");
+        let requests = TsjsResolver::collect_requests(&source_file, source);
+        assert_eq!(requests.len(), 1);
+        let names = &requests[0].names;
+        assert!(names.locals.contains(&"Def".to_string()), "missing Def");
+        assert!(names.locals.contains(&"Foo".to_string()), "missing Foo");
+        assert!(names.locals.contains(&"Bar".to_string()), "missing Bar");
+    }
+
+    #[test]
+    fn default_plus_namespace_import() {
+        let source = "import Def, * as NS from './target';\n";
+        let source_file = PathBuf::from("src/caller.ts");
+        let requests = TsjsResolver::collect_requests(&source_file, source);
+        assert_eq!(requests.len(), 1);
+        let names = &requests[0].names;
+        assert!(names.locals.contains(&"Def".to_string()), "missing Def");
+        assert!(names.locals.contains(&"NS".to_string()), "missing NS");
+        assert!(names.is_namespace);
+    }
+
+    #[test]
+    fn single_named_import_still_works() {
+        let source = "import { Foo } from './target';\n";
+        let source_file = PathBuf::from("src/caller.ts");
+        let requests = TsjsResolver::collect_requests(&source_file, source);
+        assert_eq!(requests.len(), 1);
+        let names = &requests[0].names;
+        assert_eq!(names.locals, vec!["Foo".to_string()]);
+    }
+
 }

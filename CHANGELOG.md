@@ -4,6 +4,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] — 2026-02-26
+
+### Fixed
+
+- multi-named imports (`import { A, B } from '...'`) now correctly track all imported names — previously only the last name was registered, causing `kdb refs` to miss usages in real-world TSX/JSX codebases like sonner (iss-0039.10)
+
 ## [0.14.0] — 2026-02-26
 
 ### Added

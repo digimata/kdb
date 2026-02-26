@@ -836,3 +836,206 @@ fn go_g09_same_package_type() {
     assert_eq!(defs, 1, "expected 1 definition");
     assert_eq!(usages, 1, "expected 1 same-package type usage");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TSX/JSX real-world patterns (iss-0039.10)
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn tsjs_t11b_jsx_expression_identifier() {
+    // {icons?.close ?? CloseIcon} — identifier inside JSX expression container
+    let (defs, usages) = eval_refs(
+        &[
+            ("src/assets.tsx", "export const CloseIcon = () => null;\n"),
+            (
+                "src/caller.tsx",
+                concat!(
+                    "import { CloseIcon } from './assets';\n",
+                    "export function App() { return <div>{icons ?? CloseIcon}</div>; }\n",
+                ),
+            ),
+        ],
+        "src/assets.tsx",
+        "CloseIcon",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 usage in JSX expression");
+}
+
+#[test]
+fn tsjs_t11c_jsx_call_inside_expression() {
+    // {isAction(toast)} — function call inside JSX expression container
+    let (defs, usages) = eval_refs(
+        &[
+            ("src/types.ts", "export function isAction(x: unknown): boolean { return true; }\n"),
+            (
+                "src/caller.tsx",
+                concat!(
+                    "import { isAction } from './types';\n",
+                    "export function App() { return <div>{isAction(toast) ? 'yes' : 'no'}</div>; }\n",
+                ),
+            ),
+        ],
+        "src/types.ts",
+        "isAction",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 usage as call in JSX expression");
+}
+
+#[test]
+fn tsjs_t11d_jsx_opening_closing_tags() {
+    // <Loader>child</Loader> — both opening and closing tags
+    let (defs, usages) = eval_refs(
+        &[
+            ("src/assets.tsx", "export function Loader() { return null; }\n"),
+            (
+                "src/caller.tsx",
+                concat!(
+                    "import { Loader } from './assets';\n",
+                    "export function App() { return <Loader>child</Loader>; }\n",
+                ),
+            ),
+        ],
+        "src/assets.tsx",
+        "Loader",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 2, "expected 2 usages (opening + closing JSX tags)");
+}
+
+#[test]
+fn tsjs_t11e_jsx_attribute_value() {
+    // <Foo bar={Baz} /> — identifier in attribute value
+    let (defs, usages) = eval_refs(
+        &[
+            ("src/target.tsx", "export const Baz = 42;\n"),
+            (
+                "src/caller.tsx",
+                concat!(
+                    "import { Baz } from './target';\n",
+                    "export function App() { return <div data-val={Baz} />; }\n",
+                ),
+            ),
+        ],
+        "src/target.tsx",
+        "Baz",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 usage in JSX attribute");
+}
+
+#[test]
+fn tsjs_t11f_sonner_structure() {
+    // Replicate sonner's exact structure: multi-import from a file with JSX usage
+    let (defs, usages) = eval_refs(
+        &[
+            (
+                "src/assets.tsx",
+                concat!(
+                    "import React from 'react';\n",
+                    "export const getAsset = (type: string) => null;\n",
+                    "export const Loader = ({ visible }: { visible: boolean }) => {\n",
+                    "  return <div className={visible ? 'show' : 'hide'}>loading</div>;\n",
+                    "};\n",
+                    "export const CloseIcon = () => <svg />;\n",
+                ),
+            ),
+            (
+                "src/types.ts",
+                concat!(
+                    "export type Action = { label: string };\n",
+                    "export function isAction(x: unknown): x is Action { return true; }\n",
+                ),
+            ),
+            (
+                "src/index.tsx",
+                concat!(
+                    "'use client';\n",
+                    "import React from 'react';\n",
+                    "import { CloseIcon, getAsset, Loader } from './assets';\n",
+                    "import { isAction } from './types';\n",
+                    "\n",
+                    "export function Toaster() {\n",
+                    "  const toast = { type: 'loading', cancel: { label: 'x' } };\n",
+                    "  const icons = { close: null as any };\n",
+                    "  return (\n",
+                    "    <div>\n",
+                    "      <Loader visible={toast.type === 'loading'} />\n",
+                    "      {icons?.close ?? CloseIcon}\n",
+                    "      {isAction(toast.cancel) ? <span /> : null}\n",
+                    "    </div>\n",
+                    "  );\n",
+                    "}\n",
+                ),
+            ),
+        ],
+        "src/assets.tsx",
+        "Loader",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 usage of Loader as JSX component");
+}
+
+#[test]
+fn tsjs_t11g_arrow_function_export_jsx() {
+    // Arrow function export with JSX in body — does the scanner still find usages?
+    let (defs, usages) = eval_refs(
+        &[
+            (
+                "src/target.tsx",
+                "export const Loader = ({ visible }: { visible: boolean }) => {\n  return <div>loading</div>;\n};\n",
+            ),
+            (
+                "src/caller.tsx",
+                "import { Loader } from './target';\nexport function App() { return <Loader visible={true} />; }\n",
+            ),
+        ],
+        "src/target.tsx",
+        "Loader",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 usage of arrow-exported Loader");
+}
+
+#[test]
+fn tsjs_t11h_multi_import_from_same_file() {
+    // Multiple named imports from the same file
+    let (defs, usages) = eval_refs(
+        &[
+            (
+                "src/target.tsx",
+                "export function Foo() { return null; }\nexport function Bar() { return null; }\n",
+            ),
+            (
+                "src/caller.tsx",
+                "import { Foo, Bar } from './target';\nexport function App() { return <Foo />; }\n",
+            ),
+        ],
+        "src/target.tsx",
+        "Foo",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 usage of Foo from multi-import");
+}
+
+#[test]
+fn tsjs_t11i_multi_import_no_jsx() {
+    // Multi-import, plain function call — no JSX at all
+    let (defs, usages) = eval_refs(
+        &[
+            (
+                "src/target.ts",
+                "export function foo() {}\nexport function bar() {}\n",
+            ),
+            (
+                "src/caller.ts",
+                "import { foo, bar } from './target';\nfoo();\n",
+            ),
+        ],
+        "src/target.ts",
+        "foo",
+    );
+    assert_eq!(defs, 1, "expected 1 definition");
+    assert_eq!(usages, 1, "expected 1 usage of foo from multi-import");
+}
