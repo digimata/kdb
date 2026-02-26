@@ -110,6 +110,11 @@ enum Command {
         /// Optional starting path to discover kdb root from.
         path: Option<PathBuf>,
     },
+    /// Build or rebuild the project index.
+    Index {
+        /// Optional starting path to discover kdb root from.
+        path: Option<PathBuf>,
+    },
     /// Generate or update code index headers in supported code files.
     Fmt {
         /// Optional file or directory path to format (defaults to project root).
@@ -164,6 +169,7 @@ async fn main() {
         } => kdb::cmd::refs(target, symbol, context, json, count, cli.fresh),
         Command::Deps { target, json } => kdb::cmd::deps(target, json, cli.fresh),
         Command::Graph { path } => kdb::cmd::graph(path),
+        Command::Index { path } => kdb::cmd::index(path),
         Command::Fmt { path } => kdb::cmd::format(path),
         Command::Lsp { path } => kdb::lsp::serve(path).await,
     };

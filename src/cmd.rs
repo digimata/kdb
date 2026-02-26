@@ -400,6 +400,24 @@ pub fn graph(path: Option<PathBuf>) -> Result<()> {
     )
 }
 
+/// Build or rebuild the project index and write it to `.kdb/index.bin`.
+pub fn index(path: Option<PathBuf>) -> Result<()> {
+    let ctx = CmdContext::from_path(path.as_deref(), true)?;
+    let start = std::time::Instant::now();
+    let pi = ctx.build_project_index()?;
+    let elapsed = start.elapsed();
+
+    let md_files = pi.vault.files.len();
+    let code_files = pi.code.code_imports.len();
+    println!(
+        "indexed {} markdown + {} code files in {:.2}s",
+        md_files,
+        code_files,
+        elapsed.as_secs_f64(),
+    );
+    Ok(())
+}
+
 /// Generate or update code index headers for supported code files.
 ///
 /// Walks the project root and rewrites Rust, TypeScript/JavaScript, Python,
