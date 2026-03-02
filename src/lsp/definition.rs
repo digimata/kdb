@@ -10,21 +10,36 @@ use tower_lsp::lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, Location, Position, Range, Url,
 };
 
+// ----------------------------------------------------
+// src/lsp/definition.rs
+//
+// static INDEX_LINE_RE                             L33
+// static MARKDOWN_LINK_RE                          L45
+// static WIKILINK_RE                               L50
+// pub(super) async fn goto_definition()            L57
+// pub(super) fn link_under_position()             L142
+// fn index_line_jump()                            L173
+// mod tests                                       L203
+// fn index_line_jump_markdown_nav_row()           L207
+// fn index_line_jump_code_index_row()             L228
+// fn index_line_jump_python_index_row()           L249
+// fn index_line_jump_ignores_non_index_lines()    L261
+// ----------------------------------------------------
+
+/// Regex matching an index/nav-block outline row ending in a line label.
+///
+/// Matches both markdown nav rows (`> ## Heading    L42`) and code index
+/// rows (`// pub fn name()    L42`, `#   def hi()    L3`).
+static INDEX_LINE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\s+L(\d+)\s*$").expect("valid index line regex")
+});
+
 use crate::index::{
     LinkKind, LinkTarget, parse_markdown_target, parse_wikilink_target, resolve_target_path,
     slug_anchor,
 };
 
 use super::backend::{Backend, position_to_byte_offset};
-
-// ---------------------------------------------
-// src/lsp/definition.rs
-//
-// static MARKDOWN_LINK_RE                   L30
-// static WIKILINK_RE                        L35
-// pub(super) async fn goto_definition()     L42
-// pub(super) fn link_under_position()      L115
-// ---------------------------------------------
 
 /// Regex matching `[text](target)` markdown links.
 static MARKDOWN_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -45,6 +60,18 @@ pub(super) async fn goto_definition(
 ) -> LspResult<Option<GotoDefinitionResponse>> {
     let uri = params.text_document_position_params.text_document.uri;
     let position = params.text_document_position_params.position;
+
+    // Try index-row jump for any file type (markdown nav blocks + code index blocks).
+    let any_abs = backend
+        .markdown_rel_path(&uri)
+        .or_else(|| backend.code_rel_path(&uri));
+    if let Some((abs_path, _)) = &any_abs {
+        if let Some(content) = backend.document_text(&uri, abs_path).await {
+            if let Some(response) = index_line_jump(&uri, &content, position) {
+                return Ok(Some(response));
+            }
+        }
+    }
 
     let Some((source_abs, source_rel)) = backend.markdown_rel_path(&uri) else {
         return Ok(None);
@@ -137,4 +164,109 @@ pub(super) fn link_under_position(
     }
 
     None
+}
+
+/// If the cursor is on an index/nav-block row with a line label, jump to that line.
+///
+/// Works for both markdown nav rows (`> ## Heading    L42`) and code index
+/// rows (`// pub fn name()    L42`).
+fn index_line_jump(
+    uri: &Url,
+    content: &str,
+    position: Position,
+) -> Option<GotoDefinitionResponse> {
+    let line_text = content.split('\n').nth(position.line as usize)?;
+    let trimmed = line_text.trim();
+
+    // Only match lines that look like index block rows (comment-prefixed or blockquote).
+    let is_index_row = trimmed.starts_with("//")
+        || trimmed.starts_with('#')
+        || trimmed.starts_with('>');
+    if !is_index_row {
+        return None;
+    }
+
+    let captures = INDEX_LINE_RE.captures(line_text)?;
+    let line_number: u32 = captures.get(1)?.as_str().parse().ok()?;
+    let target_line = line_number.saturating_sub(1);
+
+    Some(GotoDefinitionResponse::Scalar(Location {
+        uri: uri.clone(),
+        range: Range {
+            start: Position::new(target_line, 0),
+            end: Position::new(target_line, 0),
+        },
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn index_line_jump_markdown_nav_row() {
+        let uri = Url::parse("file:///test.md").unwrap();
+        let content = "> -----------\n> test.md\n>\n> # Intro    L8\n> ## Details    L15\n> -----------\n\n# Intro\n";
+        // Cursor on line 3 (the `> # Intro    L8` row).
+        let response = index_line_jump(&uri, content, Position::new(3, 5));
+        assert!(response.is_some());
+        let GotoDefinitionResponse::Scalar(location) = response.unwrap() else {
+            panic!("expected scalar response");
+        };
+        assert_eq!(location.range.start.line, 7); // L8 → 0-indexed line 7
+
+        // Cursor on line 4 (the `> ## Details    L15` row).
+        let response = index_line_jump(&uri, content, Position::new(4, 5));
+        assert!(response.is_some());
+        let GotoDefinitionResponse::Scalar(location) = response.unwrap() else {
+            panic!("expected scalar response");
+        };
+        assert_eq!(location.range.start.line, 14); // L15 → 0-indexed line 14
+    }
+
+    #[test]
+    fn index_line_jump_code_index_row() {
+        let uri = Url::parse("file:///lib.rs").unwrap();
+        let content = "// --------\n// lib.rs\n//\n// pub fn run()    L8\n//   fn helper()    L15\n// --------\n\npub fn run() {}\n";
+        // Cursor on `// pub fn run()    L8` row.
+        let response = index_line_jump(&uri, content, Position::new(3, 5));
+        assert!(response.is_some());
+        let GotoDefinitionResponse::Scalar(location) = response.unwrap() else {
+            panic!("expected scalar response");
+        };
+        assert_eq!(location.range.start.line, 7);
+
+        // Cursor on `//   fn helper()    L15` row.
+        let response = index_line_jump(&uri, content, Position::new(4, 5));
+        assert!(response.is_some());
+        let GotoDefinitionResponse::Scalar(location) = response.unwrap() else {
+            panic!("expected scalar response");
+        };
+        assert_eq!(location.range.start.line, 14);
+    }
+
+    #[test]
+    fn index_line_jump_python_index_row() {
+        let uri = Url::parse("file:///tool.py").unwrap();
+        let content = "# --------\n# tool.py\n#\n# class Greeter    L8\n#   def hi()    L15\n# --------\n";
+        let response = index_line_jump(&uri, content, Position::new(3, 5));
+        assert!(response.is_some());
+        let GotoDefinitionResponse::Scalar(location) = response.unwrap() else {
+            panic!("expected scalar response");
+        };
+        assert_eq!(location.range.start.line, 7);
+    }
+
+    #[test]
+    fn index_line_jump_ignores_non_index_lines() {
+        let uri = Url::parse("file:///test.md").unwrap();
+        let content = "> -----------\n> test.md\n>\n> # Intro    L8\n\n# Intro\n";
+
+        // Blank blockquote line.
+        assert!(index_line_jump(&uri, content, Position::new(2, 0)).is_none());
+        // Regular content line.
+        assert!(index_line_jump(&uri, content, Position::new(5, 0)).is_none());
+        // Blank line.
+        assert!(index_line_jump(&uri, content, Position::new(4, 0)).is_none());
+    }
 }
