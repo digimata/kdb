@@ -9,7 +9,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 // -----------------------------
-// src/project/root.rs
+// qmd/src/project/root.rs
 //
 // pub const ROOT_MARKER     L22
 // pub const CONFIG_FILE     L25

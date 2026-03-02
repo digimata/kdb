@@ -4,7 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 // -------------------------------------------
-// apps/landing/src/app/layout.tsx
+// qmd/apps/landing/src/app/layout.tsx
 //
 // const geistSans                         L16
 // const geistMono                         L21

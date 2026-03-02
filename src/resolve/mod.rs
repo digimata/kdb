@@ -14,7 +14,7 @@ use crate::symbols::extract_symbols;
 // NOTE: index block managed by kdb fmt — do not update manually
 
 // ----------------------------------------------------
-// src/resolve/mod.rs
+// qmd/src/resolve/mod.rs
 //
 // mod go                                           L52
 // mod python                                       L53

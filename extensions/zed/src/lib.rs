@@ -1,7 +1,7 @@
 use zed_extension_api as zed;
 
 // -------------------------------------
-// extensions/zed/src/lib.rs
+// qmd/extensions/zed/src/lib.rs
 //
 // struct QmdZedExtension            L11
 //   fn new()                        L14

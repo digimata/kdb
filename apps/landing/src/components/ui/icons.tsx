@@ -1,5 +1,5 @@
 // --------------------------------------
-// apps/landing/src/components/ui/icons.tsx
+// qmd/apps/landing/src/components/ui/icons.tsx
 //
 // export function GithubIcon()        L9
 // export function ClipboardIcon()    L23

@@ -7,7 +7,7 @@ use crate::resolve;
 use super::utils::resolve_with_exts;
 
 // -----------------------------------
-// src/deps/typescript.rs
+// qmd/src/deps/typescript.rs
 //
 // pub(super) fn collect()         L22
 // struct TsDependencyCollector    L31

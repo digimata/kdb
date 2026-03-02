@@ -4,7 +4,7 @@ use std::path::Path;
 use tempfile::tempdir;
 
 // -------------------------------------------------------
-// tests/root.rs
+// qmd/tests/root.rs
 //
 // fn write_file()                                     L18
 // fn find_root_from_nested_file_path()                L27

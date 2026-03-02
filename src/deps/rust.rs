@@ -7,7 +7,7 @@ use crate::resolve;
 use super::utils::resolve_file;
 
 // --------------------------------------
-// src/deps/rust.rs
+// qmd/src/deps/rust.rs
 //
 // pub(super) fn collect()            L24
 // struct RustDependencyCollector     L33

@@ -14,7 +14,7 @@ use super::scope::{ExportedNames, FollowedReexport, GlobSource, ModuleScope, Ree
 use super::{SymbolKey, SymbolRef};
 
 // -----------------------------------------------
-// src/index/code.rs
+// qmd/src/index/code.rs
 //
 // pub struct SymbolIndex                      L66
 //   pub(super) fn build()                     L75

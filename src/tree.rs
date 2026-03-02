@@ -11,7 +11,7 @@ use crate::project::ignore::build_ignore_globset;
 use crate::project::paths::normalize_rel_path;
 
 // -----------------------------------
-// src/tree.rs
+// qmd/src/tree.rs
 //
 // pub struct TreeOptions          L33
 // pub struct TreeNode             L44

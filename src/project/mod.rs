@@ -15,7 +15,7 @@ use globset::GlobSet;
 use std::path::{Path, PathBuf};
 
 // --------------------------------
-// src/project/mod.rs
+// qmd/src/project/mod.rs
 //
 // pub mod config                L7
 // pub mod discover              L8

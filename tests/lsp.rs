@@ -10,7 +10,7 @@ use tempfile::{TempDir, tempdir};
 use tower_lsp::lsp_types::Url;
 
 // ----------------------------------------------------------------------
-// tests/lsp.rs
+// qmd/tests/lsp.rs
 //
 // fn write_file()                                                    L46
 // fn bin()                                                           L54

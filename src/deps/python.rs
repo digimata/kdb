@@ -7,7 +7,7 @@ use crate::project::paths::normalize_rel_path;
 use super::utils::resolve_file;
 
 // --------------------------------
-// src/deps/python.rs
+// qmd/src/deps/python.rs
 //
 // pub(super) fn collect()      L19
 // fn parse_names()             L72

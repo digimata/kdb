@@ -4,7 +4,7 @@ use std::path::Path;
 use tempfile::tempdir;
 
 // ------------------------------------------------------
-// tests/refs_eval.rs
+// qmd/tests/refs_eval.rs
 //
 // fn write_file()                                    L61
 // fn write_root_config()                             L69

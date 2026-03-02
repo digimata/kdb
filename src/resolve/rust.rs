@@ -15,7 +15,7 @@ use super::{
 };
 
 // --------------------------------------------
-// src/resolve/rust.rs
+// qmd/src/resolve/rust.rs
 //
 // enum SourceImport                        L78
 // struct RustImportCollector               L83

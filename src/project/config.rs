@@ -11,7 +11,7 @@ use std::path::Path;
 use super::root;
 
 // ----------------------------------
-// src/project/config.rs
+// qmd/src/project/config.rs
 //
 // pub fn load_index_ignores()    L24
 // fn parse_index_ignores()       L40

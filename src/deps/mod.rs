@@ -15,7 +15,7 @@ mod typescript;
 mod utils;
 
 // --------------------------------
-// src/deps/mod.rs
+// qmd/src/deps/mod.rs
 //
 // mod go                       L11
 // mod python                   L12

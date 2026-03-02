@@ -3,7 +3,7 @@
 use crate::lang::CodeLanguage;
 
 // -------------------------------------------
-// src/fmt/preamble.rs
+// qmd/src/fmt/preamble.rs
 //
 // pub fn comment_prefix()                 L31
 // pub fn preamble_end_index()             L44

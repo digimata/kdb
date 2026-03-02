@@ -1,5 +1,5 @@
 // --------------------------------------
-// apps/landing/src/app/page.tsx
+// qmd/apps/landing/src/app/page.tsx
 //
 // const INSTALL_PROMPT               L29
 // const SYSTEM_PROMPT_BLOCK          L49

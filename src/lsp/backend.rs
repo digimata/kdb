@@ -30,7 +30,7 @@ use crate::project;
 use super::{completion, definition, diagnostics, formatting, hover, symbols};
 
 // --------------------------------------------------------
-// src/lsp/backend.rs
+// qmd/src/lsp/backend.rs
 //
 // pub async fn serve()                                 L75
 // pub(super) struct Backend                            L97

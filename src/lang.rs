@@ -3,7 +3,7 @@
 use std::path::Path;
 
 // ----------------------------
-// src/lang.rs
+// qmd/src/lang.rs
 //
 // pub enum CodeLanguage    L15
 //   pub fn from_path()     L26

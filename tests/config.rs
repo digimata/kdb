@@ -4,7 +4,7 @@ use std::path::Path;
 use tempfile::tempdir;
 
 // -----------------------------------------------------------------------
-// tests/config.rs
+// qmd/tests/config.rs
 //
 // fn write_file()                                                     L16
 // fn load_index_ignores_returns_empty_when_config_missing()           L25

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // -----------------------
-// apps/landing/next.config.ts
+// qmd/apps/landing/next.config.ts
 //
 // const nextConfig    L10
 // async rewrites()    L11
