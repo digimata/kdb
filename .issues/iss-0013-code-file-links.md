@@ -5,17 +5,14 @@ status: proposed
 priority: high
 labels:
   - feat
+path: qmd/.issues/iss-0013-code-file-links.md
+outline: |
+  • ISS-0013 :: Code File Links      L17
+    ◦ Intent                         L19
+    ◦ Examples                       L23
+    ◦ Behavior                       L31
+    ◦ Open Questions                 L39
 ---
-> -----------------------------------
-> .issues/iss-0013-code-file-links.md
->
-> ISS-0013 :: Code File Links    L20
->   • Intent                     L22
->   • Examples                   L26
->   • Behavior                   L34
->   • Open Questions             L42
-> -----------------------------------
-
 
 # ISS-0013 :: Code File Links
 

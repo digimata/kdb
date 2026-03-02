@@ -1,27 +1,27 @@
-> ---------------------------------------------------------
-> docs/specs/multi-pass-resolution.md
->
-> Spec: Multi-pass reference resolution                 L26
->   • Current pipeline                                  L30
->   • New pipeline                                      L56
->     ◦ New data structures                             L70
->       ▪ ModuleScope                                   L72
->       ▪ ExportedNames                                L105
->     ◦ build_module_scopes()                          L122
->     ◦ resolution_loop()                              L140
->       ▪ resolve_reexports() → bool                   L158
->       ▪ expand_qualified_access() → bool             L203
->       ▪ propagate_glob_imports() → bool              L263
->       ▪ exported_names()                             L316
->     ◦ Simplified link_usage_refs()                   L346
->     ◦ scan_qualified_symbols() — new function        L370
->   • Convergence                                      L392
->   • What changes in Indexer                          L404
->   • What gets deleted                                L438
->   • What stays unchanged                             L448
->   • Testing                                          L458
->   • Implementation order                             L473
-> ---------------------------------------------------------
+---
+path: qmd/docs/specs/multi-pass-resolution.md
+outline: |
+  • Spec: Multi-pass reference resolution               L26
+    ◦ Current pipeline                                  L30
+    ◦ New pipeline                                      L56
+      ▪ New data structures                             L70
+        · ModuleScope                                   L72
+        · ExportedNames                                L105
+      ▪ build_module_scopes()                          L122
+      ▪ resolution_loop()                              L140
+        · resolve_reexports() → bool                   L158
+        · expand_qualified_access() → bool             L203
+        · propagate_glob_imports() → bool              L263
+        · exported_names()                             L316
+      ▪ Simplified link_usage_refs()                   L346
+      ▪ scan_qualified_symbols() — new function        L370
+    ◦ Convergence                                      L392
+    ◦ What changes in Indexer                          L404
+    ◦ What gets deleted                                L438
+    ◦ What stays unchanged                             L448
+    ◦ Testing                                          L458
+    ◦ Implementation order                             L473
+---
 
 # Spec: Multi-pass reference resolution
 

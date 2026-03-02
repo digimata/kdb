@@ -5,17 +5,14 @@ status: proposed
 priority: medium
 labels:
   - feat
+path: qmd/.issues/iss-0035-root-relative-paths.md
+outline: |
+  • ISS-0035 :: Root-Relative Path Support      L17
+    ◦ Intent                                    L19
+    ◦ Examples                                  L23
+    ◦ Behavior                                  L33
+    ◦ Open Questions                            L40
 ---
-> ---------------------------------------------
-> .issues/iss-0035-root-relative-paths.md
->
-> ISS-0035 :: Root-Relative Path Support    L20
->   • Intent                                L22
->   • Examples                              L26
->   • Behavior                              L36
->   • Open Questions                        L43
-> ---------------------------------------------
-
 
 # ISS-0035 :: Root-Relative Path Support
 

@@ -1,12 +1,12 @@
-> ------------------------------------------
-> docs/languages/python.md
->
-> Python — Language Support              L11
->   • Import patterns                    L13
->   • Reference resolution coverage      L34
->   • Known gaps                         L48
->   • Workspace conventions              L56
-> ------------------------------------------
+---
+path: qmd/docs/languages/python.md
+outline: |
+  • Python — Language Support            L11
+    ◦ Import patterns                    L13
+    ◦ Reference resolution coverage      L34
+    ◦ Known gaps                         L48
+    ◦ Workspace conventions              L56
+---
 
 # Python — Language Support
 

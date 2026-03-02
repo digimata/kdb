@@ -6,23 +6,20 @@ priority: high
 labels:
   - roadmap
   - spec
+path: qmd/.issues/iss-0003-databases-bases.md
+outline: |
+  • ISS-0003 :: Databases and Bases       L24
+    ◦ Product Shape                       L28
+      ▪ Indexed Notes DB (Derived)        L30
+      ▪ Base/View Definitions             L41
+      ▪ Renderer Targets                  L54
+    ◦ Link Behavior                       L60
+    ◦ Initial Schema Sketch               L76
+    ◦ Rollout                            L116
+    ◦ Non-Goals (Initial)                L124
+    ◦ Done When                          L130
+    ◦ Open Questions                     L136
 ---
-> ------------------------------------------
-> .issues/iss-0003-databases-bases.md
->
-> ISS-0003 :: Databases and Bases        L27
->   • Product Shape                      L31
->     ◦ Indexed Notes DB (Derived)       L33
->     ◦ Base/View Definitions            L44
->     ◦ Renderer Targets                 L57
->   • Link Behavior                      L63
->   • Initial Schema Sketch              L79
->   • Rollout                           L119
->   • Non-Goals (Initial)               L127
->   • Done When                         L133
->   • Open Questions                    L139
-> ------------------------------------------
-
 
 # ISS-0003 :: Databases and Bases
 

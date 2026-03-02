@@ -5,22 +5,19 @@ status: proposed
 priority: medium
 labels:
   - feat
+path: qmd/.issues/iss-0021-graph-command.md
+outline: |
+  • ISS-0021 :: kdb graph Command             L22
+    ◦ Intent                                  L24
+    ◦ Usage                                   L28
+    ◦ Output                                  L36
+    ◦ Flags                                   L66
+    ◦ Implementation                          L72
+    ◦ Scope                                   L79
+    ◦ Notes                                   L83
+      ▪ Typed edges for agent navigation      L85
+    ◦ Changes                                 L93
 ---
-> -----------------------------------------------
-> .issues/iss-0021-graph-command.md
->
-> ISS-0021 :: kdb graph Command               L25
->   • Intent                                  L27
->   • Usage                                   L31
->   • Output                                  L39
->   • Flags                                   L69
->   • Implementation                          L75
->   • Scope                                   L82
->   • Notes                                   L86
->     ◦ Typed edges for agent navigation      L88
->   • Changes                                 L96
-> -----------------------------------------------
-
 
 # ISS-0021 :: kdb graph Command
 

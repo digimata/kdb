@@ -1,8 +1,8 @@
-> ----------------
-> .issues/index.md
->
-> Issues    L7
-> ----------------
+---
+path: qmd/.issues/index.md
+outline: |
+  • Issues      L7
+---
 
 # Issues
 

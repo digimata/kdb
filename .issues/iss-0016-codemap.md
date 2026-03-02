@@ -5,24 +5,21 @@ status: proposed
 priority: high
 labels:
   - feat
+path: qmd/.issues/iss-0016-codemap.md
+outline: |
+  • ISS-0016 :: Codemap                        L24
+    ◦ Intent                                   L26
+    ◦ Artifacts                                L30
+      ▪ CODEMAP.md (authored, repo root)       L32
+      ▪ kdb codemap (read-only command)        L36
+    ◦ Usage                                    L40
+    ◦ Output format                            L50
+    ◦ How it works                             L82
+    ◦ --check mode                             L92
+    ◦ Relationship to kdb fmt                 L102
+    ◦ Changes                                 L108
+    ◦ Open questions                          L119
 ---
-> ------------------------------------------------
-> .issues/iss-0016-codemap.md
->
-> ISS-0016 :: Codemap                          L27
->   • Intent                                   L29
->   • Artifacts                                L33
->     ◦ CODEMAP.md (authored, repo root)       L35
->     ◦ kdb codemap (read-only command)        L39
->   • Usage                                    L43
->   • Output format                            L53
->   • How it works                             L85
->   • --check mode                             L95
->   • Relationship to kdb fmt                 L105
->   • Changes                                 L111
->   • Open questions                          L122
-> ------------------------------------------------
-
 
 # ISS-0016 :: Codemap
 

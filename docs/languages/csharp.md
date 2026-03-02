@@ -1,13 +1,13 @@
-> ------------------------------------------
-> docs/languages/csharp.md
->
-> C# — Language Support                  L12
->   • Import patterns                    L14
->   • Reference resolution coverage      L34
->   • Known challenges                   L45
->   • Advantages                         L52
->   • Workspace conventions              L58
-> ------------------------------------------
+---
+path: qmd/docs/languages/csharp.md
+outline: |
+  • C# — Language Support                L12
+    ◦ Import patterns                    L14
+    ◦ Reference resolution coverage      L34
+    ◦ Known challenges                   L45
+    ◦ Advantages                         L52
+    ◦ Workspace conventions              L58
+---
 
 # C# — Language Support
 

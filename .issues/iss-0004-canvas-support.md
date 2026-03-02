@@ -5,13 +5,10 @@ status: proposed
 priority: low
 labels:
   - roadmap
+path: qmd/.issues/iss-0004-canvas-support.md
+outline: |
+  • ISS-0004 :: Canvas Support      L13
 ---
-> ----------------------------------
-> .issues/iss-0004-canvas-support.md
->
-> ISS-0004 :: Canvas Support    L16
-> ----------------------------------
-
 
 # ISS-0004 :: Canvas Support
 

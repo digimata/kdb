@@ -1,12 +1,12 @@
-> --------------------------------------
-> docs/vault-root.md
->
-> Vault Root (.kdb/)                 L11
->   • Why require a vault root?      L24
->   • How root discovery works       L35
->   • Monorepo usage                 L47
->   • What lives in .kdb/            L59
-> --------------------------------------
+---
+path: qmd/docs/vault-root.md
+outline: |
+  • Vault Root (.kdb/)               L11
+    ◦ Why require a vault root?      L24
+    ◦ How root discovery works       L35
+    ◦ Monorepo usage                 L47
+    ◦ What lives in .kdb/            L59
+---
 
 # Vault Root (`.kdb/`)
 

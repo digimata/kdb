@@ -5,13 +5,10 @@ status: proposed
 priority: medium
 labels:
   - roadmap
+path: qmd/.issues/iss-0002-templates.md
+outline: |
+  • ISS-0002 :: Templates      L13
 ---
-> -----------------------------
-> .issues/iss-0002-templates.md
->
-> ISS-0002 :: Templates    L16
-> -----------------------------
-
 
 # ISS-0002 :: Templates
 

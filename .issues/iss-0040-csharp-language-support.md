@@ -6,17 +6,14 @@ priority: medium
 labels:
   - feat
   - lang
+path: qmd/.issues/iss-0040-csharp-language-support.md
+outline: |
+  • ISS-0040 :: C# language support      L18
+    ◦ Intent                             L20
+    ◦ Import patterns                    L24
+    ◦ Scope                              L42
+    ◦ Notes                              L51
 ---
-> -------------------------------------------
-> .issues/iss-0040-csharp-language-support.md
->
-> ISS-0040 :: C# language support    L21
->   • Intent                         L23
->   • Import patterns                L27
->   • Scope                          L45
->   • Notes                          L54
-> -------------------------------------------
-
 
 # ISS-0040 :: C# language support
 

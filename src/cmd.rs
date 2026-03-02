@@ -18,7 +18,7 @@ use crate::tree;
 use crate::update;
 
 // --------------------------------------
-// src/cmd.rs
+// qmd/src/cmd.rs
 //
 // pub struct CmdContext              L40
 //   pub fn from_path()               L51
@@ -33,7 +33,7 @@ use crate::update;
 // pub fn deps()                     L352
 // pub fn graph()                    L387
 // pub fn format()                   L401
-// pub fn update()                   L437
+// pub fn update()                   L442
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -398,7 +398,7 @@ pub fn graph(path: Option<PathBuf>) -> Result<()> {
 ///
 /// Walks the project root and rewrites Rust, TypeScript/JavaScript, Python,
 /// and Go files with a managed index block at the top of each file.
-pub fn format(path: Option<PathBuf>) -> Result<()> {
+pub fn format(path: Option<PathBuf>, force: bool) -> Result<()> {
     let has_explicit_path = path.is_some();
     let ctx = CmdContext::from_path(path.as_deref())?;
 
@@ -411,7 +411,12 @@ pub fn format(path: Option<PathBuf>) -> Result<()> {
     } else {
         ctx.project.root.clone()
     };
-    let report = fmt::format_path(&ctx.project.root, &fmt_target, &ctx.project.ignore_patterns)?;
+    let report = fmt::format_path(
+        &ctx.project.root,
+        &fmt_target,
+        &ctx.project.ignore_patterns,
+        force,
+    )?;
     println!(
         "kdb fmt: updated {} of {} files",
         report.updated_files, report.scanned_files

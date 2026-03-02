@@ -10,21 +10,22 @@ use tower_lsp::lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, Location, Position, Range, Url,
 };
 
-// ----------------------------------------------------
-// src/lsp/definition.rs
+// -----------------------------------------------------
+// qmd/src/lsp/definition.rs
 //
-// static INDEX_LINE_RE                             L33
-// static MARKDOWN_LINK_RE                          L45
-// static WIKILINK_RE                               L50
-// pub(super) async fn goto_definition()            L57
-// pub(super) fn link_under_position()             L142
-// fn index_line_jump()                            L173
-// mod tests                                       L203
-// fn index_line_jump_markdown_nav_row()           L207
-// fn index_line_jump_code_index_row()             L228
-// fn index_line_jump_python_index_row()           L249
-// fn index_line_jump_ignores_non_index_lines()    L261
-// ----------------------------------------------------
+// static INDEX_LINE_RE                              L34
+// static MARKDOWN_LINK_RE                           L46
+// static WIKILINK_RE                                L51
+// pub(super) async fn goto_definition()             L58
+// pub(super) fn link_under_position()              L143
+// fn index_line_jump()                             L174
+// fn is_in_frontmatter()                           L207
+// mod tests                                        L229
+// fn index_line_jump_markdown_frontmatter_row()    L233
+// fn index_line_jump_code_index_row()              L255
+// fn index_line_jump_python_index_row()            L276
+// fn index_line_jump_ignores_non_index_lines()     L288
+// -----------------------------------------------------
 
 /// Regex matching an index/nav-block outline row ending in a line label.
 ///
@@ -178,10 +179,12 @@ fn index_line_jump(
     let line_text = content.split('\n').nth(position.line as usize)?;
     let trimmed = line_text.trim();
 
-    // Only match lines that look like index block rows (comment-prefixed or blockquote).
+    // Only match lines that look like index block rows: comment-prefixed,
+    // blockquote, or inside YAML frontmatter.
     let is_index_row = trimmed.starts_with("//")
         || trimmed.starts_with('#')
-        || trimmed.starts_with('>');
+        || trimmed.starts_with('>')
+        || is_in_frontmatter(content, position.line as usize);
     if !is_index_row {
         return None;
     }
@@ -199,15 +202,39 @@ fn index_line_jump(
     }))
 }
 
+/// Return `true` if `line_index` (0-based) falls inside a YAML frontmatter
+/// block (`---` delimited at the top of the file).
+fn is_in_frontmatter(content: &str, line_index: usize) -> bool {
+    let mut lines = content.split('\n');
+    let Some(first) = lines.next() else {
+        return false;
+    };
+    if first.trim() != "---" {
+        return false;
+    }
+    if line_index == 0 {
+        return true;
+    }
+    for (idx, line) in lines.enumerate() {
+        let current = idx + 1; // 0-based line number
+        if line.trim() == "---" || line.trim() == "..." {
+            // Found closing delimiter — line_index is inside if it's before this.
+            return line_index < current;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn index_line_jump_markdown_nav_row() {
+    fn index_line_jump_markdown_frontmatter_row() {
         let uri = Url::parse("file:///test.md").unwrap();
-        let content = "> -----------\n> test.md\n>\n> Intro    L8\n>   • Details    L15\n> -----------\n\n# Intro\n";
-        // Cursor on line 3 (the `> Intro    L8` row).
+        // Frontmatter with outline containing line labels.
+        let content = "---\npath: test.md\noutline: |\n  • Intro    L8\n    ◦ Details    L15\n---\n\n# Intro\n";
+        // Cursor on line 3 (the `  • Intro    L8` row inside frontmatter).
         let response = index_line_jump(&uri, content, Position::new(3, 5));
         assert!(response.is_some());
         let GotoDefinitionResponse::Scalar(location) = response.unwrap() else {
@@ -215,7 +242,7 @@ mod tests {
         };
         assert_eq!(location.range.start.line, 7); // L8 → 0-indexed line 7
 
-        // Cursor on line 4 (the `>   • Details    L15` row).
+        // Cursor on line 4 (the `    ◦ Details    L15` row).
         let response = index_line_jump(&uri, content, Position::new(4, 5));
         assert!(response.is_some());
         let GotoDefinitionResponse::Scalar(location) = response.unwrap() else {

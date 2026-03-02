@@ -4,23 +4,24 @@ use std::path::Path;
 use tempfile::tempdir;
 
 // ----------------------------------------------------------------------------------
-// tests/fmt.rs
+// qmd/tests/fmt.rs
 //
-// fn write_file()                                                                L26
-// fn write_root_config()                                                         L34
-// fn format_workspace_formats_supported_languages_with_readable_rows()           L39
-// fn format_workspace_places_block_after_language_preamble()                     L95
-// fn format_workspace_is_idempotent()                                           L141
-// fn format_workspace_replaces_existing_index_block_in_preamble()               L163
-// fn format_workspace_replaces_path_like_header_block_after_file_move()         L181
-// fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L200
-// fn format_workspace_respects_gitignore_rules()                                L226
-// fn format_workspace_generates_markdown_nav_with_outline()                     L247
-// fn format_workspace_markdown_nav_is_idempotent()                              L269
-// fn format_workspace_markdown_nav_root_file_has_no_breadcrumb()                L293
-// fn format_workspace_markdown_nav_no_headings()                                L306
-// fn format_workspace_markdown_nav_preserves_frontmatter()                      L321
-// fn assert_index_between()                                                     L340
+// fn write_file()                                                                L27
+// fn write_root_config()                                                         L35
+// fn format_workspace_formats_supported_languages_with_readable_rows()           L40
+// fn format_workspace_places_block_after_language_preamble()                     L96
+// fn format_workspace_is_idempotent()                                           L142
+// fn format_workspace_replaces_existing_index_block_in_preamble()               L164
+// fn format_workspace_replaces_path_like_header_block_after_file_move()         L182
+// fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L201
+// fn format_workspace_respects_gitignore_rules()                                L227
+// fn format_workspace_generates_markdown_nav_with_outline()                     L248
+// fn format_workspace_markdown_nav_is_idempotent()                              L273
+// fn format_workspace_markdown_nav_root_file()                                  L297
+// fn format_workspace_markdown_nav_no_headings()                                L310
+// fn format_workspace_markdown_nav_skips_foreign_frontmatter()                  L325
+// fn format_workspace_markdown_nav_force_with_foreign_frontmatter()             L347
+// fn assert_index_between()                                                     L366
 // ----------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -61,7 +62,7 @@ fn format_workspace_formats_supported_languages_with_readable_rows() {
         "package main\n\ntype Server struct{}\nfunc Start() {}\nfunc (s *Server) Run() {}\n",
     );
 
-    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    let report = format_workspace(temp.path(), &[], false).expect("format workspace");
     assert_eq!(report.scanned_files, 4);
     assert_eq!(report.updated_files, 4);
 
@@ -117,7 +118,7 @@ fn format_workspace_places_block_after_language_preamble() {
         "// top comment\npackage main\n\nimport \"fmt\"\n\nfunc run() {}\n",
     );
 
-    format_workspace(temp.path(), &[]).expect("format workspace");
+    format_workspace(temp.path(), &[], false).expect("format workspace");
 
     let rust = fs::read_to_string(temp.path().join("src/lib.rs")).expect("read rust file");
     assert_index_between(&rust, "use std::fmt;", "pub fn run() {}", "// src/lib.rs");
@@ -143,7 +144,7 @@ fn format_workspace_is_idempotent() {
     write_root_config(temp.path());
     write_file(temp.path(), "main.rs", "fn one() {}\nfn two() {}\n");
 
-    let first = format_workspace(temp.path(), &[]).expect("first format");
+    let first = format_workspace(temp.path(), &[], false).expect("first format");
     assert_eq!(first.scanned_files, 1);
     assert_eq!(first.updated_files, 1);
 
@@ -151,7 +152,7 @@ fn format_workspace_is_idempotent() {
     assert!(once.contains("// fn one()"));
     assert!(once.contains("// fn two()"));
 
-    let second = format_workspace(temp.path(), &[]).expect("second format");
+    let second = format_workspace(temp.path(), &[], false).expect("second format");
     assert_eq!(second.scanned_files, 1);
     assert_eq!(second.updated_files, 0);
 
@@ -169,7 +170,7 @@ fn format_workspace_replaces_existing_index_block_in_preamble() {
         "use std::fmt;\n\n// ## Index\n//\n// fn stale()  L1\n\nfn fresh() {}\n",
     );
 
-    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    let report = format_workspace(temp.path(), &[], false).expect("format workspace");
     assert_eq!(report.updated_files, 1);
 
     let rust = fs::read_to_string(temp.path().join("lib.rs")).expect("read rust file");
@@ -187,7 +188,7 @@ fn format_workspace_replaces_path_like_header_block_after_file_move() {
         "// old/path.rs\n//\n// fn stale()  L1\n\nfn fresh() {}\n",
     );
 
-    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    let report = format_workspace(temp.path(), &[], false).expect("format workspace");
     assert_eq!(report.updated_files, 1);
 
     let rust = fs::read_to_string(temp.path().join("src/new_name.rs")).expect("read rust file");
@@ -210,7 +211,7 @@ fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files() {
     );
 
     let report =
-        format_workspace(temp.path(), &["vendor/**".to_string()]).expect("format workspace");
+        format_workspace(temp.path(), &["vendor/**".to_string()], false).expect("format workspace");
     assert_eq!(report.scanned_files, 1);
     assert_eq!(report.updated_files, 1);
 
@@ -231,7 +232,7 @@ fn format_workspace_respects_gitignore_rules() {
     write_file(temp.path(), "src/main.rs", "fn live() {}\n");
     write_file(temp.path(), "vendor/hidden.rs", "fn hidden() {}\n");
 
-    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    let report = format_workspace(temp.path(), &[], false).expect("format workspace");
     assert_eq!(report.scanned_files, 1);
     assert_eq!(report.updated_files, 1);
 
@@ -251,18 +252,21 @@ fn format_workspace_generates_markdown_nav_with_outline() {
     write_file(
         temp.path(),
         "docs/arch/overview.md",
-        "---\ntitle: Overview\n---\n\n# Architecture\n\n## Storage\n\n## Query Engine\n",
+        "# Architecture\n\n## Storage\n\n## Query Engine\n",
     );
 
-    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    let report = format_workspace(temp.path(), &[], false).expect("format workspace");
     assert_eq!(report.scanned_files, 1);
     assert_eq!(report.updated_files, 1);
 
     let md = fs::read_to_string(temp.path().join("docs/arch/overview.md")).expect("read md file");
-    assert!(md.contains("> docs/arch/overview.md"));
-    assert!(md.contains("> Architecture"));
-    assert!(md.contains("• Storage"));
-    assert!(md.contains("• Query Engine"));
+    assert!(md.contains("path: docs/arch/overview.md"));
+    assert!(md.contains("outline: |"));
+    assert!(md.contains("• Architecture"));
+    assert!(md.contains("◦ Storage"));
+    assert!(md.contains("◦ Query Engine"));
+    // Must be wrapped in frontmatter delimiters.
+    assert!(md.starts_with("---\n"));
 }
 
 #[test]
@@ -276,13 +280,13 @@ fn format_workspace_markdown_nav_is_idempotent() {
         "# Notes\n\n## First\n\n## Second\n",
     );
 
-    let first = format_workspace(temp.path(), &[]).expect("first format");
+    let first = format_workspace(temp.path(), &[], false).expect("first format");
     assert_eq!(first.updated_files, 1);
 
     let once = fs::read_to_string(temp.path().join("notes/index.md")).expect("read once");
-    assert!(once.contains("> notes/index.md"));
+    assert!(once.contains("path: notes/index.md"));
 
-    let second = format_workspace(temp.path(), &[]).expect("second format");
+    let second = format_workspace(temp.path(), &[], false).expect("second format");
     assert_eq!(second.updated_files, 0);
 
     let twice = fs::read_to_string(temp.path().join("notes/index.md")).expect("read twice");
@@ -290,16 +294,16 @@ fn format_workspace_markdown_nav_is_idempotent() {
 }
 
 #[test]
-fn format_workspace_markdown_nav_root_file_has_no_breadcrumb() {
+fn format_workspace_markdown_nav_root_file() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());
 
     write_file(temp.path(), "readme.md", "# Hello\n\nWorld.\n");
 
-    format_workspace(temp.path(), &[]).expect("format workspace");
+    format_workspace(temp.path(), &[], false).expect("format workspace");
 
     let md = fs::read_to_string(temp.path().join("readme.md")).expect("read md file");
-    assert!(md.contains("> readme.md"));
+    assert!(md.contains("path: readme.md"));
 }
 
 #[test]
@@ -309,16 +313,16 @@ fn format_workspace_markdown_nav_no_headings() {
 
     write_file(temp.path(), "empty.md", "Just text.\n");
 
-    format_workspace(temp.path(), &[]).expect("format workspace");
+    format_workspace(temp.path(), &[], false).expect("format workspace");
 
     let md = fs::read_to_string(temp.path().join("empty.md")).expect("read md file");
-    assert!(md.contains("> empty.md"));
-    // Separator lines are always present, even with no headings.
-    assert!(md.contains("> --------"));
+    assert!(md.contains("path: empty.md"));
+    // No outline key when there are no headings.
+    assert!(!md.contains("outline:"));
 }
 
 #[test]
-fn format_workspace_markdown_nav_preserves_frontmatter() {
+fn format_workspace_markdown_nav_skips_foreign_frontmatter() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());
 
@@ -328,13 +332,35 @@ fn format_workspace_markdown_nav_preserves_frontmatter() {
         "---\ntitle: Test\n---\n\n# Heading\n",
     );
 
-    format_workspace(temp.path(), &[]).expect("format workspace");
+    let report = format_workspace(temp.path(), &[], false).expect("format workspace");
+    // Should skip the file and emit a warning.
+    assert_eq!(report.updated_files, 0);
+    assert_eq!(report.warnings.len(), 1);
+    assert!(report.warnings[0].message.contains("existing frontmatter"));
 
     let md = fs::read_to_string(temp.path().join("doc.md")).expect("read md file");
-    // Frontmatter must appear before the nav block.
-    let frontmatter_end = md.find("---\n> ").or_else(|| md.find("---\n>"));
-    assert!(frontmatter_end.is_some(), "nav block should follow frontmatter");
-    assert!(md.starts_with("---\ntitle: Test\n---\n"));
+    // File should be unchanged.
+    assert_eq!(md, "---\ntitle: Test\n---\n\n# Heading\n");
+}
+
+#[test]
+fn format_workspace_markdown_nav_force_with_foreign_frontmatter() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+
+    write_file(
+        temp.path(),
+        "doc.md",
+        "---\ntitle: Test\n---\n\n# Heading\n",
+    );
+
+    let report = format_workspace(temp.path(), &[], true).expect("format workspace");
+    assert_eq!(report.updated_files, 1);
+
+    let md = fs::read_to_string(temp.path().join("doc.md")).expect("read md file");
+    assert!(md.contains("title: Test"));
+    assert!(md.contains("path: doc.md"));
+    assert!(md.contains("• Heading"));
 }
 
 fn assert_index_between(content: &str, before: &str, after: &str, header: &str) {

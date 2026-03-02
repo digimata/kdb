@@ -1,31 +1,16 @@
-> ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-> README.md
->
->   • • kdb L15 ◦ What it does L21 ▪ Supported languages L29 ◦ Quickstart L37 ◦ Commands L66 ▪ Markdown links L81 ▪ LSP L90 ◦ Development L108 ◦ License L112                         L19
-> kdb                                                                                                                                                                                 L30
->   • What it does                                                                                                                                                                    L36
->     ◦ Supported languages                                                                                                                                                           L44
->   • Quickstart                                                                                                                                                                      L52
->   • Commands                                                                                                                                                                        L81
->     ◦ Markdown links                                                                                                                                                                L96
->     ◦ LSP                                                                                                                                                                          L105
->   • Development                                                                                                                                                                    L123
->   • License                                                                                                                                                                        L127
-> ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
------------------------------------
-README.md
-
-• kdb                           L15
-  ◦ What it does                L21
-    ▪ Supported languages       L29
-  ◦ Quickstart                  L37
-  ◦ Commands                    L66
-    ▪ Markdown links            L81
-    ▪ LSP                       L90
-  ◦ Development                L108
-  ◦ License                    L112
------------------------------------
+---
+path: qmd/README.md
+outline: |
+  • kdb                           L15
+    ◦ Overview                    L21
+      ▪ Supported languages       L29
+    ◦ Quickstart                  L37
+    ◦ Commands                    L66
+      ▪ Markdown links            L81
+      ▪ LSP                       L90
+    ◦ Development                L108
+    ◦ License                    L112
+---
 
 # kdb
 
@@ -33,7 +18,7 @@ A structural index for codebases. CLI and language server.
 
 kdb treats a project as a graph of symbols and references — whether those are markdown headings linked by wikilinks, or code functions connected by import statements. It parses every file into symbols, resolves cross-file references, and gives you a unified way to navigate the result.
 
-## What it does
+## Overview
 
 **Markdown**: headings are symbols, links are references, broken links are errors, orphan files are dead code.
 

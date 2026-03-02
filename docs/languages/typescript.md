@@ -1,12 +1,12 @@
-> ---------------------------------------------------
-> docs/languages/typescript.md
->
-> TypeScript / JavaScript — Language Support      L11
->   • Import patterns                             L13
->   • Reference resolution coverage               L36
->   • Known gaps                                  L52
->   • Workspace conventions                       L59
-> ---------------------------------------------------
+---
+path: qmd/docs/languages/typescript.md
+outline: |
+  • TypeScript / JavaScript — Language Support        L11
+    ◦ Import patterns                                 L13
+    ◦ Reference resolution coverage                   L36
+    ◦ Known gaps                                      L52
+    ◦ Workspace conventions                           L59
+---
 
 # TypeScript / JavaScript — Language Support
 

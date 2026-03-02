@@ -2,11 +2,11 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 // -----------------------
-// src/main.rs
+// qmd/src/main.rs
 //
 // struct Cli          L19
 // enum Command        L25
-// async fn main()    L132
+// async fn main()    L135
 // -----------------------
 
 #[derive(Debug, Parser)]
@@ -114,6 +114,9 @@ enum Command {
     Fmt {
         /// Optional file or directory path to format (defaults to project root).
         path: Option<PathBuf>,
+        /// Force frontmatter insertion into markdown files that already have frontmatter.
+        #[arg(long)]
+        force: bool,
     },
     /// Run the language server over stdio.
     Lsp {
@@ -171,7 +174,7 @@ async fn main() {
         } => kdb::cmd::refs(target, symbol, context, json, count, files),
         Command::Deps { target, json } => kdb::cmd::deps(target, json),
         Command::Graph { path } => kdb::cmd::graph(path),
-        Command::Fmt { path } => kdb::cmd::format(path),
+        Command::Fmt { path, force } => kdb::cmd::format(path, force),
         Command::Lsp { path } => kdb::lsp::serve(path).await,
         Command::Update { check } => kdb::cmd::update(check),
     };

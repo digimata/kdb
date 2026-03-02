@@ -6,19 +6,16 @@ priority: high
 labels:
   - enhancement
   - fmt
+path: qmd/.issues/iss-0058-root-links-and-fmt-nav.md
+outline: |
+  • iss-0058 :: Root-Anchored Links & Fmt Navigation Headers      L20
+    ◦ Problem                                                     L22
+    ◦ Solution                                                    L26
+      ▪ 1. kdb:// root-anchored link scheme                       L30
+      ▪ 2. kdb fmt navigation headers for markdown                L38
+      ▪ Properties                                                L57
+    ◦ Open Questions                                              L63
 ---
-> ---------------------------------------------------------------
-> .issues/iss-0058-root-links-and-fmt-nav.md
->
-> iss-0058 :: Root-Anchored Links & Fmt Navigation Headers    L23
->   • Problem                                                 L25
->   • Solution                                                L29
->     ◦ 1. kdb:// root-anchored link scheme                   L33
->     ◦ 2. kdb fmt navigation headers for markdown            L41
->     ◦ Properties                                            L60
->   • Open Questions                                          L66
-> ---------------------------------------------------------------
-
 
 # iss-0058 :: Root-Anchored Links & Fmt Navigation Headers
 

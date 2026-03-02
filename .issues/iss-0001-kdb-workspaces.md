@@ -5,13 +5,10 @@ status: proposed
 priority: medium
 labels:
   - roadmap
+path: qmd/.issues/iss-0001-kdb-workspaces.md
+outline: |
+  • ISS-0001 :: KDB Workspaces      L13
 ---
-> ----------------------------------
-> .issues/iss-0001-kdb-workspaces.md
->
-> ISS-0001 :: KDB Workspaces    L16
-> ----------------------------------
-
 
 # ISS-0001 :: KDB Workspaces
 

@@ -1,12 +1,12 @@
-> ------------------------------------------
-> docs/languages/rust.md
->
-> Rust — Language Support                L11
->   • Import patterns                    L13
->   • Reference resolution coverage      L27
->   • Known gaps                         L46
->   • Workspace conventions              L53
-> ------------------------------------------
+---
+path: qmd/docs/languages/rust.md
+outline: |
+  • Rust — Language Support              L11
+    ◦ Import patterns                    L13
+    ◦ Reference resolution coverage      L27
+    ◦ Known gaps                         L46
+    ◦ Workspace conventions              L53
+---
 
 # Rust — Language Support
 

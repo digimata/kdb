@@ -1,84 +1,96 @@
-> --------------------------------------------
-> CHANGELOG.md
->
-> Changelog                                L77
->   • [0.20.1] — 2026-03-01                L83
->     ◦ Added                              L85
->   • [0.20.0] — 2026-03-01                L89
->     ◦ Added                              L91
->   • [0.19.0] — 2026-02-26                L96
->     ◦ Changed                            L98
->   • [0.18.0] — 2026-02-26               L102
->     ◦ Added                             L104
->   • [0.17.0] — 2026-02-26               L109
->     ◦ Changed                           L111
->     ◦ Added                             L115
->   • [landing-0.2.0] — 2026-02-26        L119
->     ◦ Added                             L121
->     ◦ Changed                           L127
->   • [0.16.0] — 2026-02-26               L132
->     ◦ Removed                           L134
->   • [0.15.0] — 2026-02-26               L141
->     ◦ Changed                           L143
->     ◦ Performance                       L147
->     ◦ Fixed                             L153
->   • [0.14.0] — 2026-02-26               L157
->     ◦ Added                             L159
->   • [0.13.0] — 2026-02-26               L163
->     ◦ Added                             L165
->   • [0.12.1] — 2026-02-26               L170
->     ◦ Fixed                             L172
->   • [0.12.0] — 2026-02-26               L179
->     ◦ Added                             L181
->   • [0.11.0] — 2026-02-26               L188
->     ◦ Added                             L190
->   • [0.10.2] — 2026-02-26               L198
->     ◦ Changed                           L200
->     ◦ Performance                       L206
->   • [0.10.1] — 2026-02-25               L219
->     ◦ Changed                           L221
->   • [0.10.0] — 2026-02-25               L226
->     ◦ Changed                           L228
->     ◦ Added                             L233
->   • [0.9.0] — 2026-02-25                L238
->     ◦ Added                             L240
->   • [0.8.6] — 2026-02-25                L246
->     ◦ Added                             L248
->   • [0.8.5] — 2026-02-25                L252
->     ◦ Fixed                             L254
->   • [0.8.4] — 2026-02-25                L260
->     ◦ Fixed                             L262
->   • [0.8.3] — 2026-02-25                L267
->     ◦ Fixed                             L269
->   • [0.8.2] — 2026-02-25                L273
->     ◦ Fixed                             L275
->     ◦ Changed                           L279
->   • [0.8.1] — 2026-02-25                L283
->     ◦ Fixed                             L285
->   • [Unreleased]                        L289
->     ◦ Changed                           L291
->   • [0.8.0] — 2026-02-25                L305
->     ◦ Added                             L307
->     ◦ Changed                           L312
->   • [0.7.1] — 2026-02-25                L316
->     ◦ Added                             L318
->     ◦ Changed                           L322
->     ◦ Docs                              L327
->   • [0.7.0] — 2026-02-24                L331
->     ◦ Other                             L333
->   • [0.6.1] — 2026-02-24                L339
->     ◦ Other                             L341
->   • [0.6.0] — 2026-02-24                L346
->     ◦ Other                             L348
->   • [0.1.0] — 2026-02-18                L368
->     ◦ Other                             L370
-> --------------------------------------------
+---
+path: qmd/CHANGELOG.md
+outline: |
+  • Changelog                              L77
+    ◦ [0.20.1] — 2026-03-01                L83
+      ▪ Added                              L85
+    ◦ [0.20.0] — 2026-03-01                L89
+      ▪ Added                              L91
+    ◦ [0.19.0] — 2026-02-26                L96
+      ▪ Changed                            L98
+    ◦ [0.18.0] — 2026-02-26               L102
+      ▪ Added                             L104
+    ◦ [0.17.0] — 2026-02-26               L109
+      ▪ Changed                           L111
+      ▪ Added                             L115
+    ◦ [landing-0.2.0] — 2026-02-26        L119
+      ▪ Added                             L121
+      ▪ Changed                           L127
+    ◦ [0.16.0] — 2026-02-26               L132
+      ▪ Removed                           L134
+    ◦ [0.15.0] — 2026-02-26               L141
+      ▪ Changed                           L143
+      ▪ Performance                       L147
+      ▪ Fixed                             L153
+    ◦ [0.14.0] — 2026-02-26               L157
+      ▪ Added                             L159
+    ◦ [0.13.0] — 2026-02-26               L163
+      ▪ Added                             L165
+    ◦ [0.12.1] — 2026-02-26               L170
+      ▪ Fixed                             L172
+    ◦ [0.12.0] — 2026-02-26               L179
+      ▪ Added                             L181
+    ◦ [0.11.0] — 2026-02-26               L188
+      ▪ Added                             L190
+    ◦ [0.10.2] — 2026-02-26               L198
+      ▪ Changed                           L200
+      ▪ Performance                       L206
+    ◦ [0.10.1] — 2026-02-25               L219
+      ▪ Changed                           L221
+    ◦ [0.10.0] — 2026-02-25               L226
+      ▪ Changed                           L228
+      ▪ Added                             L233
+    ◦ [0.9.0] — 2026-02-25                L238
+      ▪ Added                             L240
+    ◦ [0.8.6] — 2026-02-25                L246
+      ▪ Added                             L248
+    ◦ [0.8.5] — 2026-02-25                L252
+      ▪ Fixed                             L254
+    ◦ [0.8.4] — 2026-02-25                L260
+      ▪ Fixed                             L262
+    ◦ [0.8.3] — 2026-02-25                L267
+      ▪ Fixed                             L269
+    ◦ [0.8.2] — 2026-02-25                L273
+      ▪ Fixed                             L275
+      ▪ Changed                           L279
+    ◦ [0.8.1] — 2026-02-25                L283
+      ▪ Fixed                             L285
+    ◦ [Unreleased]                        L289
+      ▪ Changed                           L291
+    ◦ [0.8.0] — 2026-02-25                L305
+      ▪ Added                             L307
+      ▪ Changed                           L312
+    ◦ [0.7.1] — 2026-02-25                L316
+      ▪ Added                             L318
+      ▪ Changed                           L322
+      ▪ Docs                              L327
+    ◦ [0.7.0] — 2026-02-24                L331
+      ▪ Other                             L333
+    ◦ [0.6.1] — 2026-02-24                L339
+      ▪ Other                             L341
+    ◦ [0.6.0] — 2026-02-24                L346
+      ▪ Other                             L348
+    ◦ [0.1.0] — 2026-02-18                L368
+      ▪ Other                             L370
+---
 
 # Changelog
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.21.0] — 2026-03-01
+
+### Changed
+
+- Markdown nav blocks now use YAML frontmatter (`path:` + `outline: |`) instead of `> ` blockquote prefix — cleaner rendering, editors collapse/dim frontmatter natively
+- `kdb fmt` adds `--force` flag to inject nav keys into files with existing frontmatter (skipped with warning by default)
+- Goto-definition now works on outline rows inside frontmatter
+
+### Added
+
+- Legacy `> ` blockquote nav blocks are automatically stripped during migration
 
 ## [0.20.1] — 2026-03-01
 
@@ -90,7 +102,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- `kdb fmt` now generates navigation headers for markdown files — breadcrumb links and heading outline with line numbers, using blockquote prefix (iss-0058)
+- `kdb fmt` now generates navigation headers for markdown files — heading outline with line numbers (iss-0058)
 - LSP `textDocument/formatting` now supports markdown files for format-on-save
 
 ## [0.19.0] — 2026-02-26

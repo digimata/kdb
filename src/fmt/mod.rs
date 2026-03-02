@@ -17,34 +17,37 @@ pub mod preamble;
 use self::preamble::{comment_prefix, markdown_preamble_end, preamble_end_index};
 
 // ---------------------------------------------
-// src/fmt/mod.rs
+// qmd/src/fmt/mod.rs
 //
 // pub mod preamble                          L15
-// const LEGACY_INDEX_HEADER                 L50
-// const LINE_GAP                            L51
-// pub struct FormatReport                   L55
-// pub struct FormatWarning                  L63
-// struct RewriteResult                      L69
-// pub fn format_workspace()                 L77
-// pub fn format_path()                      L97
-// pub fn format_source()                   L126
-// fn format_files()                        L140
-// fn rewrite_code_index()                  L189
-// fn removal_warning_message()             L299
-// fn find_managed_block()                  L319
-// fn is_header_candidate()                 L350
-// fn looks_like_path_header()              L363
-// fn is_index_body_line()                  L383
-// fn is_canonical_index_body_line()        L395
-// fn is_separator_only_comment_line()      L423
-// fn render_block()                        L437
-// fn format_markdown_files()               L468
-// fn rewrite_markdown_nav()                L507
-// fn render_markdown_block()               L587
-// fn is_md_nav_line()                      L668
-// fn is_markdown_ext()                     L674
-// fn discover_markdown_files_in_scope()    L681
-// fn discover_code_files_in_scope()        L695
+// const LEGACY_INDEX_HEADER                 L53
+// const LINE_GAP                            L54
+// pub struct FormatReport                   L58
+// pub struct FormatWarning                  L66
+// struct RewriteResult                      L72
+// pub fn format_workspace()                 L84
+// pub fn format_path()                     L108
+// pub fn format_source()                   L144
+// fn format_files()                        L160
+// fn rewrite_code_index()                  L209
+// fn removal_warning_message()             L319
+// fn find_managed_block()                  L339
+// fn is_header_candidate()                 L370
+// fn looks_like_path_header()              L383
+// fn is_index_body_line()                  L403
+// fn is_canonical_index_body_line()        L415
+// fn is_separator_only_comment_line()      L443
+// fn render_block()                        L457
+// fn format_markdown_files()               L488
+// enum MarkdownNavResult                   L539
+// fn rewrite_markdown_nav()                L552
+// fn render_nav_frontmatter()              L670
+// fn strip_nav_keys()                      L716
+// fn has_foreign_key()                     L739
+// fn is_legacy_md_nav_line()               L757
+// fn is_markdown_ext()                     L763
+// fn discover_markdown_files_in_scope()    L770
+// fn discover_code_files_in_scope()        L784
 // ---------------------------------------------
 
 const LEGACY_INDEX_HEADER: &str = "## Index";
@@ -74,7 +77,15 @@ struct RewriteResult {
 
 /// Walk a workspace, rewriting each supported source file and markdown file
 /// with an up-to-date index/navigation block.
-pub fn format_workspace(root: &Path, ignore_patterns: &[String]) -> Result<FormatReport> {
+///
+/// If `force` is set, markdown files with existing non-nav frontmatter will
+/// have `path:` + `outline:` keys injected alongside their existing keys.
+/// Otherwise those files are skipped with a warning.
+pub fn format_workspace(
+    root: &Path,
+    ignore_patterns: &[String],
+    force: bool,
+) -> Result<FormatReport> {
     let root = root
         .canonicalize()
         .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
@@ -83,7 +94,7 @@ pub fn format_workspace(root: &Path, ignore_patterns: &[String]) -> Result<Forma
     let md_files = discover_markdown_files_in_scope(&root, &root, &ignore_set)?;
 
     let mut report = format_files(&root, code_files)?;
-    let md_report = format_markdown_files(&root, md_files)?;
+    let md_report = format_markdown_files(&root, md_files, force)?;
     report.scanned_files += md_report.scanned_files;
     report.updated_files += md_report.updated_files;
     report.warnings.extend(md_report.warnings);
@@ -94,7 +105,12 @@ pub fn format_workspace(root: &Path, ignore_patterns: &[String]) -> Result<Forma
 ///
 /// `target` must be inside `root`. If `target` is a file, only that file is
 /// considered; if it is a directory, the subtree is scanned.
-pub fn format_path(root: &Path, target: &Path, ignore_patterns: &[String]) -> Result<FormatReport> {
+pub fn format_path(
+    root: &Path,
+    target: &Path,
+    ignore_patterns: &[String],
+    force: bool,
+) -> Result<FormatReport> {
     let root = root
         .canonicalize()
         .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
@@ -115,7 +131,7 @@ pub fn format_path(root: &Path, target: &Path, ignore_patterns: &[String]) -> Re
     let md_files = discover_markdown_files_in_scope(&root, &target, &ignore_set)?;
 
     let mut report = format_files(&root, code_files)?;
-    let md_report = format_markdown_files(&root, md_files)?;
+    let md_report = format_markdown_files(&root, md_files, force)?;
     report.scanned_files += md_report.scanned_files;
     report.updated_files += md_report.updated_files;
     report.warnings.extend(md_report.warnings);
@@ -123,10 +139,14 @@ pub fn format_path(root: &Path, target: &Path, ignore_patterns: &[String]) -> Re
 }
 
 /// Rewrite a single source string for a supported code or markdown file path.
+///
+/// Always forces markdown frontmatter insertion (used by LSP format-on-save).
 pub fn format_source(rel_path: &Path, source: &str) -> Result<Option<String>> {
     if is_markdown_ext(rel_path) {
-        let rewrite = rewrite_markdown_nav(source, rel_path)?;
-        return Ok(Some(rewrite.content));
+        match rewrite_markdown_nav(source, rel_path, true)? {
+            MarkdownNavResult::Rewritten(rewrite) => return Ok(Some(rewrite.content)),
+            MarkdownNavResult::ForeignFrontmatter => return Ok(None),
+        }
     }
 
     let Some(language) = CodeLanguage::from_path(rel_path) else {
@@ -465,7 +485,11 @@ fn render_block(prefix: &str, header: &str, symbols: &[Symbol]) -> Vec<String> {
 }
 
 /// Format a batch of markdown files, returning a report.
-fn format_markdown_files(root: &Path, files: Vec<PathBuf>) -> Result<FormatReport> {
+fn format_markdown_files(
+    root: &Path,
+    files: Vec<PathBuf>,
+    force: bool,
+) -> Result<FormatReport> {
     let mut report = FormatReport {
         scanned_files: files.len(),
         updated_files: 0,
@@ -483,28 +507,53 @@ fn format_markdown_files(root: &Path, files: Vec<PathBuf>) -> Result<FormatRepor
             }
         };
 
-        let rewrite = rewrite_markdown_nav(&source, &rel_path).with_context(|| {
+        let result = rewrite_markdown_nav(&source, &rel_path, force).with_context(|| {
             format!(
                 "failed to rewrite markdown nav for {}",
                 rel_path.to_string_lossy()
             )
         })?;
 
-        let formatted = rewrite.content;
-
-        if formatted != source {
-            fs::write(&abs_path, formatted)
-                .with_context(|| format!("failed to write {}", abs_path.display()))?;
-            report.updated_files += 1;
+        match result {
+            MarkdownNavResult::ForeignFrontmatter => {
+                report.warnings.push(FormatWarning {
+                    rel_path: rel_path.clone(),
+                    message: "skipped: file has existing frontmatter (use --force to overwrite)"
+                        .to_string(),
+                });
+            }
+            MarkdownNavResult::Rewritten(rewrite) => {
+                if rewrite.content != source {
+                    fs::write(&abs_path, &rewrite.content)
+                        .with_context(|| format!("failed to write {}", abs_path.display()))?;
+                    report.updated_files += 1;
+                }
+            }
         }
     }
 
     Ok(report)
 }
 
-/// Parse `source` for headings, strip any existing nav block, and return the
-/// file contents with a freshly generated breadcrumb + outline block.
-fn rewrite_markdown_nav(source: &str, rel_path: &Path) -> Result<RewriteResult> {
+/// Result of attempting to rewrite a markdown file's navigation frontmatter.
+enum MarkdownNavResult {
+    /// Successfully rewrote the file.
+    Rewritten(RewriteResult),
+    /// File has foreign frontmatter — skip unless forced.
+    ForeignFrontmatter,
+}
+
+/// Parse `source` for headings, strip any existing nav from frontmatter, and
+/// return the file contents with up-to-date `path:` + `outline:` keys in YAML
+/// frontmatter.
+///
+/// If the file already has frontmatter containing keys other than `path:` and
+/// `outline:`, returns `ForeignFrontmatter` unless `force` is set.
+fn rewrite_markdown_nav(
+    source: &str,
+    rel_path: &Path,
+    force: bool,
+) -> Result<MarkdownNavResult> {
     let newline = if source.contains("\r\n") {
         "\r\n"
     } else {
@@ -524,148 +573,188 @@ fn rewrite_markdown_nav(source: &str, rel_path: &Path) -> Result<RewriteResult> 
         lines.clear();
     }
 
-    let prefix = ">";
-    let header = rel_path.to_string_lossy().replace('\\', "/");
+    // Strip any legacy `> ` blockquote nav blocks.
     let mut removed_blocks = 0usize;
-
     loop {
         let preamble = markdown_preamble_end(&lines);
         let search_limit = preamble.max(256).min(lines.len());
+        let prefix = ">";
+        let header = rel_path.to_string_lossy().replace('\\', "/");
         let Some((start, end_exclusive)) =
             find_managed_block(&lines, prefix, &header, search_limit)
         else {
             break;
         };
-
-        // Also absorb a leading breadcrumb line and separator above the block.
         let mut drain_start = start;
-        // Walk backwards over `> ` prefixed lines that precede the path header
-        // (breadcrumb + separator lines).
-        while drain_start > 0 && is_md_nav_line(&lines[drain_start - 1]) {
+        while drain_start > 0 && is_legacy_md_nav_line(&lines[drain_start - 1]) {
             drain_start -= 1;
         }
-
         removed_blocks += 1;
         lines.drain(drain_start..end_exclusive);
     }
 
-    let insertion_index = markdown_preamble_end(&lines);
-
-    let mut parse_source = lines.join("\n");
-    if had_trailing_newline && !parse_source.is_empty() {
-        parse_source.push('\n');
+    // Inspect existing frontmatter.
+    let fm_end = markdown_preamble_end(&lines);
+    if fm_end > 0 {
+        let fm_lines = &lines[1..fm_end - 1];
+        let foreign = fm_lines.iter().any(|line| has_foreign_key(line));
+        if foreign && !force {
+            return Ok(MarkdownNavResult::ForeignFrontmatter);
+        }
     }
 
-    let parsed = parse_markdown(&parse_source);
+    // Strip our managed keys from existing frontmatter.
+    let preserved_keys = if fm_end > 0 {
+        strip_nav_keys(&lines[1..fm_end - 1])
+    } else {
+        Vec::new()
+    };
 
-    let block = render_markdown_block(&header, &parsed.headings, insertion_index + 1);
-    let inserted_line_count = block.len();
+    // Body = everything after frontmatter.
+    let body_lines: Vec<String> = lines[fm_end..].to_vec();
+    let body_source = if body_lines.is_empty() {
+        String::new()
+    } else {
+        let mut s = body_lines.join("\n");
+        if had_trailing_newline {
+            s.push('\n');
+        }
+        s
+    };
+
+    let parsed = parse_markdown(&body_source);
+    let header = rel_path.to_string_lossy().replace('\\', "/");
+
+    // Compute frontmatter line count to determine line number shift.
+    // Preview: `---` + preserved_keys + `path:` + maybe `outline: |` + outline rows + `---`
+    let outline_row_count = parsed.headings.len();
+    let nav_key_count = 1 // path:
+        + if outline_row_count > 0 { 1 + outline_row_count } else { 0 }; // outline: | + rows
+    // Ensure body starts with a blank line (spacing after frontmatter).
+    let needs_blank = body_lines.first().is_none_or(|line| !line.is_empty());
+
+    let fm_line_count = 1 // opening ---
+        + preserved_keys.len()
+        + nav_key_count
+        + 1 // closing ---
+        + if needs_blank { 1 } else { 0 }; // blank line after ---
+
+    // Headings are 1-indexed within body_source; body starts at fm_line_count + 1.
+    let line_shift = fm_line_count;
+
+    // Render.
+    let nav_lines = render_nav_frontmatter(&preserved_keys, &header, &parsed.headings, line_shift);
 
     let mut output_lines = Vec::new();
-    output_lines.extend_from_slice(&lines[..insertion_index]);
-    output_lines.extend(block);
-    output_lines.extend_from_slice(&lines[insertion_index..]);
-
-    // Shift heading line numbers in the output are for display only — we
-    // already computed them relative to stripped source and adjusted them
-    // inside render_markdown_block.
-    let _ = inserted_line_count;
+    output_lines.push("---".to_string());
+    output_lines.extend(nav_lines);
+    output_lines.push("---".to_string());
+    if needs_blank {
+        output_lines.push(String::new());
+    }
+    output_lines.extend(body_lines);
 
     let mut output = output_lines.join(newline);
     if had_trailing_newline && !output.is_empty() {
         output.push_str(newline);
     }
 
-    Ok(RewriteResult {
+    Ok(MarkdownNavResult::Rewritten(RewriteResult {
         content: output,
         removed_blocks,
         removed_noncanonical_rows: 0,
-    })
+    }))
 }
 
-/// Render the outline blockquote block.
-fn render_markdown_block(
-    header: &str,
+/// Render frontmatter keys for the nav block with shifted line numbers.
+fn render_nav_frontmatter(
+    preserved_keys: &[String],
+    path: &str,
     headings: &[Heading],
-    insertion_line: usize,
+    line_shift: usize,
 ) -> Vec<String> {
-    // Build heading rows with shifted line numbers.
-    let mut rows = Vec::new();
-    for heading in headings {
-        let shifted_line = heading.line + if heading.line >= insertion_line {
-            // Placeholder — we'll fill in final count after we know block size.
-            0
-        } else {
-            0
-        };
-        let display = match heading.level {
-            1 => format!("{}", heading.title),
-            2 => format!("  • {}", heading.title),
-            3 => format!("    ◦ {}", heading.title),
-            4 => format!("      ▪ {}", heading.title),
-            5 => format!("        · {}", heading.title),
-            _ => format!("          · {}", heading.title),
-        };
-        rows.push((display, shifted_line));
+    let mut lines = Vec::new();
+    lines.extend(preserved_keys.iter().cloned());
+    lines.push(format!("path: {path}"));
+
+    if headings.is_empty() {
+        return lines;
     }
 
-    // We need to know the block size to shift, but block size depends on rows.
-    // Compute block line count first, then adjust.
-    let has_rows = !rows.is_empty();
-    // Layout: top separator + path + (blank + rows)? + bottom separator + blank
-    let block_line_count = 1                        // top separator
-        + 1                                         // path header
-        + if has_rows { 1 + rows.len() } else { 0 } // blank `>` + heading rows
-        + 1                                         // bottom separator
-        + 1;                                        // trailing blank line
-
-    // Shift line numbers.
-    let shifted_rows: Vec<(String, String)> = rows
-        .into_iter()
-        .map(|(display, line)| {
-            let shifted = if line >= insertion_line {
-                line + block_line_count
-            } else {
-                line
+    // Build display rows with shifted line numbers.
+    let rows: Vec<(String, String)> = headings
+        .iter()
+        .map(|heading| {
+            let display = match heading.level {
+                1 => format!("• {}", heading.title),
+                2 => format!("  ◦ {}", heading.title),
+                3 => format!("    ▪ {}", heading.title),
+                4 => format!("      · {}", heading.title),
+                _ => format!("        · {}", heading.title),
             };
+            let shifted = heading.line + line_shift;
             (display, format!("L{shifted}"))
         })
         .collect();
 
-    let left_width = shifted_rows
-        .iter()
-        .map(|(left, _)| left.len())
-        .max()
-        .unwrap_or(0);
-    let right_width = shifted_rows
-        .iter()
-        .map(|(_, right)| right.len())
-        .max()
-        .unwrap_or(0);
-    let content_width = left_width + LINE_GAP + right_width;
-    let min_width = header.len();
-    let separator_width = content_width.max(min_width);
-    let separator = "-".repeat(separator_width);
+    let left_width = rows.iter().map(|(left, _)| left.len()).max().unwrap_or(0);
+    let right_width = rows.iter().map(|(_, right)| right.len()).max().unwrap_or(0);
     let gap = " ".repeat(LINE_GAP);
 
-    let mut lines = Vec::new();
-    lines.push(format!("> {separator}"));
-    lines.push(format!("> {header}"));
-    if has_rows {
-        lines.push(">".to_string());
-        for (left, line_label) in &shifted_rows {
-            lines.push(format!(
-                "> {left:<left_width$}{gap}{line_label:>right_width$}"
-            ));
-        }
+    lines.push("outline: |".to_string());
+    for (left, line_label) in &rows {
+        lines.push(format!(
+            "  {left:<left_width$}{gap}{line_label:>right_width$}"
+        ));
     }
-    lines.push(format!("> {separator}"));
-    lines.push(String::new());
+
     lines
 }
 
-/// Check if a line looks like part of a managed markdown nav block.
-fn is_md_nav_line(line: &str) -> bool {
+/// Strip `path:` and `outline:` keys (including continuation lines) from
+/// frontmatter lines.
+fn strip_nav_keys(fm_lines: &[String]) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut skip_continuation = false;
+
+    for line in fm_lines {
+        if line.starts_with("path:") || line.starts_with("outline:") {
+            skip_continuation = line.starts_with("outline:");
+            continue;
+        }
+        // Continuation lines for `outline: |` are indented.
+        if skip_continuation {
+            if line.starts_with(' ') || line.starts_with('\t') || line.trim().is_empty() {
+                continue;
+            }
+            skip_continuation = false;
+        }
+        result.push(line.clone());
+    }
+
+    result
+}
+
+/// Return `true` if a frontmatter line contains a key that is not managed by us.
+fn has_foreign_key(line: &str) -> bool {
+    let trimmed = line.trim();
+    // Skip blank lines, comments, and continuation lines (indented).
+    if trimmed.is_empty() || trimmed.starts_with('#') {
+        return false;
+    }
+    if line.starts_with(' ') || line.starts_with('\t') {
+        return false;
+    }
+    // Our managed keys.
+    if trimmed.starts_with("path:") || trimmed.starts_with("outline:") {
+        return false;
+    }
+    // Anything else is foreign.
+    true
+}
+
+/// Check if a line looks like part of a legacy `> ` blockquote nav block.
+fn is_legacy_md_nav_line(line: &str) -> bool {
     let trimmed = line.trim();
     trimmed == ">" || trimmed.starts_with("> ")
 }

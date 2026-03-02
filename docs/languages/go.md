@@ -1,13 +1,13 @@
-> ------------------------------------------
-> docs/languages/go.md
->
-> Go — Language Support                  L12
->   • Import patterns                    L14
->   • Reference resolution coverage      L27
->   • Known gaps                         L39
->   • Advantages                         L45
->   • Workspace conventions              L55
-> ------------------------------------------
+---
+path: qmd/docs/languages/go.md
+outline: |
+  • Go — Language Support                L12
+    ◦ Import patterns                    L14
+    ◦ Reference resolution coverage      L27
+    ◦ Known gaps                         L39
+    ◦ Advantages                         L45
+    ◦ Workspace conventions              L55
+---
 
 # Go — Language Support
 

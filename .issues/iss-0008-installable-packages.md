@@ -5,16 +5,13 @@ status: proposed
 priority: medium
 labels:
   - feat
+path: qmd/.issues/iss-0008-installable-packages.md
+outline: |
+  • ISS-0008 :: Installable KDB Packages      L16
+    ◦ Intent                                  L18
+    ◦ Motivation                              L22
+    ◦ Open Questions                          L28
 ---
-> -------------------------------------------
-> .issues/iss-0008-installable-packages.md
->
-> ISS-0008 :: Installable KDB Packages    L19
->   • Intent                              L21
->   • Motivation                          L25
->   • Open Questions                      L31
-> -------------------------------------------
-
 
 # ISS-0008 :: Installable KDB Packages
 
