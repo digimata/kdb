@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
 // ----------------------------------------------------------------------------------
-// tests/index.rs
+// qmd/tests/index.rs
 //
 // fn write_file()                                                                L64
 // fn write_root_config()                                                         L72
@@ -124,6 +124,7 @@ fn parse_markdown_target_keeps_url_encoded_paths() {
         Some(LinkTarget {
             file: Some("path%20with%20spaces.md".to_string()),
             anchor: Some("my-heading".to_string()),
+            root_relative: false,
         })
     );
 }
@@ -145,21 +146,24 @@ fn parse_markdown_target_filters_external_and_non_markdown_links() {
         parse_markdown_target("notes/a.md#Intro"),
         Some(LinkTarget {
             file: Some("notes/a.md".to_string()),
-            anchor: Some("Intro".to_string())
+            anchor: Some("Intro".to_string()),
+            root_relative: false,
         })
     );
     assert_eq!(
         parse_markdown_target("#Local"),
         Some(LinkTarget {
             file: None,
-            anchor: Some("Local".to_string())
+            anchor: Some("Local".to_string()),
+            root_relative: false,
         })
     );
     assert_eq!(
         parse_markdown_target("notes/a.md"),
         Some(LinkTarget {
             file: Some("notes/a.md".to_string()),
-            anchor: None
+            anchor: None,
+            root_relative: false,
         })
     );
 
@@ -176,21 +180,24 @@ fn parse_wikilink_target_supports_aliases_and_anchors() {
         parse_wikilink_target("topic#One"),
         Some(LinkTarget {
             file: Some("topic".to_string()),
-            anchor: Some("One".to_string())
+            anchor: Some("One".to_string()),
+            root_relative: false,
         })
     );
     assert_eq!(
         parse_wikilink_target("topic|Alias"),
         Some(LinkTarget {
             file: Some("topic".to_string()),
-            anchor: None
+            anchor: None,
+            root_relative: false,
         })
     );
     assert_eq!(
         parse_wikilink_target("#Local"),
         Some(LinkTarget {
             file: None,
-            anchor: Some("Local".to_string())
+            anchor: Some("Local".to_string()),
+            root_relative: false,
         })
     );
     assert_eq!(parse_wikilink_target(""), None);
@@ -205,6 +212,7 @@ fn parse_wikilink_target_supports_alias_and_anchor_together() {
         Some(LinkTarget {
             file: Some("file".to_string()),
             anchor: Some("heading".to_string()),
+            root_relative: false,
         })
     );
 }
@@ -226,6 +234,7 @@ fn resolve_target_path_handles_markdown_and_wikilink_rules() {
     let markdown = LinkTarget {
         file: Some("../index.md".to_string()),
         anchor: Some("Intro".to_string()),
+        root_relative: false,
     };
     assert_eq!(
         resolve_target_path(source, LinkKind::Markdown, &markdown),
@@ -235,6 +244,7 @@ fn resolve_target_path_handles_markdown_and_wikilink_rules() {
     let wikilink = LinkTarget {
         file: Some("refs/overview".to_string()),
         anchor: None,
+        root_relative: false,
     };
     assert_eq!(
         resolve_target_path(source, LinkKind::Wikilink, &wikilink),
@@ -244,6 +254,7 @@ fn resolve_target_path_handles_markdown_and_wikilink_rules() {
     let same_file = LinkTarget {
         file: None,
         anchor: Some("section".to_string()),
+        root_relative: false,
     };
     assert_eq!(
         resolve_target_path(source, LinkKind::Markdown, &same_file),
@@ -253,6 +264,7 @@ fn resolve_target_path_handles_markdown_and_wikilink_rules() {
     let escape = LinkTarget {
         file: Some("../../outside.md".to_string()),
         anchor: None,
+        root_relative: false,
     };
     assert_eq!(
         resolve_target_path(source, LinkKind::Markdown, &escape),
@@ -805,6 +817,7 @@ fn resolve_target_path_absolute_path_rejected() {
     let target = LinkTarget {
         file: Some("/etc/passwd".to_string()),
         anchor: None,
+        root_relative: false,
     };
     assert_eq!(
         resolve_target_path(source, LinkKind::Markdown, &target),
@@ -818,6 +831,7 @@ fn resolve_target_path_wikilink_with_explicit_md_extension() {
     let target = LinkTarget {
         file: Some("other.md".to_string()),
         anchor: None,
+        root_relative: false,
     };
     // Wikilink with explicit .md should not double-add extension
     assert_eq!(
@@ -832,9 +846,136 @@ fn resolve_target_path_source_at_root_level() {
     let target = LinkTarget {
         file: Some("sibling.md".to_string()),
         anchor: None,
+        root_relative: false,
     };
     assert_eq!(
         resolve_target_path(source, LinkKind::Markdown, &target),
         Some(PathBuf::from("sibling.md"))
     );
+}
+
+// ---------------------------------------------------------------------------
+// kdb:// root-anchored links
+// ---------------------------------------------------------------------------
+
+#[test]
+fn parse_markdown_target_kdb_root_link() {
+    let target = parse_markdown_target("kdb://docs/guide.md#intro");
+    assert_eq!(
+        target,
+        Some(LinkTarget {
+            file: Some("docs/guide.md".to_string()),
+            anchor: Some("intro".to_string()),
+            root_relative: true,
+        })
+    );
+
+    let target = parse_markdown_target("kdb://README.md");
+    assert_eq!(
+        target,
+        Some(LinkTarget {
+            file: Some("README.md".to_string()),
+            anchor: None,
+            root_relative: true,
+        })
+    );
+}
+
+#[test]
+fn parse_markdown_target_kdb_rejects_non_markdown() {
+    assert_eq!(parse_markdown_target("kdb://src/main.rs"), None);
+    assert_eq!(parse_markdown_target("kdb://"), None);
+    assert_eq!(parse_markdown_target("kdb://notes/a.txt"), None);
+}
+
+#[test]
+fn resolve_target_path_kdb_root_ignores_source_dir() {
+    // A kdb:// link from a deeply nested file should resolve relative to root,
+    // not relative to the source file's directory.
+    let source = Path::new("a/b/c/deep.md");
+    let target = LinkTarget {
+        file: Some("docs/guide.md".to_string()),
+        anchor: None,
+        root_relative: true,
+    };
+    assert_eq!(
+        resolve_target_path(source, LinkKind::Markdown, &target),
+        Some(PathBuf::from("docs/guide.md"))
+    );
+}
+
+#[test]
+fn vault_index_kdb_root_link_resolves() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "a/b/deep.md",
+        "# Deep\n\n[Top](kdb://top.md)\n",
+    );
+    write_file(temp.path(), "top.md", "# Top\n");
+
+    let index = VaultIndex::build(temp.path()).expect("build index");
+    let report = index.check();
+
+    assert!(report.broken_links.is_empty());
+    // top.md has an inbound link from deep.md
+    let inbound = index
+        .file_inbound
+        .get(Path::new("top.md"))
+        .expect("inbound refs for top.md");
+    assert_eq!(inbound.len(), 1);
+    assert_eq!(inbound[0].source_file, PathBuf::from("a/b/deep.md"));
+}
+
+#[test]
+fn vault_index_kdb_root_link_with_anchor_resolves() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "notes/ref.md",
+        "# Ref\n\n[Guide intro](kdb://docs/guide.md#intro)\n",
+    );
+    write_file(temp.path(), "docs/guide.md", "# Guide\n\n## Intro\n");
+
+    let index = VaultIndex::build(temp.path()).expect("build index");
+    let report = index.check();
+
+    assert!(report.broken_links.is_empty());
+}
+
+#[test]
+fn vault_index_kdb_root_broken_link_reported() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(
+        temp.path(),
+        "a.md",
+        "# A\n\n[Missing](kdb://nonexistent.md)\n",
+    );
+
+    let index = VaultIndex::build(temp.path()).expect("build index");
+    let report = index.check();
+
+    assert_eq!(report.broken_links.len(), 1);
+    assert!(report.broken_links[0]
+        .reason
+        .contains("target file not found: nonexistent.md"));
+}
+
+#[test]
+fn parse_markdown_extracts_kdb_root_links() {
+    let parsed = parse_markdown("# Title\n\n[Link](kdb://docs/guide.md#section)\n");
+    assert_eq!(parsed.links.len(), 1);
+    assert!(matches!(parsed.links[0].kind, LinkKind::Markdown));
+    assert_eq!(
+        parsed.links[0].target.file.as_deref(),
+        Some("docs/guide.md")
+    );
+    assert_eq!(
+        parsed.links[0].target.anchor.as_deref(),
+        Some("section")
+    );
+    assert!(parsed.links[0].target.root_relative);
 }

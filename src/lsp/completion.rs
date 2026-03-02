@@ -21,7 +21,7 @@ use super::backend::{
 };
 
 // ----------------------------------------
-// src/lsp/completion.rs
+// qmd/src/lsp/completion.rs
 //
 // pub(super) async fn completion()     L38
 // enum CompletionContext               L80
@@ -210,6 +210,7 @@ fn complete_headings(
             let target = LinkTarget {
                 file: Some(file.to_string()),
                 anchor: None,
+                root_relative: false,
             };
             if let Some(resolved) = resolve_target_path(source_file, kind, &target) {
                 resolved
@@ -217,6 +218,7 @@ fn complete_headings(
                 let target_with_md = LinkTarget {
                     file: Some(format!("{file}.md")),
                     anchor: None,
+                    root_relative: false,
                 };
                 let Some(resolved) = resolve_target_path(source_file, kind, &target_with_md) else {
                     return Vec::new();

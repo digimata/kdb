@@ -50,7 +50,7 @@ pub use markdown::{
 // NOTE: index block managed by kdb fmt — do not update manually
 
 // -----------------------------------------
-// src/index/mod.rs
+// qmd/src/index/mod.rs
 //
 // mod code                              L17
 // pub mod deps                          L18
@@ -224,6 +224,9 @@ pub struct LinkTarget {
     pub file: Option<String>,
     /// Target heading anchor (e.g. `"useEffect"`), or `None` for file-only links.
     pub anchor: Option<String>,
+    /// When `true` the file path is relative to the vault root (`kdb://` scheme)
+    /// rather than the source file's directory.
+    pub root_relative: bool,
 }
 
 /// A parsed link from a markdown file.
@@ -789,8 +792,12 @@ pub fn resolve_target_path(
                 return None;
             }
 
-            let base = source_file.parent().unwrap_or(Path::new(""));
-            base.join(rel)
+            if target.root_relative {
+                rel
+            } else {
+                let base = source_file.parent().unwrap_or(Path::new(""));
+                base.join(rel)
+            }
         }
         None => source_file.to_path_buf(),
     };

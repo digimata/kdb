@@ -8,7 +8,7 @@ use tree_sitter_md::{MarkdownParser, MarkdownTree};
 use super::{Heading, Link, LinkKind, LinkTarget, ParsedDocument};
 
 // ---------------------------------------------
-// src/index/markdown.rs
+// qmd/src/index/markdown.rs
 //
 // static WIKILINK_RE                        L41
 // static MARKDOWN_LINK_RE                   L43
@@ -81,7 +81,13 @@ pub fn parse_markdown_target(raw: &str) -> Option<LinkTarget> {
         return Some(LinkTarget {
             file: None,
             anchor: Some(anchor.to_string()),
+            root_relative: false,
         });
+    }
+
+    // kdb:// root-anchored links — strip prefix, resolve relative to vault root.
+    if let Some(rest) = raw.strip_prefix("kdb://") {
+        return parse_kdb_target(rest);
     }
 
     let (file, anchor) = match raw.split_once('#') {
@@ -106,6 +112,40 @@ pub fn parse_markdown_target(raw: &str) -> Option<LinkTarget> {
     Some(LinkTarget {
         file: Some(file.to_string()),
         anchor,
+        root_relative: false,
+    })
+}
+
+/// Parse the path after `kdb://` into a root-relative [`LinkTarget`].
+fn parse_kdb_target(rest: &str) -> Option<LinkTarget> {
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return None;
+    }
+
+    let (file, anchor) = match rest.split_once('#') {
+        Some((file, anchor)) => (file.trim(), Some(anchor.trim())),
+        None => (rest, None),
+    };
+    if file.is_empty() {
+        return None;
+    }
+
+    let is_markdown_path = Path::new(file)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
+    if !is_markdown_path {
+        return None;
+    }
+
+    let anchor = anchor
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    Some(LinkTarget {
+        file: Some(file.to_string()),
+        anchor,
+        root_relative: true,
     })
 }
 
@@ -124,6 +164,7 @@ pub fn parse_wikilink_target(raw: &str) -> Option<LinkTarget> {
         return Some(LinkTarget {
             file: None,
             anchor: Some(anchor.to_string()),
+            root_relative: false,
         });
     }
 
@@ -142,7 +183,11 @@ pub fn parse_wikilink_target(raw: &str) -> Option<LinkTarget> {
         return None;
     }
 
-    Some(LinkTarget { file, anchor })
+    Some(LinkTarget {
+        file,
+        anchor,
+        root_relative: false,
+    })
 }
 
 /// Convert heading text into a normalized anchor slug.
@@ -467,6 +512,9 @@ fn walk_markdown_tree(tree: &MarkdownTree, mut visit: impl FnMut(Node<'_>, bool)
 }
 
 fn is_external(raw: &str) -> bool {
+    if raw.starts_with("kdb://") {
+        return false;
+    }
     raw.contains("://")
         || raw.starts_with("mailto:")
         || raw.starts_with("tel:")
