@@ -10,7 +10,7 @@ outline: |
 
 # Vault Root (`.kdb/`)
 
-Every kdb command requires a `.kdb/` directory somewhere in the ancestor path of the target file. This directory is created by `kdb init` and marks the **vault root** — the boundary of the project that kdb indexes and operates on.
+Every kdb command requires a `.kdb/` directory somewhere in the ancestor path of the target file. This directory is created by [`kdb init`](kdb://qmd/README.md#quickstart) and marks the **vault root** — the boundary of the project that kdb indexes and operates on.
 
 ```
 my-project/          <-- vault root
