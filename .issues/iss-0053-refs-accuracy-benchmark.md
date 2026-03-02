@@ -7,16 +7,15 @@ labels:
   - research
   - refs
 ---
-> [.issues](../.issues)
-> -----------------------------------------------
+> ---------------------------------------------
 > .issues/iss-0053-refs-accuracy-benchmark.md
 >
-> # ISS-0053 :: refs -s accuracy benchmark    L22
-> ## Intent                                   L24
-> ## Approach                                 L28
-> ## Repos                                    L36
-> ## Deliverables                             L47
-> -----------------------------------------------
+> ISS-0053 :: refs -s accuracy benchmark    L21
+>   • Intent                                L23
+>   • Approach                              L27
+>   • Repos                                 L35
+>   • Deliverables                          L46
+> ---------------------------------------------
 
 
 # ISS-0053 :: `refs -s` accuracy benchmark

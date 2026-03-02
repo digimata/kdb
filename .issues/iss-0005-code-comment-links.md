@@ -6,12 +6,11 @@ priority: high
 labels:
   - roadmap
 ---
-> [.issues](../.issues)
-> -----------------------------------------------------
+> ---------------------------------------------------
 > .issues/iss-0005-code-comment-links.md
 >
-> # ISS-0005 :: Code Comment Links Into KDB Docs    L17
-> -----------------------------------------------------
+> ISS-0005 :: Code Comment Links Into KDB Docs    L16
+> ---------------------------------------------------
 
 
 # ISS-0005 :: Code Comment Links Into KDB Docs

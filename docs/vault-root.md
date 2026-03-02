@@ -1,13 +1,12 @@
-> [docs](../docs)
-> -----------------------------------
+> --------------------------------------
 > docs/vault-root.md
 >
-> # Vault Root (.kdb/)            L12
-> ## Why require a vault root?    L25
-> ## How root discovery works     L36
-> ## Monorepo usage               L48
-> ## What lives in .kdb/          L60
-> -----------------------------------
+> Vault Root (.kdb/)                 L11
+>   • Why require a vault root?      L24
+>   • How root discovery works       L35
+>   • Monorepo usage                 L47
+>   • What lives in .kdb/            L59
+> --------------------------------------
 
 # Vault Root (`.kdb/`)
 

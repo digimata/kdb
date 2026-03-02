@@ -6,12 +6,11 @@ priority: medium
 labels:
   - roadmap
 ---
-> [.issues](../.issues)
-> ------------------------------
+> -----------------------------
 > .issues/iss-0002-templates.md
 >
-> # ISS-0002 :: Templates    L17
-> ------------------------------
+> ISS-0002 :: Templates    L16
+> -----------------------------
 
 
 # ISS-0002 :: Templates

@@ -6,16 +6,15 @@ priority: high
 labels:
   - feat
 ---
-> [.issues](../.issues)
-> ------------------------------------
+> -----------------------------------
 > .issues/iss-0013-code-file-links.md
 >
-> # ISS-0013 :: Code File Links    L21
-> ## Intent                        L23
-> ## Examples                      L27
-> ## Behavior                      L35
-> ## Open Questions                L43
-> ------------------------------------
+> ISS-0013 :: Code File Links    L20
+>   • Intent                     L22
+>   • Examples                   L26
+>   • Behavior                   L34
+>   • Open Questions             L42
+> -----------------------------------
 
 
 # ISS-0013 :: Code File Links

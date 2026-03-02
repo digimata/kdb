@@ -1,13 +1,13 @@
-> --------------------------
+> -----------------------------
 > CODEMAP.md
 >
-> # Codemap              L12
-> ## Overview            L14
-> ## Data flow           L22
-> ## Key conventions     L31
-> ## Modules             L40
-> ## Testing            L107
-> --------------------------
+> Codemap                   L12
+>   • Overview              L14
+>   • Data flow             L22
+>   • Key conventions       L31
+>   • Modules               L40
+>   • Testing              L107
+> -----------------------------
 
 # Codemap
 

@@ -6,18 +6,17 @@ priority: medium
 labels:
   - research
 ---
-> [.issues](../.issues)
-> ------------------------------------------------------------------------
+> ----------------------------------------------------------------------
 > .issues/iss-0047-agent-benchmark.md
 >
-> # ISS-0047 :: Benchmark AI agent performance with and without kdb    L23
-> ## Intent                                                            L25
-> ## Agents to test                                                    L29
-> ## Benchmark design                                                  L34
-> ### Metrics                                                          L38
-> ### Task candidates                                                  L45
-> ## Transcript analysis                                               L57
-> ------------------------------------------------------------------------
+> ISS-0047 :: Benchmark AI agent performance with and without kdb    L22
+>   • Intent                                                         L24
+>   • Agents to test                                                 L28
+>   • Benchmark design                                               L33
+>     ◦ Metrics                                                      L37
+>     ◦ Task candidates                                              L44
+>   • Transcript analysis                                            L56
+> ----------------------------------------------------------------------
 
 
 # ISS-0047 :: Benchmark AI agent performance with and without kdb

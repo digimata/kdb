@@ -6,12 +6,11 @@ priority: medium
 labels:
   - roadmap
 ---
-> [.issues](../.issues)
-> -----------------------------------
+> ----------------------------------
 > .issues/iss-0001-kdb-workspaces.md
 >
-> # ISS-0001 :: KDB Workspaces    L17
-> -----------------------------------
+> ISS-0001 :: KDB Workspaces    L16
+> ----------------------------------
 
 
 # ISS-0001 :: KDB Workspaces

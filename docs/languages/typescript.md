@@ -1,13 +1,12 @@
-> [docs](../../docs) · [languages](../languages)
-> -----------------------------------------------------
+> ---------------------------------------------------
 > docs/languages/typescript.md
 >
-> # TypeScript / JavaScript — Language Support      L12
-> ## Import patterns                                L14
-> ## Reference resolution coverage                  L37
-> ## Known gaps                                     L53
-> ## Workspace conventions                          L60
-> -----------------------------------------------------
+> TypeScript / JavaScript — Language Support      L11
+>   • Import patterns                             L13
+>   • Reference resolution coverage               L36
+>   • Known gaps                                  L52
+>   • Workspace conventions                       L59
+> ---------------------------------------------------
 
 # TypeScript / JavaScript — Language Support
 

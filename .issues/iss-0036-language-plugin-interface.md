@@ -8,27 +8,26 @@ labels:
   - lang
   - architecture
 ---
-> [.issues](../.issues)
-> ---------------------------------------------------------------------------------
+> -------------------------------------------------------------------------------------
 > .issues/iss-0036-language-plugin-interface.md
 >
-> # ISS-0036 :: Language plugin interface                                       L34
-> ## Intent                                                                     L36
-> ## Problem                                                                    L47
-> ## Goals                                                                      L60
-> ## Non-goals                                                                  L68
-> ## Proposal                                                                   L73
-> ### 1) Central registry                                                       L77
-> ### 2) Capability-based plugin interface                                      L90
-> ### 3) Replace WorkspaceCaches with a plugin-owned cache map                 L144
-> ### 4) Route subsystems through the registry                                 L164
-> ## Packaging options                                                         L176
-> ### Option A (near-term): single crate, per-language modules                 L178
-> ### Option B (medium-term): workspace with per-language crates + features    L186
-> ## Migration plan                                                            L197
-> ## Validation                                                                L208
-> ## Open questions                                                            L213
-> ---------------------------------------------------------------------------------
+> ISS-0036 :: Language plugin interface                                             L33
+>   • Intent                                                                        L35
+>   • Problem                                                                       L46
+>   • Goals                                                                         L59
+>   • Non-goals                                                                     L67
+>   • Proposal                                                                      L72
+>     ◦ 1) Central registry                                                         L76
+>     ◦ 2) Capability-based plugin interface                                        L89
+>     ◦ 3) Replace WorkspaceCaches with a plugin-owned cache map                   L143
+>     ◦ 4) Route subsystems through the registry                                   L163
+>   • Packaging options                                                            L175
+>     ◦ Option A (near-term): single crate, per-language modules                   L177
+>     ◦ Option B (medium-term): workspace with per-language crates + features      L185
+>   • Migration plan                                                               L196
+>   • Validation                                                                   L207
+>   • Open questions                                                               L212
+> -------------------------------------------------------------------------------------
 
 
 # ISS-0036 :: Language plugin interface

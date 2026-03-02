@@ -1,13 +1,12 @@
-> [docs](../../docs) · [languages](../languages)
-> ---------------------------------------
+> ------------------------------------------
 > docs/languages/rust.md
 >
-> # Rust — Language Support           L12
-> ## Import patterns                  L14
-> ## Reference resolution coverage    L28
-> ## Known gaps                       L47
-> ## Workspace conventions            L54
-> ---------------------------------------
+> Rust — Language Support                L11
+>   • Import patterns                    L13
+>   • Reference resolution coverage      L27
+>   • Known gaps                         L46
+>   • Workspace conventions              L53
+> ------------------------------------------
 
 # Rust — Language Support
 

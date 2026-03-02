@@ -1,16 +1,31 @@
-> -------------------------------
+> ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 > README.md
 >
-> # kdb                       L15
-> ## What it does             L21
-> ### Supported languages     L29
-> ## Quickstart               L37
-> ## Commands                 L66
-> ### Markdown links          L81
-> ### LSP                     L90
-> ## Development             L108
-> ## License                 L112
-> -------------------------------
+>   • • kdb L15 ◦ What it does L21 ▪ Supported languages L29 ◦ Quickstart L37 ◦ Commands L66 ▪ Markdown links L81 ▪ LSP L90 ◦ Development L108 ◦ License L112                         L19
+> kdb                                                                                                                                                                                 L30
+>   • What it does                                                                                                                                                                    L36
+>     ◦ Supported languages                                                                                                                                                           L44
+>   • Quickstart                                                                                                                                                                      L52
+>   • Commands                                                                                                                                                                        L81
+>     ◦ Markdown links                                                                                                                                                                L96
+>     ◦ LSP                                                                                                                                                                          L105
+>   • Development                                                                                                                                                                    L123
+>   • License                                                                                                                                                                        L127
+> ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-----------------------------------
+README.md
+
+• kdb                           L15
+  ◦ What it does                L21
+    ▪ Supported languages       L29
+  ◦ Quickstart                  L37
+  ◦ Commands                    L66
+    ▪ Markdown links            L81
+    ▪ LSP                       L90
+  ◦ Development                L108
+  ◦ License                    L112
+-----------------------------------
 
 # kdb
 

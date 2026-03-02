@@ -7,14 +7,13 @@ labels:
   - feat
   - release
 ---
-> [.issues](../.issues)
-> ---------------------------------------------------------
+> -------------------------------------------------------
 > .issues/iss-0011-install-script.md
 >
-> # ISS-0011 :: Install Script and Prebuilt Binaries    L20
-> ## Done                                               L28
-> ## Remaining: Host at kdb.kernl.sh                    L34
-> ---------------------------------------------------------
+> ISS-0011 :: Install Script and Prebuilt Binaries    L19
+>   • Done                                            L27
+>   • Remaining: Host at kdb.kernl.sh                 L33
+> -------------------------------------------------------
 
 
 # ISS-0011 :: Install Script and Prebuilt Binaries

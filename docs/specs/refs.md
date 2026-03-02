@@ -1,30 +1,29 @@
-> [docs](../../docs) · [specs](../specs)
-> --------------------------------------
+> ------------------------------------------
 > docs/specs/refs.md
 >
-> # Spec: kdb refs                   L29
-> ## CLI                             L35
-> ### Markdown mode                  L37
-> ### Code mode (-s)                 L42
-> ## Workspace and paths             L55
-> ## Target symbol identity          L61
-> ## What counts as a reference      L70
-> ### Must count                     L75
-> ### Must not count                 L96
-> ## Resolution model               L107
-> ### Pipeline                      L113
-> ### Import binding resolution     L130
-> ### Qualified access              L140
-> ### Re-export following           L149
-> ### Go same-package resolution    L160
-> ## Output contract                L167
-> ### Sort order                    L179
-> ### Text output                   L184
-> ### JSON output                   L200
-> ## Out of scope                   L205
-> ## Unsupported patterns           L217
-> ## Per-language coverage          L229
-> --------------------------------------
+> Spec: kdb refs                         L28
+>   • CLI                                L34
+>     ◦ Markdown mode                    L36
+>     ◦ Code mode (-s)                   L41
+>   • Workspace and paths                L54
+>   • Target symbol identity             L60
+>   • What counts as a reference         L69
+>     ◦ Must count                       L74
+>     ◦ Must not count                   L95
+>   • Resolution model                  L106
+>     ◦ Pipeline                        L112
+>     ◦ Import binding resolution       L129
+>     ◦ Qualified access                L139
+>     ◦ Re-export following             L148
+>     ◦ Go same-package resolution      L159
+>   • Output contract                   L166
+>     ◦ Sort order                      L178
+>     ◦ Text output                     L183
+>     ◦ JSON output                     L199
+>   • Out of scope                      L204
+>   • Unsupported patterns              L216
+>   • Per-language coverage             L228
+> ------------------------------------------
 
 # Spec: `kdb refs`
 

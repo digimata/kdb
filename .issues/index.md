@@ -1,8 +1,7 @@
-> [.issues](../.issues)
 > ----------------
 > .issues/index.md
 >
-> # Issues    L8
+> Issues    L7
 > ----------------
 
 # Issues

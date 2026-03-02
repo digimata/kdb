@@ -6,23 +6,22 @@ priority: high
 labels:
   - feat
 ---
-> [.issues](../.issues)
-> --------------------------------------------
+> ------------------------------------------------
 > .issues/iss-0016-codemap.md
 >
-> # ISS-0016 :: Codemap                    L28
-> ## Intent                                L30
-> ## Artifacts                             L34
-> ### CODEMAP.md (authored, repo root)     L36
-> ### kdb codemap (read-only command)      L40
-> ## Usage                                 L44
-> ## Output format                         L54
-> ## How it works                          L86
-> ## --check mode                          L96
-> ## Relationship to kdb fmt              L106
-> ## Changes                              L112
-> ## Open questions                       L123
-> --------------------------------------------
+> ISS-0016 :: Codemap                          L27
+>   • Intent                                   L29
+>   • Artifacts                                L33
+>     ◦ CODEMAP.md (authored, repo root)       L35
+>     ◦ kdb codemap (read-only command)        L39
+>   • Usage                                    L43
+>   • Output format                            L53
+>   • How it works                             L85
+>   • --check mode                             L95
+>   • Relationship to kdb fmt                 L105
+>   • Changes                                 L111
+>   • Open questions                          L122
+> ------------------------------------------------
 
 
 # ISS-0016 :: Codemap

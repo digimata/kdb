@@ -206,8 +206,8 @@ mod tests {
     #[test]
     fn index_line_jump_markdown_nav_row() {
         let uri = Url::parse("file:///test.md").unwrap();
-        let content = "> -----------\n> test.md\n>\n> # Intro    L8\n> ## Details    L15\n> -----------\n\n# Intro\n";
-        // Cursor on line 3 (the `> # Intro    L8` row).
+        let content = "> -----------\n> test.md\n>\n> Intro    L8\n>   • Details    L15\n> -----------\n\n# Intro\n";
+        // Cursor on line 3 (the `> Intro    L8` row).
         let response = index_line_jump(&uri, content, Position::new(3, 5));
         assert!(response.is_some());
         let GotoDefinitionResponse::Scalar(location) = response.unwrap() else {
@@ -215,7 +215,7 @@ mod tests {
         };
         assert_eq!(location.range.start.line, 7); // L8 → 0-indexed line 7
 
-        // Cursor on line 4 (the `> ## Details    L15` row).
+        // Cursor on line 4 (the `>   • Details    L15` row).
         let response = index_line_jump(&uri, content, Position::new(4, 5));
         assert!(response.is_some());
         let GotoDefinitionResponse::Scalar(location) = response.unwrap() else {

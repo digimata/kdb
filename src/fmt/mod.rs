@@ -20,32 +20,31 @@ use self::preamble::{comment_prefix, markdown_preamble_end, preamble_end_index};
 // src/fmt/mod.rs
 //
 // pub mod preamble                          L15
-// const LEGACY_INDEX_HEADER                 L51
-// const LINE_GAP                            L52
-// pub struct FormatReport                   L56
-// pub struct FormatWarning                  L64
-// struct RewriteResult                      L70
-// pub fn format_workspace()                 L78
-// pub fn format_path()                      L98
-// pub fn format_source()                   L127
-// fn format_files()                        L141
-// fn rewrite_code_index()                  L190
-// fn removal_warning_message()             L300
-// fn find_managed_block()                  L320
-// fn is_header_candidate()                 L351
-// fn looks_like_path_header()              L364
-// fn is_index_body_line()                  L384
-// fn is_canonical_index_body_line()        L396
-// fn is_separator_only_comment_line()      L424
-// fn render_block()                        L438
-// fn format_markdown_files()               L469
-// fn rewrite_markdown_nav()                L508
-// fn render_breadcrumb()                   L591
-// fn render_markdown_block()               L623
-// fn is_md_nav_line()                      L708
-// fn is_markdown_ext()                     L714
-// fn discover_markdown_files_in_scope()    L721
-// fn discover_code_files_in_scope()        L735
+// const LEGACY_INDEX_HEADER                 L50
+// const LINE_GAP                            L51
+// pub struct FormatReport                   L55
+// pub struct FormatWarning                  L63
+// struct RewriteResult                      L69
+// pub fn format_workspace()                 L77
+// pub fn format_path()                      L97
+// pub fn format_source()                   L126
+// fn format_files()                        L140
+// fn rewrite_code_index()                  L189
+// fn removal_warning_message()             L299
+// fn find_managed_block()                  L319
+// fn is_header_candidate()                 L350
+// fn looks_like_path_header()              L363
+// fn is_index_body_line()                  L383
+// fn is_canonical_index_body_line()        L395
+// fn is_separator_only_comment_line()      L423
+// fn render_block()                        L437
+// fn format_markdown_files()               L468
+// fn rewrite_markdown_nav()                L507
+// fn render_markdown_block()               L587
+// fn is_md_nav_line()                      L668
+// fn is_markdown_ext()                     L674
+// fn discover_markdown_files_in_scope()    L681
+// fn discover_code_files_in_scope()        L695
 // ---------------------------------------------
 
 const LEGACY_INDEX_HEADER: &str = "## Index";
@@ -559,8 +558,7 @@ fn rewrite_markdown_nav(source: &str, rel_path: &Path) -> Result<RewriteResult> 
 
     let parsed = parse_markdown(&parse_source);
 
-    let breadcrumb = render_breadcrumb(rel_path);
-    let block = render_markdown_block(&header, &breadcrumb, &parsed.headings, insertion_index + 1);
+    let block = render_markdown_block(&header, &parsed.headings, insertion_index + 1);
     let inserted_line_count = block.len();
 
     let mut output_lines = Vec::new();
@@ -585,44 +583,9 @@ fn rewrite_markdown_nav(source: &str, rel_path: &Path) -> Result<RewriteResult> 
     })
 }
 
-/// Render a breadcrumb line from directory components of the relative path.
-///
-/// For `docs/arch/overview.md` → `[docs](../../docs) · [arch](../arch)`
-fn render_breadcrumb(rel_path: &Path) -> Option<String> {
-    let components: Vec<_> = rel_path
-        .parent()?
-        .components()
-        .map(|c| c.as_os_str().to_string_lossy().into_owned())
-        .collect();
-
-    if components.is_empty() {
-        return None;
-    }
-
-    let depth = components.len();
-    let parts: Vec<String> = components
-        .iter()
-        .enumerate()
-        .map(|(i, name)| {
-            // Build relative path from the file's directory to this ancestor.
-            let ups = depth - i;
-            let mut target = String::new();
-            for _ in 0..ups {
-                target.push_str("../");
-            }
-            // Navigate to the ancestor directory itself.
-            target.push_str(name);
-            format!("[{name}]({target})")
-        })
-        .collect();
-
-    Some(parts.join(" · "))
-}
-
-/// Render the combined breadcrumb + outline blockquote block.
+/// Render the outline blockquote block.
 fn render_markdown_block(
     header: &str,
-    breadcrumb: &Option<String>,
     headings: &[Heading],
     insertion_line: usize,
 ) -> Vec<String> {
@@ -635,22 +598,22 @@ fn render_markdown_block(
         } else {
             0
         };
-        let indent = if heading.level > 1 {
-            "#".repeat(heading.level as usize)
-        } else {
-            "#".to_string()
+        let display = match heading.level {
+            1 => format!("{}", heading.title),
+            2 => format!("  • {}", heading.title),
+            3 => format!("    ◦ {}", heading.title),
+            4 => format!("      ▪ {}", heading.title),
+            5 => format!("        · {}", heading.title),
+            _ => format!("          · {}", heading.title),
         };
-        let display = format!("{indent} {}", heading.title);
         rows.push((display, shifted_line));
     }
 
     // We need to know the block size to shift, but block size depends on rows.
     // Compute block line count first, then adjust.
     let has_rows = !rows.is_empty();
-    let breadcrumb_lines = if breadcrumb.is_some() { 1 } else { 0 };
-    // Layout: breadcrumb? + top separator + path + (blank + rows)? + bottom separator + blank
-    let block_line_count = breadcrumb_lines
-        + 1                                         // top separator
+    // Layout: top separator + path + (blank + rows)? + bottom separator + blank
+    let block_line_count = 1                        // top separator
         + 1                                         // path header
         + if has_rows { 1 + rows.len() } else { 0 } // blank `>` + heading rows
         + 1                                         // bottom separator
@@ -686,9 +649,6 @@ fn render_markdown_block(
     let gap = " ".repeat(LINE_GAP);
 
     let mut lines = Vec::new();
-    if let Some(bc) = breadcrumb {
-        lines.push(format!("> {bc}"));
-    }
     lines.push(format!("> {separator}"));
     lines.push(format!("> {header}"));
     if has_rows {

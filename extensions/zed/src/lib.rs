@@ -3,14 +3,14 @@ use zed_extension_api as zed;
 // -------------------------------------
 // extensions/zed/src/lib.rs
 //
-// struct KdbZedExtension            L11
+// struct QmdZedExtension            L11
 //   fn new()                        L14
 //   fn language_server_command()    L18
 // -------------------------------------
 
-struct KdbZedExtension;
+struct QmdZedExtension;
 
-impl zed::Extension for KdbZedExtension {
+impl zed::Extension for QmdZedExtension {
     fn new() -> Self {
         Self
     }
@@ -20,7 +20,7 @@ impl zed::Extension for KdbZedExtension {
         language_server_id: &zed::LanguageServerId,
         worktree: &zed::Worktree,
     ) -> zed::Result<zed::Command> {
-        if language_server_id.as_ref() != "kdb" {
+        if language_server_id.as_ref() != "qmd" {
             return Err(format!(
                 "unsupported language server id: {}",
                 language_server_id
@@ -28,13 +28,16 @@ impl zed::Extension for KdbZedExtension {
         }
 
         let root = worktree.root_path();
+        let command = worktree
+            .which("kdb")
+            .ok_or_else(|| "kdb not found on PATH".to_string())?;
 
         Ok(zed::Command {
-            command: "kdb".to_string(),
+            command,
             args: vec!["lsp".to_string(), root],
             env: Vec::new(),
         })
     }
 }
 
-zed::register_extension!(KdbZedExtension);
+zed::register_extension!(QmdZedExtension);

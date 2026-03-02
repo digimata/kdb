@@ -7,15 +7,14 @@ labels:
   - feat
   - lang
 ---
-> [.issues](../.issues)
 > -------------------------------------------
 > .issues/iss-0040-csharp-language-support.md
 >
-> # ISS-0040 :: C# language support    L22
-> ## Intent                            L24
-> ## Import patterns                   L28
-> ## Scope                             L46
-> ## Notes                             L55
+> ISS-0040 :: C# language support    L21
+>   • Intent                         L23
+>   • Import patterns                L27
+>   • Scope                          L45
+>   • Notes                          L54
 > -------------------------------------------
 
 

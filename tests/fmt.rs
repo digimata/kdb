@@ -15,12 +15,12 @@ use tempfile::tempdir;
 // fn format_workspace_replaces_path_like_header_block_after_file_move()         L181
 // fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L200
 // fn format_workspace_respects_gitignore_rules()                                L226
-// fn format_workspace_generates_markdown_nav_with_breadcrumb_and_outline()      L247
-// fn format_workspace_markdown_nav_is_idempotent()                              L270
-// fn format_workspace_markdown_nav_root_file_has_no_breadcrumb()                L294
-// fn format_workspace_markdown_nav_no_headings()                                L309
-// fn format_workspace_markdown_nav_preserves_frontmatter()                      L324
-// fn assert_index_between()                                                     L343
+// fn format_workspace_generates_markdown_nav_with_outline()                     L247
+// fn format_workspace_markdown_nav_is_idempotent()                              L269
+// fn format_workspace_markdown_nav_root_file_has_no_breadcrumb()                L293
+// fn format_workspace_markdown_nav_no_headings()                                L306
+// fn format_workspace_markdown_nav_preserves_frontmatter()                      L321
+// fn assert_index_between()                                                     L340
 // ----------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -244,7 +244,7 @@ fn format_workspace_respects_gitignore_rules() {
 }
 
 #[test]
-fn format_workspace_generates_markdown_nav_with_breadcrumb_and_outline() {
+fn format_workspace_generates_markdown_nav_with_outline() {
     let temp = tempdir().expect("tempdir");
     write_root_config(temp.path());
 
@@ -259,11 +259,10 @@ fn format_workspace_generates_markdown_nav_with_breadcrumb_and_outline() {
     assert_eq!(report.updated_files, 1);
 
     let md = fs::read_to_string(temp.path().join("docs/arch/overview.md")).expect("read md file");
-    assert!(md.contains("> [docs](../../docs) · [arch](../arch)"));
     assert!(md.contains("> docs/arch/overview.md"));
-    assert!(md.contains("> # Architecture"));
-    assert!(md.contains("> ## Storage"));
-    assert!(md.contains("> ## Query Engine"));
+    assert!(md.contains("> Architecture"));
+    assert!(md.contains("• Storage"));
+    assert!(md.contains("• Query Engine"));
 }
 
 #[test]
@@ -301,8 +300,6 @@ fn format_workspace_markdown_nav_root_file_has_no_breadcrumb() {
 
     let md = fs::read_to_string(temp.path().join("readme.md")).expect("read md file");
     assert!(md.contains("> readme.md"));
-    // No breadcrumb line for root-level files.
-    assert!(!md.contains("> ["));
 }
 
 #[test]
