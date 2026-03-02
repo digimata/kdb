@@ -10,32 +10,33 @@ use super::{Heading, Link, LinkKind, LinkTarget, ParsedDocument};
 // ---------------------------------------------
 // kdb/src/index/markdown.rs
 //
-// static WIKILINK_RE                        L41
-// static MARKDOWN_LINK_RE                   L43
-// static INLINE_CODE_RE                     L46
-// pub fn parse_markdown()                   L50
-// pub fn parse_markdown_target()            L70
-// pub fn parse_wikilink_target()           L113
-// pub fn slug_anchor()                     L149
-// pub fn section_line_bounds()             L180
-// pub fn section_byte_bounds()             L212
-// fn collect_headings()                    L226
-// fn collect_markdown_links()              L251
-// fn collect_wikilink_excluded_ranges()    L280
-// fn collect_wikilinks()                   L295
-// fn assign_heading_anchors()              L331
-// fn heading_level()                       L346
-// fn heading_level_from_underline()        L364
-// fn heading_title()                       L374
-// fn normalize_heading_text()              L384
-// fn child_text_by_kind()                  L427
-// fn normalize_destination()               L436
-// fn walk_markdown_tree()                  L445
-// fn is_external()                         L469
-// fn line_start_offsets()                  L476
-// fn line_col()                            L486
-// fn range_contains_offset()               L496
-// fn normalize_inline_whitespace()         L502
+// static WIKILINK_RE                        L42
+// static MARKDOWN_LINK_RE                   L44
+// static INLINE_CODE_RE                     L47
+// pub fn parse_markdown()                   L51
+// pub fn parse_markdown_target()            L71
+// fn parse_kdb_target()                    L121
+// pub fn parse_wikilink_target()           L158
+// pub fn slug_anchor()                     L205
+// pub fn section_line_bounds()             L236
+// pub fn section_byte_bounds()             L268
+// fn collect_headings()                    L282
+// fn collect_markdown_links()              L307
+// fn collect_wikilink_excluded_ranges()    L336
+// fn collect_wikilinks()                   L351
+// fn assign_heading_anchors()              L387
+// fn heading_level()                       L402
+// fn heading_level_from_underline()        L420
+// fn heading_title()                       L430
+// fn normalize_heading_text()              L440
+// fn child_text_by_kind()                  L483
+// fn normalize_destination()               L492
+// fn walk_markdown_tree()                  L501
+// fn is_external()                         L525
+// fn line_start_offsets()                  L535
+// fn line_col()                            L545
+// fn range_contains_offset()               L555
+// fn normalize_inline_whitespace()         L561
 // ---------------------------------------------
 
 static WIKILINK_RE: LazyLock<Regex> =
@@ -150,11 +151,21 @@ fn parse_kdb_target(rest: &str) -> Option<LinkTarget> {
 }
 
 /// Parse the inner content of a wikilink (`[[...]]`) into a typed target.
+///
+/// Recognizes the `kdb://` prefix for root-relative links, mirroring the
+/// markdown-link parser.  Extension-less paths are fine here — resolution
+/// appends `.md` for wikilinks automatically.
 pub fn parse_wikilink_target(raw: &str) -> Option<LinkTarget> {
     let body = raw.split('|').next()?.trim();
     if body.is_empty() {
         return None;
     }
+
+    // kdb:// root-anchored wikilinks — strip prefix, mark root-relative.
+    let (body, root_relative) = match body.strip_prefix("kdb://") {
+        Some(rest) => (rest.trim(), true),
+        None => (body, false),
+    };
 
     if let Some(anchor) = body.strip_prefix('#') {
         let anchor = anchor.trim();
@@ -164,7 +175,7 @@ pub fn parse_wikilink_target(raw: &str) -> Option<LinkTarget> {
         return Some(LinkTarget {
             file: None,
             anchor: Some(anchor.to_string()),
-            root_relative: false,
+            root_relative,
         });
     }
 
@@ -186,7 +197,7 @@ pub fn parse_wikilink_target(raw: &str) -> Option<LinkTarget> {
     Some(LinkTarget {
         file,
         anchor,
-        root_relative: false,
+        root_relative,
     })
 }
 

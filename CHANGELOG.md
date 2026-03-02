@@ -83,6 +83,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.1] — 2026-03-02
+
+### Fixed
+
+- `kdb://` prefix in wikilinks (`[[kdb://path]]`) now parsed as root-relative instead of being treated as a literal file path
+
 ## [0.22.0] — 2026-03-02
 
 ### Added
