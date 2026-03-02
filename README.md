@@ -1,5 +1,5 @@
 ---
-path: qmd/README.md
+path: kdb/README.md
 outline: |
   • kdb                           L15
     ◦ Overview                    L21

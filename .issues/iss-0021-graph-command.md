@@ -5,7 +5,7 @@ status: proposed
 priority: medium
 labels:
   - feat
-path: qmd/.issues/iss-0021-graph-command.md
+path: kdb/.issues/iss-0021-graph-command.md
 outline: |
   • ISS-0021 :: kdb graph Command             L22
     ◦ Intent                                  L24

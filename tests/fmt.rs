@@ -4,7 +4,7 @@ use std::path::Path;
 use tempfile::tempdir;
 
 // ----------------------------------------------------------------------------------
-// qmd/tests/fmt.rs
+// kdb/tests/fmt.rs
 //
 // fn write_file()                                                                L27
 // fn write_root_config()                                                         L35

@@ -1,5 +1,5 @@
 ---
-path: qmd/docs/specs/agent-eval-framework.md
+path: kdb/docs/specs/agent-eval-framework.md
 outline: |
   • Spec: Agent Eval Framework (Open-ended, Speed-of-light)        L30
     ◦ Goals                                                        L40

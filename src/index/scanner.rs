@@ -5,7 +5,7 @@ use crate::lang::CodeLanguage;
 use crate::symbols::{raw_node_text, walk_depth_first};
 
 // --------------------------------------------------
-// qmd/src/index/scanner.rs
+// kdb/src/index/scanner.rs
 //
 // pub(super) struct IdentifierUsage              L36
 // pub(super) struct UsageScanner                 L45

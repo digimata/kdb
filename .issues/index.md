@@ -1,5 +1,5 @@
 ---
-path: qmd/.issues/index.md
+path: kdb/.issues/index.md
 outline: |
   • Issues      L7
 ---

@@ -3,7 +3,7 @@ use tree_sitter::Node;
 use super::{Extractor, Symbol, SymbolKind, extract_go_receiver_type, walk_depth_first};
 
 // -------------------------------------------
-// qmd/src/symbols/extract/go.rs
+// kdb/src/symbols/extract/go.rs
 //
 // pub(in crate::symbols) fn extract()     L16
 // fn receiver_parent()                   L101

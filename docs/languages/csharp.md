@@ -1,5 +1,5 @@
 ---
-path: qmd/docs/languages/csharp.md
+path: kdb/docs/languages/csharp.md
 outline: |
   • C# — Language Support                L12
     ◦ Import patterns                    L14

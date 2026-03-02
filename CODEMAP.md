@@ -1,5 +1,5 @@
 ---
-path: qmd/CODEMAP.md
+path: kdb/CODEMAP.md
 outline: |
   • Codemap                 L12
     ◦ Overview              L14

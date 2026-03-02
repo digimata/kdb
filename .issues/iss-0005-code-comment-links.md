@@ -5,7 +5,7 @@ status: proposed
 priority: high
 labels:
   - roadmap
-path: qmd/.issues/iss-0005-code-comment-links.md
+path: kdb/.issues/iss-0005-code-comment-links.md
 outline: |
   • ISS-0005 :: Code Comment Links Into KDB Docs      L13
 ---

@@ -1,16 +1,16 @@
 use zed_extension_api as zed;
 
 // -------------------------------------
-// qmd/extensions/zed/src/lib.rs
+// kdb/extensions/zed/src/lib.rs
 //
-// struct QmdZedExtension            L11
-//   fn new()                        L14
-//   fn language_server_command()    L18
+// struct KdbZedExtension              L11
+//   fn new()                          L14
+//   fn language_server_command()      L18
 // -------------------------------------
 
-struct QmdZedExtension;
+struct KdbZedExtension;
 
-impl zed::Extension for QmdZedExtension {
+impl zed::Extension for KdbZedExtension {
     fn new() -> Self {
         Self
     }
@@ -20,7 +20,7 @@ impl zed::Extension for QmdZedExtension {
         language_server_id: &zed::LanguageServerId,
         worktree: &zed::Worktree,
     ) -> zed::Result<zed::Command> {
-        if language_server_id.as_ref() != "qmd" {
+        if language_server_id.as_ref() != "kdb" {
             return Err(format!(
                 "unsupported language server id: {}",
                 language_server_id
@@ -40,4 +40,4 @@ impl zed::Extension for QmdZedExtension {
     }
 }
 
-zed::register_extension!(QmdZedExtension);
+zed::register_extension!(KdbZedExtension);

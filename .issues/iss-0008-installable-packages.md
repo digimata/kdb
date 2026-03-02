@@ -5,7 +5,7 @@ status: proposed
 priority: medium
 labels:
   - feat
-path: qmd/.issues/iss-0008-installable-packages.md
+path: kdb/.issues/iss-0008-installable-packages.md
 outline: |
   • ISS-0008 :: Installable KDB Packages      L16
     ◦ Intent                                  L18

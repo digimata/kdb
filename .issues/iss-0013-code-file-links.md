@@ -5,7 +5,7 @@ status: proposed
 priority: high
 labels:
   - feat
-path: qmd/.issues/iss-0013-code-file-links.md
+path: kdb/.issues/iss-0013-code-file-links.md
 outline: |
   • ISS-0013 :: Code File Links      L17
     ◦ Intent                         L19

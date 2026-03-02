@@ -17,7 +17,7 @@ pub mod preamble;
 use self::preamble::{comment_prefix, markdown_preamble_end, preamble_end_index};
 
 // ---------------------------------------------
-// qmd/src/fmt/mod.rs
+// kdb/src/fmt/mod.rs
 //
 // pub mod preamble                          L15
 // const LEGACY_INDEX_HEADER                 L53

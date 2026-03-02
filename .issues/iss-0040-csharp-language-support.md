@@ -6,7 +6,7 @@ priority: medium
 labels:
   - feat
   - lang
-path: qmd/.issues/iss-0040-csharp-language-support.md
+path: kdb/.issues/iss-0040-csharp-language-support.md
 outline: |
   • ISS-0040 :: C# language support      L18
     ◦ Intent                             L20

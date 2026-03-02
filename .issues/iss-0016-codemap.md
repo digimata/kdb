@@ -5,7 +5,7 @@ status: proposed
 priority: high
 labels:
   - feat
-path: qmd/.issues/iss-0016-codemap.md
+path: kdb/.issues/iss-0016-codemap.md
 outline: |
   • ISS-0016 :: Codemap                        L24
     ◦ Intent                                   L26

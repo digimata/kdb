@@ -3,7 +3,7 @@ use tree_sitter::Node;
 use super::{Extractor, Symbol, SymbolKind, walk_depth_first};
 
 // -------------------------------------------
-// qmd/src/symbols/extract/typescript.rs
+// kdb/src/symbols/extract/typescript.rs
 //
 // pub(in crate::symbols) fn extract()     L31
 // fn member_parent()                     L194

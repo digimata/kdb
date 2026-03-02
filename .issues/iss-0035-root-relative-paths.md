@@ -5,7 +5,7 @@ status: proposed
 priority: medium
 labels:
   - feat
-path: qmd/.issues/iss-0035-root-relative-paths.md
+path: kdb/.issues/iss-0035-root-relative-paths.md
 outline: |
   • ISS-0035 :: Root-Relative Path Support      L17
     ◦ Intent                                    L19

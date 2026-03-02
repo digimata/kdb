@@ -16,7 +16,7 @@ use super::tree::{
 
 // Re-export per-language extract functions for symbols/mod.rs dispatch.
 // --------------------
-// qmd/src/symbols/extract/mod.rs
+// kdb/src/symbols/extract/mod.rs
 //
 // mod go            L3
 // mod python        L4

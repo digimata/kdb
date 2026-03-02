@@ -5,7 +5,7 @@ status: proposed
 priority: medium
 labels:
   - research
-path: qmd/.issues/iss-0057-code-retrieval-sota.md
+path: kdb/.issues/iss-0057-code-retrieval-sota.md
 outline: |
   • ISS-0057 :: Code retrieval SOTA research      L16
     ◦ Intent                                      L18

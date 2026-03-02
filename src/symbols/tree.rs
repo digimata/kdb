@@ -6,7 +6,7 @@ use tree_sitter::{Language, Node, Parser};
 use crate::lang::CodeLanguage;
 
 // ------------------------------------------------
-// qmd/src/symbols/tree.rs
+// kdb/src/symbols/tree.rs
 //
 // pub(crate) fn parse_tree()                   L23
 // pub(crate) fn tree_sitter_language()         L36

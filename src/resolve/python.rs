@@ -17,7 +17,7 @@ use super::{
 };
 
 // ---------------------------------------------------------
-// qmd/src/resolve/python.rs
+// kdb/src/resolve/python.rs
 //
 // pub struct PythonWorkspaceCache                       L75
 //   pub(super) fn build()                               L83

@@ -29,7 +29,7 @@ pub mod tree;
 pub mod update;
 
 // ----------------------
-// qmd/src/lib.rs
+// kdb/src/lib.rs
 //
 // pub mod cmd        L19
 // pub mod deps       L20

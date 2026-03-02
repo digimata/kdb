@@ -63,4 +63,5 @@ flake.lock
 
 ## Project
 .tasks/
+.internal/
 opencode.json

@@ -6,7 +6,7 @@ priority: high
 labels:
   - enhancement
   - fmt
-path: qmd/.issues/iss-0058-root-links-and-fmt-nav.md
+path: kdb/.issues/iss-0058-root-links-and-fmt-nav.md
 outline: |
   • iss-0058 :: Root-Anchored Links & Fmt Navigation Headers      L20
     ◦ Problem                                                     L22

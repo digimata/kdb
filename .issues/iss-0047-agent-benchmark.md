@@ -5,7 +5,7 @@ status: in_progress
 priority: medium
 labels:
   - research
-path: qmd/.issues/iss-0047-agent-benchmark.md
+path: kdb/.issues/iss-0047-agent-benchmark.md
 outline: |
   • ISS-0047 :: Benchmark AI agent performance with and without kdb      L19
     ◦ Intent                                                             L21

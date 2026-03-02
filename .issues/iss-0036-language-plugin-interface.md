@@ -7,7 +7,7 @@ labels:
   - refactor
   - lang
   - architecture
-path: qmd/.issues/iss-0036-language-plugin-interface.md
+path: kdb/.issues/iss-0036-language-plugin-interface.md
 outline: |
   • ISS-0036 :: Language plugin interface                                           L30
     ◦ Intent                                                                        L32

@@ -7,7 +7,7 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 
 // ---------------------------------
-// qmd/src/update.rs
+// kdb/src/update.rs
 //
 // const LATEST_URL              L26
 // const RELEASE_BASE            L27

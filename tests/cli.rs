@@ -5,7 +5,7 @@ use std::process::Command;
 use tempfile::tempdir;
 
 // ---------------------------------------------------------------------------------
-// qmd/tests/cli.rs
+// kdb/tests/cli.rs
 //
 // fn write_file()                                                               L87
 // fn bin()                                                                      L95

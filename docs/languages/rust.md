@@ -1,5 +1,5 @@
 ---
-path: qmd/docs/languages/rust.md
+path: kdb/docs/languages/rust.md
 outline: |
   • Rust — Language Support              L11
     ◦ Import patterns                    L13

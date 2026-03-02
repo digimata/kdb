@@ -18,7 +18,7 @@ use crate::tree;
 use crate::update;
 
 // --------------------------------------
-// qmd/src/cmd.rs
+// kdb/src/cmd.rs
 //
 // pub struct CmdContext              L40
 //   pub fn from_path()               L51

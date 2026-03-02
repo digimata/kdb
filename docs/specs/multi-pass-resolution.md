@@ -1,5 +1,5 @@
 ---
-path: qmd/docs/specs/multi-pass-resolution.md
+path: kdb/docs/specs/multi-pass-resolution.md
 outline: |
   • Spec: Multi-pass reference resolution               L26
     ◦ Current pipeline                                  L30

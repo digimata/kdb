@@ -10,7 +10,7 @@ use crate::index::Heading;
 use super::{Symbol, SymbolKind};
 
 // -----------------------------------------
-// qmd/src/symbols/display.rs
+// kdb/src/symbols/display.rs
 //
 // pub struct SymbolRow                  L34
 //   fn from()                           L62

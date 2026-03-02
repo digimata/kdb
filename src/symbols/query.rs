@@ -12,7 +12,7 @@ use super::display::{self, SymbolBodyRow, SymbolRow};
 use super::{Symbol, extract_symbols};
 
 // ----------------------------------------
-// qmd/src/symbols/query.rs
+// kdb/src/symbols/query.rs
 //
 // pub fn collect_rows()                L34
 // pub fn collect_body_rows()           L84

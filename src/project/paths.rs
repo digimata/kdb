@@ -7,7 +7,7 @@
 use std::path::{Component, Path, PathBuf};
 
 // ----------------------------------
-// qmd/src/project/paths.rs
+// kdb/src/project/paths.rs
 //
 // pub fn normalize_rel_path()    L19
 // ----------------------------------

@@ -6,7 +6,7 @@ priority: high
 labels:
   - research
   - refs
-path: qmd/.issues/iss-0053-refs-accuracy-benchmark.md
+path: kdb/.issues/iss-0053-refs-accuracy-benchmark.md
 outline: |
   • ISS-0053 :: refs -s accuracy benchmark      L18
     ◦ Intent                                    L20

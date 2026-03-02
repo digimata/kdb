@@ -50,7 +50,7 @@ pub use markdown::{
 // NOTE: index block managed by kdb fmt — do not update manually
 
 // -----------------------------------------
-// qmd/src/index/mod.rs
+// kdb/src/index/mod.rs
 //
 // mod code                              L17
 // pub mod deps                          L18

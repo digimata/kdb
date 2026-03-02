@@ -9,7 +9,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 // ----------------------------------------------------------
-// qmd/src/project/ignore.rs
+// kdb/src/project/ignore.rs
 //
 // pub const ALWAYS_IGNORED_DIR                           L30
 // pub const DEFAULT_IGNORE                               L36

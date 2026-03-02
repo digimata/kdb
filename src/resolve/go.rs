@@ -8,7 +8,7 @@ use super::{
 };
 
 // -------------------------------------
-// qmd/src/resolve/go.rs
+// kdb/src/resolve/go.rs
 //
 // enum GoWorkBlock                  L40
 // struct ParsedGoWork               L46

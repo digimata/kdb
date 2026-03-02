@@ -16,7 +16,7 @@ use crate::index::{
 use super::backend::Backend;
 
 // ----------------------------------------------------
-// qmd/src/lsp/diagnostics.rs
+// kdb/src/lsp/diagnostics.rs
 //
 // pub(super) async fn did_open()                   L32
 // pub(super) async fn did_change()                 L37

@@ -9,7 +9,7 @@ use crate::lang::CodeLanguage;
 pub mod display;
 mod extract;
 // ------------------------------------------
-// qmd/src/symbols/mod.rs
+// kdb/src/symbols/mod.rs
 //
 // pub mod display                         L9
 // mod extract                            L10

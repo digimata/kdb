@@ -11,7 +11,7 @@ use tower_lsp::lsp_types::{
 };
 
 // -----------------------------------------------------
-// qmd/src/lsp/definition.rs
+// kdb/src/lsp/definition.rs
 //
 // pub(super) static INDEX_LINE_RE                   L34
 // static MARKDOWN_LINK_RE                           L46

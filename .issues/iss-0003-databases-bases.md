@@ -6,7 +6,7 @@ priority: high
 labels:
   - roadmap
   - spec
-path: qmd/.issues/iss-0003-databases-bases.md
+path: kdb/.issues/iss-0003-databases-bases.md
 outline: |
   • ISS-0003 :: Databases and Bases       L24
     ◦ Product Shape                       L28

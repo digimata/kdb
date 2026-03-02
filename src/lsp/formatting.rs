@@ -11,7 +11,7 @@ use crate::fmt;
 use super::backend::Backend;
 
 // ---------------------------------------
-// qmd/src/lsp/formatting.rs
+// kdb/src/lsp/formatting.rs
 //
 // pub(super) async fn formatting()    L21
 // fn full_document_range()            L62

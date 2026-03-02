@@ -9,7 +9,7 @@ use super::{
 };
 
 // ---------------------------------------------
-// qmd/src/index/refs.rs
+// kdb/src/index/refs.rs
 //
 // pub struct RefsTarget                     L56
 // pub fn parse_target()                     L62

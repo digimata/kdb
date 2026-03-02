@@ -18,7 +18,7 @@ use super::{
 };
 
 // ----------------------------------------------------
-// qmd/src/resolve/tsjs.rs
+// kdb/src/resolve/tsjs.rs
 //
 // const TSJS_EXTS                                  L81
 // pub(crate) struct TsjsResolver                   L91

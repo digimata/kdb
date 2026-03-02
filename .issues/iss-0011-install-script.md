@@ -6,7 +6,7 @@ priority: high
 labels:
   - feat
   - release
-path: qmd/.issues/iss-0011-install-script.md
+path: kdb/.issues/iss-0011-install-script.md
 outline: |
   • ISS-0011 :: Install Script and Prebuilt Binaries      L16
     ◦ Done                                                L24

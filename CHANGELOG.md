@@ -1,5 +1,5 @@
 ---
-path: qmd/CHANGELOG.md
+path: kdb/CHANGELOG.md
 outline: |
   • Changelog                              L80
     ◦ [0.21.0] — 2026-03-01                L86

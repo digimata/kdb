@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
 // ----------------------------------------------------------------------------------
-// qmd/tests/index.rs
+// kdb/tests/index.rs
 //
 // fn write_file()                                                                L64
 // fn write_root_config()                                                         L72
