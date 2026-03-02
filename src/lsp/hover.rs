@@ -8,7 +8,9 @@ use regex::{Captures, Regex};
 use std::path::Path;
 use std::sync::LazyLock;
 use tower_lsp::jsonrpc::Result as LspResult;
-use tower_lsp::lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind, Url};
+use tower_lsp::lsp_types::{
+    Hover, HoverContents, HoverParams, MarkupContent, MarkupKind, Position, Range, Url,
+};
 
 use crate::index::{
     LinkKind, ParsedDocument, parse_markdown, parse_markdown_target, parse_wikilink_target,
@@ -17,21 +19,22 @@ use crate::index::{
 
 use super::{
     backend::{Backend, path_to_slash},
-    definition::link_under_position,
+    definition::{INDEX_LINE_RE, is_in_frontmatter, link_under_position},
 };
 
 // -----------------------------------
-// src/lsp/hover.rs
+// qmd/src/lsp/hover.rs
 //
-// const HOVER_CHAR_LIMIT          L37
-// static MARKDOWN_LINK_RE         L38
-// static WIKILINK_RE              L41
-// pub(super) async fn hover()     L48
-// fn rewrite_preview_links()     L115
-// fn resolve_target_url()        L169
-// fn is_external_link()          L188
-// fn section_preview()           L195
-// fn truncate_chars()            L205
+// const HOVER_CHAR_LIMIT          L40
+// static MARKDOWN_LINK_RE         L41
+// static WIKILINK_RE              L44
+// pub(super) async fn hover()     L51
+// fn rewrite_preview_links()     L130
+// fn resolve_target_url()        L184
+// fn outline_row_hover()         L205
+// fn is_external_link()          L242
+// fn section_preview()           L249
+// fn truncate_chars()            L259
 // -----------------------------------
 
 const HOVER_CHAR_LIMIT: usize = 420;
@@ -48,6 +51,18 @@ static WIKILINK_RE: LazyLock<Regex> =
 pub(super) async fn hover(backend: &Backend, params: HoverParams) -> LspResult<Option<Hover>> {
     let uri = params.text_document_position_params.text_document.uri;
     let position = params.text_document_position_params.position;
+
+    // Try outline-row hover: show section preview for frontmatter/index rows.
+    let any_abs = backend
+        .markdown_rel_path(&uri)
+        .or_else(|| backend.code_rel_path(&uri));
+    if let Some((abs_path, _)) = &any_abs {
+        if let Some(content) = backend.document_text(&uri, abs_path).await {
+            if let Some(hover) = outline_row_hover(&uri, &content, position) {
+                return Ok(Some(hover));
+            }
+        }
+    }
 
     let Some((source_abs, source_rel)) = backend.markdown_rel_path(&uri) else {
         return Ok(None);
@@ -183,6 +198,49 @@ fn resolve_target_url(
         url.set_fragment(Some(&slug_anchor(anchor)));
     }
     Some(url)
+}
+
+/// If the cursor is on an outline/index row with a line label, show a section
+/// preview from the heading at that line.
+fn outline_row_hover(uri: &Url, content: &str, position: Position) -> Option<Hover> {
+    let line_text = content.split('\n').nth(position.line as usize)?;
+    let trimmed = line_text.trim();
+
+    let is_index_row = trimmed.starts_with("//")
+        || trimmed.starts_with('#')
+        || trimmed.starts_with('>')
+        || is_in_frontmatter(content, position.line as usize);
+    if !is_index_row {
+        return None;
+    }
+
+    let captures = INDEX_LINE_RE.captures(line_text)?;
+    let target_line: usize = captures.get(1)?.as_str().parse().ok()?;
+
+    // Find the heading at target_line and show a preview of its section.
+    let parsed = parse_markdown(content);
+    let heading = parsed
+        .headings
+        .iter()
+        .find(|h| h.line == target_line)?;
+
+    let anchor = slug_anchor(&heading.title);
+    let preview = section_preview(content, &parsed, Some(&anchor))?;
+
+    let label = format!("L{target_line}");
+    let _ = uri;
+
+    let line_len = line_text.len() as u32;
+    Some(Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: format!("`{label}`\n\n{preview}"),
+        }),
+        range: Some(Range {
+            start: Position::new(position.line, 0),
+            end: Position::new(position.line, line_len),
+        }),
+    })
 }
 
 fn is_external_link(raw: &str) -> bool {

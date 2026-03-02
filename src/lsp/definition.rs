@@ -13,13 +13,13 @@ use tower_lsp::lsp_types::{
 // -----------------------------------------------------
 // qmd/src/lsp/definition.rs
 //
-// static INDEX_LINE_RE                              L34
+// pub(super) static INDEX_LINE_RE                   L34
 // static MARKDOWN_LINK_RE                           L46
 // static WIKILINK_RE                                L51
 // pub(super) async fn goto_definition()             L58
 // pub(super) fn link_under_position()              L143
 // fn index_line_jump()                             L174
-// fn is_in_frontmatter()                           L207
+// pub(super) fn is_in_frontmatter()                L207
 // mod tests                                        L229
 // fn index_line_jump_markdown_frontmatter_row()    L233
 // fn index_line_jump_code_index_row()              L255
@@ -31,7 +31,7 @@ use tower_lsp::lsp_types::{
 ///
 /// Matches both markdown nav rows (`> ## Heading    L42`) and code index
 /// rows (`// pub fn name()    L42`, `#   def hi()    L3`).
-static INDEX_LINE_RE: LazyLock<Regex> = LazyLock::new(|| {
+pub(super) static INDEX_LINE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\s+L(\d+)\s*$").expect("valid index line regex")
 });
 
@@ -204,7 +204,7 @@ fn index_line_jump(
 
 /// Return `true` if `line_index` (0-based) falls inside a YAML frontmatter
 /// block (`---` delimited at the top of the file).
-fn is_in_frontmatter(content: &str, line_index: usize) -> bool {
+pub(super) fn is_in_frontmatter(content: &str, line_index: usize) -> bool {
     let mut lines = content.split('\n');
     let Some(first) = lines.next() else {
         return false;
