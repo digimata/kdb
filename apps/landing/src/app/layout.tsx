@@ -4,13 +4,13 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 // -------------------------------------------
-// apps/landing/app/layout.tsx
+// apps/landing/src/app/layout.tsx
 //
-// const geistSans                         L15
-// const geistMono                         L20
-// export const metadata                   L25
-// export default function RootLayout()    L37
-// children                                L40
+// const geistSans                         L16
+// const geistMono                         L21
+// export const metadata                   L26
+// export default function RootLayout()    L38
+// children                                L41
 // -------------------------------------------
 
 const geistSans = Geist({

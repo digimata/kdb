@@ -23,9 +23,9 @@ use crate::project::paths::normalize_rel_path;
 // fn build_optional_globset()    L272
 // fn explode_patterns()          L292
 // fn is_ignored_path()           L305
-// fn path_matches()              L347
-// fn display_rel_path()          L359
-// struct ChildEntry              L367
+// fn path_matches()              L344
+// fn display_rel_path()          L356
+// struct ChildEntry              L364
 // -----------------------------------
 
 /// Options that control `kdb tree` filtering and shape.

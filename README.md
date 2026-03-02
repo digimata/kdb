@@ -1,3 +1,17 @@
+> -------------------------------
+> README.md
+>
+> # kdb                       L15
+> ## What it does             L21
+> ### Supported languages     L29
+> ## Quickstart               L37
+> ## Commands                 L66
+> ### Markdown links          L81
+> ### LSP                     L90
+> ## Development             L108
+> ## License                 L112
+> -------------------------------
+
 # kdb
 
 A structural index for codebases. CLI and language server.

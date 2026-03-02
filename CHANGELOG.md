@@ -1,8 +1,89 @@
+> -----------------------------------------
+> CHANGELOG.md
+>
+> # Changelog                           L75
+> ## [0.20.0] — 2026-03-01              L81
+> ### Added                             L83
+> ## [0.19.0] — 2026-02-26              L88
+> ### Changed                           L90
+> ## [0.18.0] — 2026-02-26              L94
+> ### Added                             L96
+> ## [0.17.0] — 2026-02-26             L101
+> ### Changed                          L103
+> ### Added                            L107
+> ## [landing-0.2.0] — 2026-02-26      L111
+> ### Added                            L113
+> ### Changed                          L119
+> ## [0.16.0] — 2026-02-26             L124
+> ### Removed                          L126
+> ## [0.15.0] — 2026-02-26             L133
+> ### Changed                          L135
+> ### Performance                      L139
+> ### Fixed                            L145
+> ## [0.14.0] — 2026-02-26             L149
+> ### Added                            L151
+> ## [0.13.0] — 2026-02-26             L155
+> ### Added                            L157
+> ## [0.12.1] — 2026-02-26             L162
+> ### Fixed                            L164
+> ## [0.12.0] — 2026-02-26             L171
+> ### Added                            L173
+> ## [0.11.0] — 2026-02-26             L180
+> ### Added                            L182
+> ## [0.10.2] — 2026-02-26             L190
+> ### Changed                          L192
+> ### Performance                      L198
+> ## [0.10.1] — 2026-02-25             L211
+> ### Changed                          L213
+> ## [0.10.0] — 2026-02-25             L218
+> ### Changed                          L220
+> ### Added                            L225
+> ## [0.9.0] — 2026-02-25              L230
+> ### Added                            L232
+> ## [0.8.6] — 2026-02-25              L238
+> ### Added                            L240
+> ## [0.8.5] — 2026-02-25              L244
+> ### Fixed                            L246
+> ## [0.8.4] — 2026-02-25              L252
+> ### Fixed                            L254
+> ## [0.8.3] — 2026-02-25              L259
+> ### Fixed                            L261
+> ## [0.8.2] — 2026-02-25              L265
+> ### Fixed                            L267
+> ### Changed                          L271
+> ## [0.8.1] — 2026-02-25              L275
+> ### Fixed                            L277
+> ## [Unreleased]                      L281
+> ### Changed                          L283
+> ## [0.8.0] — 2026-02-25              L297
+> ### Added                            L299
+> ### Changed                          L304
+> ## [0.7.1] — 2026-02-25              L308
+> ### Added                            L310
+> ### Changed                          L314
+> ### Docs                             L319
+> ## [0.7.0] — 2026-02-24              L323
+> ### Other                            L325
+> ## [0.6.1] — 2026-02-24              L331
+> ### Other                            L333
+> ## [0.6.0] — 2026-02-24              L338
+> ### Other                            L340
+> ## [0.1.0] — 2026-02-18              L360
+> ### Other                            L362
+> -----------------------------------------
+
 # Changelog
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.20.0] — 2026-03-01
+
+### Added
+
+- `kdb fmt` now generates navigation headers for markdown files — breadcrumb links and heading outline with line numbers, using blockquote prefix (iss-0058)
+- LSP `textDocument/formatting` now supports markdown files for format-on-save
 
 ## [0.19.0] — 2026-02-26
 

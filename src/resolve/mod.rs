@@ -16,34 +16,34 @@ use crate::symbols::extract_symbols;
 // ----------------------------------------------------
 // src/resolve/mod.rs
 //
-// mod go                                           L53
-// mod python                                       L54
-// mod rust                                         L55
-// mod tsjs                                         L56
-// pub type WorkspacePackages                       L71
-// pub struct WorkspaceCaches                       L75
-//   pub fn build()                                 L84
-// pub enum ImportKind                              L97
-// pub struct ImportNames                          L110
-//   pub fn new()                                  L120
-// pub struct ResolvedImport                       L132
-// pub(crate) struct ReexportBinding               L145
-// pub(crate) trait LanguageResolver               L157
-// pub(crate) fn extract_reexport_bindings()       L167
-// pub(crate) struct WorkspaceImportResult         L187
-// pub(crate) fn build_workspace_import_index()    L195
-// pub fn resolve_imports_for_language()           L241
-// pub(super) fn exported_symbol_names()           L272
-// fn discover_code_files()                        L295
-// pub(super) fn sanitize_specifier()              L352
-// pub(super) fn normalize_identifier()            L371
-// pub(super) fn resolve_with_exts()               L401
-// pub(super) fn resolve_file()                    L429
-// fn canonicalize_existing_rel_path()             L438
-// pub(super) fn list_go_package_files()           L477
-// pub(super) fn slash_path()                      L512
-// pub(super) fn to_root_relative()                L517
-// fn rel_path_from_root()                         L522
+// mod go                                           L52
+// mod python                                       L53
+// mod rust                                         L54
+// mod tsjs                                         L55
+// pub type WorkspacePackages                       L70
+// pub struct WorkspaceCaches                       L74
+//   pub fn build()                                 L83
+// pub enum ImportKind                              L96
+// pub struct ImportNames                          L109
+//   pub fn new()                                  L119
+// pub struct ResolvedImport                       L131
+// pub(crate) struct ReexportBinding               L144
+// pub(crate) trait LanguageResolver               L156
+// pub(crate) fn extract_reexport_bindings()       L166
+// pub(crate) struct WorkspaceImportResult         L186
+// pub(crate) fn build_workspace_import_index()    L194
+// pub fn resolve_imports_for_language()           L240
+// pub(super) fn exported_symbol_names()           L271
+// fn discover_code_files()                        L294
+// pub(super) fn sanitize_specifier()              L346
+// pub(super) fn normalize_identifier()            L365
+// pub(super) fn resolve_with_exts()               L395
+// pub(super) fn resolve_file()                    L423
+// fn canonicalize_existing_rel_path()             L432
+// pub(super) fn list_go_package_files()           L471
+// pub(super) fn slash_path()                      L506
+// pub(super) fn to_root_relative()                L511
+// fn rel_path_from_root()                         L516
 // ----------------------------------------------------
 
 pub(super) use crate::project::ignore::{build_ignore_globset, path_is_ignored};

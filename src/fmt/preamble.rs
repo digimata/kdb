@@ -5,25 +5,26 @@ use crate::lang::CodeLanguage;
 // -------------------------------------------
 // src/fmt/preamble.rs
 //
-// pub fn comment_prefix()                 L30
-// pub fn preamble_end_index()             L43
-// fn rust_preamble_end()                  L56
-// fn ts_js_preamble_end()                L118
-// fn python_preamble_end()               L158
-// fn go_preamble_end()                   L200
-// fn consume_c_block()                   L255
-// fn consume_go_import()                 L268
-// fn consume_statement()                 L287
-// fn consume_python_docstring()          L315
-// fn python_docstring_delimiter()        L346
-// fn is_rust_use_statement()             L366
-// fn is_rust_mod_declaration()           L370
-// fn is_rust_extern_crate_statement()    L374
-// fn is_ts_js_import_statement()         L378
-// fn is_ts_js_require_statement()        L382
-// fn is_ts_js_export_from_statement()    L388
-// fn is_python_import_statement()        L392
-// fn count_char()                        L396
+// pub fn comment_prefix()                 L31
+// pub fn preamble_end_index()             L44
+// fn rust_preamble_end()                  L57
+// fn ts_js_preamble_end()                L119
+// fn python_preamble_end()               L159
+// fn go_preamble_end()                   L201
+// fn consume_c_block()                   L256
+// fn consume_go_import()                 L269
+// fn consume_statement()                 L288
+// fn consume_python_docstring()          L316
+// fn python_docstring_delimiter()        L347
+// fn is_rust_use_statement()             L367
+// fn is_rust_mod_declaration()           L371
+// fn is_rust_extern_crate_statement()    L375
+// fn is_ts_js_import_statement()         L379
+// fn is_ts_js_require_statement()        L383
+// fn is_ts_js_export_from_statement()    L389
+// fn is_python_import_statement()        L393
+// fn count_char()                        L397
+// pub fn markdown_preamble_end()         L405
 // -------------------------------------------
 
 /// Return the single-line comment prefix for the given language.
@@ -395,4 +396,29 @@ fn is_python_import_statement(line: &str) -> bool {
 
 fn count_char(line: &str, needle: char) -> i32 {
     line.chars().filter(|ch| *ch == needle).count() as i32
+}
+
+/// Return the line index where YAML frontmatter ends.
+///
+/// If the file starts with `---` followed by a closing `---` or `...`, the
+/// preamble ends after that delimiter. Otherwise returns `0`.
+pub fn markdown_preamble_end(lines: &[String]) -> usize {
+    if lines.is_empty() {
+        return 0;
+    }
+
+    if lines[0].trim() != "---" {
+        return 0;
+    }
+
+    let mut index = 1;
+    while index < lines.len() {
+        let trimmed = lines[index].trim();
+        if trimmed == "---" || trimmed == "..." {
+            return index + 1;
+        }
+        index += 1;
+    }
+
+    0
 }

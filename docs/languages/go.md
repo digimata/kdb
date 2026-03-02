@@ -1,3 +1,15 @@
+> [docs](../../docs) · [languages](../languages)
+> ---------------------------------------
+> docs/languages/go.md
+>
+> # Go — Language Support             L13
+> ## Import patterns                  L15
+> ## Reference resolution coverage    L28
+> ## Known gaps                       L40
+> ## Advantages                       L46
+> ## Workspace conventions            L56
+> ---------------------------------------
+
 # Go — Language Support
 
 ## Import patterns

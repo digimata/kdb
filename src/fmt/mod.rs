@@ -6,6 +6,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
+use crate::index::{Heading, parse_markdown};
 use crate::lang::CodeLanguage;
 use crate::project::discover::discover_files;
 use crate::project::ignore::build_ignore_globset;
@@ -13,32 +14,39 @@ use crate::symbols::{Symbol, extract_symbols, format_symbol_display};
 
 pub mod preamble;
 
-use self::preamble::{comment_prefix, preamble_end_index};
+use self::preamble::{comment_prefix, markdown_preamble_end, preamble_end_index};
 
-// -------------------------------------------
+// ---------------------------------------------
 // src/fmt/mod.rs
 //
-// pub mod preamble                        L14
-// const LEGACY_INDEX_HEADER               L43
-// const LINE_GAP                          L44
-// pub struct FormatReport                 L48
-// pub struct FormatWarning                L56
-// struct RewriteResult                    L62
-// pub fn format_workspace()               L70
-// pub fn format_path()                    L84
-// pub fn format_source()                 L107
-// fn format_files()                      L116
-// fn rewrite_code_index()                L165
-// fn removal_warning_message()           L275
-// fn find_managed_block()                L295
-// fn is_header_candidate()               L326
-// fn looks_like_path_header()            L339
-// fn is_index_body_line()                L359
-// fn is_canonical_index_body_line()      L371
-// fn is_separator_only_comment_line()    L399
-// fn render_block()                      L413
-// fn discover_code_files_in_scope()      L445
-// -------------------------------------------
+// pub mod preamble                          L15
+// const LEGACY_INDEX_HEADER                 L51
+// const LINE_GAP                            L52
+// pub struct FormatReport                   L56
+// pub struct FormatWarning                  L64
+// struct RewriteResult                      L70
+// pub fn format_workspace()                 L78
+// pub fn format_path()                      L98
+// pub fn format_source()                   L127
+// fn format_files()                        L141
+// fn rewrite_code_index()                  L190
+// fn removal_warning_message()             L300
+// fn find_managed_block()                  L320
+// fn is_header_candidate()                 L351
+// fn looks_like_path_header()              L364
+// fn is_index_body_line()                  L384
+// fn is_canonical_index_body_line()        L396
+// fn is_separator_only_comment_line()      L424
+// fn render_block()                        L438
+// fn format_markdown_files()               L469
+// fn rewrite_markdown_nav()                L508
+// fn render_breadcrumb()                   L591
+// fn render_markdown_block()               L623
+// fn is_md_nav_line()                      L708
+// fn is_markdown_ext()                     L714
+// fn discover_markdown_files_in_scope()    L721
+// fn discover_code_files_in_scope()        L735
+// ---------------------------------------------
 
 const LEGACY_INDEX_HEADER: &str = "## Index";
 const LINE_GAP: usize = 4;
@@ -65,19 +73,25 @@ struct RewriteResult {
     removed_noncanonical_rows: usize,
 }
 
-/// Walk a workspace, rewriting each supported source file with an up-to-date
-/// symbol index block inserted after the preamble.
+/// Walk a workspace, rewriting each supported source file and markdown file
+/// with an up-to-date index/navigation block.
 pub fn format_workspace(root: &Path, ignore_patterns: &[String]) -> Result<FormatReport> {
     let root = root
         .canonicalize()
         .with_context(|| format!("failed to canonicalize root {}", root.display()))?;
     let ignore_set = build_ignore_globset(ignore_patterns)?;
-    let files = discover_code_files_in_scope(&root, &root, &ignore_set)?;
+    let code_files = discover_code_files_in_scope(&root, &root, &ignore_set)?;
+    let md_files = discover_markdown_files_in_scope(&root, &root, &ignore_set)?;
 
-    format_files(&root, files)
+    let mut report = format_files(&root, code_files)?;
+    let md_report = format_markdown_files(&root, md_files)?;
+    report.scanned_files += md_report.scanned_files;
+    report.updated_files += md_report.updated_files;
+    report.warnings.extend(md_report.warnings);
+    Ok(report)
 }
 
-/// Rewrite code index headers for either a single file or a directory scope.
+/// Rewrite index/navigation headers for either a single file or a directory scope.
 ///
 /// `target` must be inside `root`. If `target` is a file, only that file is
 /// considered; if it is a directory, the subtree is scanned.
@@ -98,13 +112,24 @@ pub fn format_path(root: &Path, target: &Path, ignore_patterns: &[String]) -> Re
     }
 
     let ignore_set = build_ignore_globset(ignore_patterns)?;
-    let files = discover_code_files_in_scope(&root, &target, &ignore_set)?;
+    let code_files = discover_code_files_in_scope(&root, &target, &ignore_set)?;
+    let md_files = discover_markdown_files_in_scope(&root, &target, &ignore_set)?;
 
-    format_files(&root, files)
+    let mut report = format_files(&root, code_files)?;
+    let md_report = format_markdown_files(&root, md_files)?;
+    report.scanned_files += md_report.scanned_files;
+    report.updated_files += md_report.updated_files;
+    report.warnings.extend(md_report.warnings);
+    Ok(report)
 }
 
-/// Rewrite a single source string for a supported code file path.
+/// Rewrite a single source string for a supported code or markdown file path.
 pub fn format_source(rel_path: &Path, source: &str) -> Result<Option<String>> {
+    if is_markdown_ext(rel_path) {
+        let rewrite = rewrite_markdown_nav(source, rel_path)?;
+        return Ok(Some(rewrite.content));
+    }
+
     let Some(language) = CodeLanguage::from_path(rel_path) else {
         return Ok(None);
     };
@@ -438,6 +463,271 @@ fn render_block(prefix: &str, header: &str, symbols: &[Symbol]) -> Vec<String> {
     }
     lines.push(String::new());
     lines
+}
+
+/// Format a batch of markdown files, returning a report.
+fn format_markdown_files(root: &Path, files: Vec<PathBuf>) -> Result<FormatReport> {
+    let mut report = FormatReport {
+        scanned_files: files.len(),
+        updated_files: 0,
+        warnings: Vec::new(),
+    };
+
+    for rel_path in files {
+        let abs_path = root.join(&rel_path);
+        let source = match fs::read_to_string(&abs_path) {
+            Ok(source) => source,
+            Err(error) if error.kind() == ErrorKind::InvalidData => continue,
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("failed to read {}", abs_path.display()));
+            }
+        };
+
+        let rewrite = rewrite_markdown_nav(&source, &rel_path).with_context(|| {
+            format!(
+                "failed to rewrite markdown nav for {}",
+                rel_path.to_string_lossy()
+            )
+        })?;
+
+        let formatted = rewrite.content;
+
+        if formatted != source {
+            fs::write(&abs_path, formatted)
+                .with_context(|| format!("failed to write {}", abs_path.display()))?;
+            report.updated_files += 1;
+        }
+    }
+
+    Ok(report)
+}
+
+/// Parse `source` for headings, strip any existing nav block, and return the
+/// file contents with a freshly generated breadcrumb + outline block.
+fn rewrite_markdown_nav(source: &str, rel_path: &Path) -> Result<RewriteResult> {
+    let newline = if source.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let had_trailing_newline = source.ends_with('\n');
+
+    let mut lines = source
+        .split('\n')
+        .map(|line| line.trim_end_matches('\r').to_string())
+        .collect::<Vec<_>>();
+
+    if had_trailing_newline && lines.last().is_some_and(|line| line.is_empty()) {
+        lines.pop();
+    }
+    if lines.len() == 1 && lines[0].is_empty() {
+        lines.clear();
+    }
+
+    let prefix = ">";
+    let header = rel_path.to_string_lossy().replace('\\', "/");
+    let mut removed_blocks = 0usize;
+
+    loop {
+        let preamble = markdown_preamble_end(&lines);
+        let search_limit = preamble.max(256).min(lines.len());
+        let Some((start, end_exclusive)) =
+            find_managed_block(&lines, prefix, &header, search_limit)
+        else {
+            break;
+        };
+
+        // Also absorb a leading breadcrumb line and separator above the block.
+        let mut drain_start = start;
+        // Walk backwards over `> ` prefixed lines that precede the path header
+        // (breadcrumb + separator lines).
+        while drain_start > 0 && is_md_nav_line(&lines[drain_start - 1]) {
+            drain_start -= 1;
+        }
+
+        removed_blocks += 1;
+        lines.drain(drain_start..end_exclusive);
+    }
+
+    let insertion_index = markdown_preamble_end(&lines);
+
+    let mut parse_source = lines.join("\n");
+    if had_trailing_newline && !parse_source.is_empty() {
+        parse_source.push('\n');
+    }
+
+    let parsed = parse_markdown(&parse_source);
+
+    let breadcrumb = render_breadcrumb(rel_path);
+    let block = render_markdown_block(&header, &breadcrumb, &parsed.headings, insertion_index + 1);
+    let inserted_line_count = block.len();
+
+    let mut output_lines = Vec::new();
+    output_lines.extend_from_slice(&lines[..insertion_index]);
+    output_lines.extend(block);
+    output_lines.extend_from_slice(&lines[insertion_index..]);
+
+    // Shift heading line numbers in the output are for display only — we
+    // already computed them relative to stripped source and adjusted them
+    // inside render_markdown_block.
+    let _ = inserted_line_count;
+
+    let mut output = output_lines.join(newline);
+    if had_trailing_newline && !output.is_empty() {
+        output.push_str(newline);
+    }
+
+    Ok(RewriteResult {
+        content: output,
+        removed_blocks,
+        removed_noncanonical_rows: 0,
+    })
+}
+
+/// Render a breadcrumb line from directory components of the relative path.
+///
+/// For `docs/arch/overview.md` → `[docs](../../docs) · [arch](../arch)`
+fn render_breadcrumb(rel_path: &Path) -> Option<String> {
+    let components: Vec<_> = rel_path
+        .parent()?
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect();
+
+    if components.is_empty() {
+        return None;
+    }
+
+    let depth = components.len();
+    let parts: Vec<String> = components
+        .iter()
+        .enumerate()
+        .map(|(i, name)| {
+            // Build relative path from the file's directory to this ancestor.
+            let ups = depth - i;
+            let mut target = String::new();
+            for _ in 0..ups {
+                target.push_str("../");
+            }
+            // Navigate to the ancestor directory itself.
+            target.push_str(name);
+            format!("[{name}]({target})")
+        })
+        .collect();
+
+    Some(parts.join(" · "))
+}
+
+/// Render the combined breadcrumb + outline blockquote block.
+fn render_markdown_block(
+    header: &str,
+    breadcrumb: &Option<String>,
+    headings: &[Heading],
+    insertion_line: usize,
+) -> Vec<String> {
+    // Build heading rows with shifted line numbers.
+    let mut rows = Vec::new();
+    for heading in headings {
+        let shifted_line = heading.line + if heading.line >= insertion_line {
+            // Placeholder — we'll fill in final count after we know block size.
+            0
+        } else {
+            0
+        };
+        let indent = if heading.level > 1 {
+            "#".repeat(heading.level as usize)
+        } else {
+            "#".to_string()
+        };
+        let display = format!("{indent} {}", heading.title);
+        rows.push((display, shifted_line));
+    }
+
+    // We need to know the block size to shift, but block size depends on rows.
+    // Compute block line count first, then adjust.
+    let has_rows = !rows.is_empty();
+    let breadcrumb_lines = if breadcrumb.is_some() { 1 } else { 0 };
+    // Layout: breadcrumb? + top separator + path + (blank + rows)? + bottom separator + blank
+    let block_line_count = breadcrumb_lines
+        + 1                                         // top separator
+        + 1                                         // path header
+        + if has_rows { 1 + rows.len() } else { 0 } // blank `>` + heading rows
+        + 1                                         // bottom separator
+        + 1;                                        // trailing blank line
+
+    // Shift line numbers.
+    let shifted_rows: Vec<(String, String)> = rows
+        .into_iter()
+        .map(|(display, line)| {
+            let shifted = if line >= insertion_line {
+                line + block_line_count
+            } else {
+                line
+            };
+            (display, format!("L{shifted}"))
+        })
+        .collect();
+
+    let left_width = shifted_rows
+        .iter()
+        .map(|(left, _)| left.len())
+        .max()
+        .unwrap_or(0);
+    let right_width = shifted_rows
+        .iter()
+        .map(|(_, right)| right.len())
+        .max()
+        .unwrap_or(0);
+    let content_width = left_width + LINE_GAP + right_width;
+    let min_width = header.len();
+    let separator_width = content_width.max(min_width);
+    let separator = "-".repeat(separator_width);
+    let gap = " ".repeat(LINE_GAP);
+
+    let mut lines = Vec::new();
+    if let Some(bc) = breadcrumb {
+        lines.push(format!("> {bc}"));
+    }
+    lines.push(format!("> {separator}"));
+    lines.push(format!("> {header}"));
+    if has_rows {
+        lines.push(">".to_string());
+        for (left, line_label) in &shifted_rows {
+            lines.push(format!(
+                "> {left:<left_width$}{gap}{line_label:>right_width$}"
+            ));
+        }
+    }
+    lines.push(format!("> {separator}"));
+    lines.push(String::new());
+    lines
+}
+
+/// Check if a line looks like part of a managed markdown nav block.
+fn is_md_nav_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed == ">" || trimmed.starts_with("> ")
+}
+
+/// Check if a path has a `.md` extension.
+fn is_markdown_ext(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+}
+
+/// Recursively walk `root`, returning sorted relative paths for markdown files.
+fn discover_markdown_files_in_scope(
+    root: &Path,
+    scope: &Path,
+    ignore_set: &GlobSet,
+) -> Result<Vec<PathBuf>> {
+    let paths = discover_files(root, scope, ignore_set)?;
+    Ok(paths
+        .into_iter()
+        .filter(|rel| is_markdown_ext(rel))
+        .collect())
 }
 
 /// Recursively walk `root`, returning sorted relative paths for every

@@ -26,8 +26,8 @@ use super::{Symbol, extract_symbols};
 //   fn display()                      L284
 // fn normalize_selector_name()        L292
 // pub fn expand_paths()               L301
-// fn rel_from_root()                  L344
-// fn is_symbol_file()                 L369
+// fn rel_from_root()                  L343
+// fn is_symbol_file()                 L368
 // ----------------------------------------
 
 /// Collect symbol rows for a single file (headings for markdown, declarations for code).

@@ -20,20 +20,20 @@ use crate::update;
 // --------------------------------------
 // src/cmd.rs
 //
-// pub struct CmdContext              L38
-//   pub fn from_path()               L49
-//   pub fn build_index()             L59
-//   pub fn build_project_index()     L64
-//   pub fn rel_path()                L72
-// pub fn init()                      L99
-// pub fn check()                    L153
-// pub fn tree()                     L170
-// pub fn symbols()                  L218
-// pub fn refs()                     L279
-// pub fn deps()                     L350
-// pub fn graph()                    L385
-// pub fn format()                   L399
-// pub fn update()                   L432
+// pub struct CmdContext              L40
+//   pub fn from_path()               L51
+//   pub fn build_index()             L61
+//   pub fn build_project_index()     L66
+//   pub fn rel_path()                L74
+// pub fn init()                     L101
+// pub fn check()                    L155
+// pub fn tree()                     L172
+// pub fn symbols()                  L220
+// pub fn refs()                     L281
+// pub fn deps()                     L352
+// pub fn graph()                    L387
+// pub fn format()                   L401
+// pub fn update()                   L437
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.

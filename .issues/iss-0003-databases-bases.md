@@ -7,6 +7,23 @@ labels:
   - roadmap
   - spec
 ---
+> [.issues](../.issues)
+> -----------------------------------------
+> .issues/iss-0003-databases-bases.md
+>
+> # ISS-0003 :: Databases and Bases     L28
+> ## Product Shape                      L32
+> ### Indexed Notes DB (Derived)        L34
+> ### Base/View Definitions             L45
+> ### Renderer Targets                  L58
+> ## Link Behavior                      L64
+> ## Initial Schema Sketch              L80
+> ## Rollout                           L120
+> ## Non-Goals (Initial)               L128
+> ## Done When                         L134
+> ## Open Questions                    L140
+> -----------------------------------------
+
 
 # ISS-0003 :: Databases and Bases
 

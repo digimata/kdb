@@ -6,20 +6,22 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 
-// -----------------------------------------
+// ---------------------------------
 // src/update.rs
 //
-// const LATEST_URL                      L18
-// const RELEASE_BASE                    L19
-// pub struct Updater                    L21
-//   pub fn new()                        L32
-//   pub fn run()                        L43
-//   fn check_latest()                   L62
-//   fn compare()                        L76
-//   fn download()                       L90
-//   fn verify()                        L113
-//   fn replace()                       L141
-// -----------------------------------------
+// const LATEST_URL              L26
+// const RELEASE_BASE            L27
+// pub struct Updater            L30
+//   pub fn new()                L39
+//   pub fn run()                L48
+//   fn check_latest()           L72
+//   fn compare()                L86
+//   fn download()              L105
+//   fn verify()                L134
+//   fn replace()               L165
+//   fn find_binary_in_tar()    L198
+// pub fn exe_path()            L225
+// ---------------------------------
 
 const LATEST_URL: &str = "https://kdb.kernl.sh/latest";
 const RELEASE_BASE: &str = "https://github.com/dremnik/kdb/releases/download";

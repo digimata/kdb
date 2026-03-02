@@ -26,10 +26,10 @@ use super::{
 // fn contains_keyword()                  L363
 // fn find_keyword_index()                L368
 // fn extract_from_macro()                L392
-// fn strip_outer_delimiters()            L440
-// fn try_parse_and_extract()             L457
-// fn extract_from_balanced_blocks()      L471
-// fn dedup_across_branches()             L512
+// fn strip_outer_delimiters()            L442
+// fn try_parse_and_extract()             L459
+// fn extract_from_balanced_blocks()      L473
+// fn dedup_across_branches()             L514
 // -------------------------------------------
 
 /// Extract Rust symbols used by code indexing and symbol listing.

@@ -6,6 +6,17 @@ priority: medium
 labels:
   - feat
 ---
+> [.issues](../.issues)
+> -----------------------------------------------
+> .issues/iss-0035-root-relative-paths.md
+>
+> # ISS-0035 :: Root-Relative Path Support    L21
+> ## Intent                                   L23
+> ## Examples                                 L27
+> ## Behavior                                 L37
+> ## Open Questions                           L44
+> -----------------------------------------------
+
 
 # ISS-0035 :: Root-Relative Path Support
 

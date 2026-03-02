@@ -14,16 +14,19 @@ use super::backend::Backend;
 // src/lsp/formatting.rs
 //
 // pub(super) async fn formatting()    L21
-// fn full_document_range()            L59
+// fn full_document_range()            L62
 // ---------------------------------------
 
-/// Handle `textDocument/formatting` for supported code files.
+/// Handle `textDocument/formatting` for supported code and markdown files.
 pub(super) async fn formatting(
     backend: &Backend,
     params: DocumentFormattingParams,
 ) -> LspResult<Option<Vec<TextEdit>>> {
     let uri = params.text_document.uri;
-    let Some((abs_path, rel_path)) = backend.code_rel_path(&uri) else {
+    let resolved = backend
+        .code_rel_path(&uri)
+        .or_else(|| backend.markdown_rel_path(&uri));
+    let Some((abs_path, rel_path)) = resolved else {
         return Ok(None);
     };
 

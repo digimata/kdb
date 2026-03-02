@@ -1,3 +1,15 @@
+> [docs](../../docs) · [languages](../languages)
+> ---------------------------------------
+> docs/languages/csharp.md
+>
+> # C# — Language Support             L13
+> ## Import patterns                  L15
+> ## Reference resolution coverage    L35
+> ## Known challenges                 L46
+> ## Advantages                       L53
+> ## Workspace conventions            L59
+> ---------------------------------------
+
 # C# — Language Support
 
 ## Import patterns

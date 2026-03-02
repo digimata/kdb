@@ -3,51 +3,60 @@ use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
 
-// -----------------------------------------------------
+// ------------------------------------------------------
 // tests/refs_eval.rs
 //
-// fn write_file()                                   L52
-// fn write_root_config()                            L60
-// fn eval_refs()                                    L68
-// fn rust_r01_direct_import()                       L89
-// fn rust_r02_grouped_import()                     L107
-// fn rust_r03_aliased_import()                     L125
-// fn rust_r04_pub_use_reexport()                   L143
-// fn rust_r05_wildcard_import()                    L165
-// fn rust_r09_type_in_signature()                  L183
-// fn rust_r10_type_in_generic()                    L201
-// fn rust_r11_module_qualified_access()            L219
-// fn rust_r12_grouped_module_qualified_access()    L241
-// fn rust_r13_multi_item_brace_group()             L266
-// fn rust_r14_multi_hop_reexport()                 L295
-// fn tsjs_t01_named_import()                       L322
-// fn tsjs_t02_default_import()                     L336
-// fn tsjs_t03_aliased_import()                     L350
-// fn tsjs_t04_namespace_import()                   L367
-// fn tsjs_t05_barrel_reexport()                    L384
-// fn tsjs_t06_default_reexport()                   L399
-// fn tsjs_t08_commonjs_require()                   L417
-// fn tsjs_t09_type_import()                        L437
-// fn tsjs_t10_destructured_usage()                 L454
-// fn tsjs_t11_jsx_component()                      L474
-// fn python_p01_direct_import()                    L495
-// fn python_p02_module_import()                    L509
-// fn python_p03_aliased_import()                   L523
-// fn python_p04_wildcard_import()                  L537
-// fn python_p04b_wildcard_all_filtering()          L551
-// fn python_p05_all_reexport()                     L569
-// fn python_p06_relative_import()                  L587
-// fn python_p07_decorator_usage()                  L602
-// fn python_p08_type_annotation()                  L619
-// fn python_p09_class_instantiation()              L636
-// fn go_g01_package_import()                       L654
-// fn go_g02_aliased_import()                       L676
-// fn go_g03_dot_import()                           L698
-// fn go_g06_type_usage()                           L720
-// fn go_g07_composite_literal()                    L742
-// fn go_g08_same_package()                         L767
-// fn go_g09_same_package_type()                    L785
-// -----------------------------------------------------
+// fn write_file()                                    L61
+// fn write_root_config()                             L69
+// fn eval_refs()                                     L77
+// fn rust_r01_direct_import()                        L98
+// fn rust_r02_grouped_import()                      L116
+// fn rust_r03_aliased_import()                      L134
+// fn rust_r04_pub_use_reexport()                    L152
+// fn rust_r05_wildcard_import()                     L174
+// fn rust_r09_type_in_signature()                   L192
+// fn rust_r10_type_in_generic()                     L210
+// fn rust_r11_module_qualified_access()             L228
+// fn rust_r12_grouped_module_qualified_access()     L250
+// fn rust_r13_multi_item_brace_group()              L275
+// fn rust_r14_multi_hop_reexport()                  L304
+// fn tsjs_t01_named_import()                        L334
+// fn tsjs_t02_default_import()                      L348
+// fn tsjs_t03_aliased_import()                      L362
+// fn tsjs_t04_namespace_import()                    L379
+// fn tsjs_t05_barrel_reexport()                     L396
+// fn tsjs_t06_default_reexport()                    L414
+// fn tsjs_t08_commonjs_require()                    L435
+// fn tsjs_t09_type_import()                         L455
+// fn tsjs_t10_destructured_usage()                  L472
+// fn tsjs_t11_jsx_component()                       L492
+// fn tsjs_t12_member_access_named_import()          L509
+// fn python_p01_direct_import()                     L536
+// fn python_p02_module_import()                     L550
+// fn python_p03_aliased_import()                    L564
+// fn python_p04_wildcard_import()                   L578
+// fn python_p04b_wildcard_all_filtering()           L592
+// fn python_p05_all_reexport()                      L610
+// fn python_p06_relative_import()                   L631
+// fn python_p07_decorator_usage()                   L646
+// fn python_p08_type_annotation()                   L663
+// fn python_p09_class_instantiation()               L680
+// fn go_g01_package_import()                        L698
+// fn go_g02_aliased_import()                        L720
+// fn go_g03_dot_import()                            L742
+// fn go_g06_type_usage()                            L764
+// fn go_g07_composite_literal()                     L786
+// fn go_g08_same_package()                          L811
+// fn go_g09_same_package_type()                     L829
+// fn tsjs_t11b_jsx_expression_identifier()          L854
+// fn tsjs_t11c_jsx_call_inside_expression()         L875
+// fn tsjs_t11d_jsx_opening_closing_tags()           L896
+// fn tsjs_t11e_jsx_attribute_value()                L917
+// fn tsjs_t11f_sonner_structure()                   L938
+// fn tsjs_t11g_arrow_function_export_jsx()          L990
+// fn tsjs_t11h_multi_import_from_same_file()       L1011
+// fn tsjs_t11i_multi_import_no_jsx()               L1032
+// ------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
     let path = root.join(rel_path);

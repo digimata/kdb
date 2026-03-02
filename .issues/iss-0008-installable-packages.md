@@ -6,6 +6,16 @@ priority: medium
 labels:
   - feat
 ---
+> [.issues](../.issues)
+> ---------------------------------------------
+> .issues/iss-0008-installable-packages.md
+>
+> # ISS-0008 :: Installable KDB Packages    L20
+> ## Intent                                 L22
+> ## Motivation                             L26
+> ## Open Questions                         L32
+> ---------------------------------------------
+
 
 # ISS-0008 :: Installable KDB Packages
 

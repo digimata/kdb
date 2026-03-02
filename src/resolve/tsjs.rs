@@ -20,56 +20,62 @@ use super::{
 // ----------------------------------------------------
 // src/resolve/tsjs.rs
 //
-// const TSJS_EXTS                                  L75
-// pub(crate) struct TsjsResolver                   L85
-// enum ImportPattern                               L93
-// struct ImportRequest                            L102
-//   pub(super) fn new()                           L111
-//   pub(super) fn resolve()                       L147
-//   fn resolver_for()                             L185
-//   fn base_options()                             L198
-//   fn classify_local_kind()                      L222
-//   fn resolve_workspace_specifier()              L234
-//   fn collect_requests()                         L238
-//   fn parse_tree()                               L260
-//   fn resolve()                                  L283
-//   fn classify()                                 L290
-//   fn parse()                                    L325
-//   fn source_field()                             L369
-//   fn require_arg()                              L377
-//   fn bindings_before_source()                   L384
-//   fn declarator_name()                          L404
-//   fn first_named_child_of_kind()                L421
-//   fn string_literal_value()                     L427
-// struct ImportBindings                           L454
-//   fn from_import()                              L461
-//   fn from_require()                             L485
-//   fn from_braced()                              L502
-//   fn parse_segment()                            L556
-//   fn dedupe()                                   L584
-// pub(crate) fn collect_reexports()               L599
-// fn export_specifier_names()                     L647
-// pub(crate) fn collect_specifiers()              L662
-// pub(super) fn discover_workspace_packages()     L675
-// struct WorkspacePatternSet                      L753
-//   fn discover()                                 L760
-//   fn compile_include()                          L786
-//   fn compile_exclude()                          L790
-//   fn path_allowed()                             L794
-//   fn read_pnpm_patterns()                       L813
-//   fn read_package_json_patterns()               L859
-//   fn compile_globset()                          L896
-//   fn globset_matches()                          L912
-// struct PackageManifest                          L929
-//   fn read_name()                                L932
-//   fn read_json()                                L942
-// struct WorkspaceMatch                           L953
-//   fn find()                                     L960
-//   fn resolve()                                  L970
-//   fn split_specifier()                         L1022
-//   fn resolve_target()                          L1052
-//   fn export_target()                           L1063
-//   fn first_export_string()                     L1093
+// const TSJS_EXTS                                  L81
+// pub(crate) struct TsjsResolver                   L91
+// enum ImportPattern                               L99
+// struct ImportRequest                            L108
+//   pub(super) fn new()                           L117
+//   pub(super) fn resolve()                       L153
+//   fn resolver_for()                             L191
+//   fn base_options()                             L204
+//   fn classify_local_kind()                      L228
+//   fn resolve_workspace_specifier()              L240
+//   fn collect_requests()                         L244
+//   fn parse_tree()                               L266
+//   fn resolve()                                  L289
+//   fn classify()                                 L296
+//   fn parse()                                    L331
+//   fn source_field()                             L375
+//   fn require_arg()                              L383
+//   fn bindings_before_source()                   L390
+//   fn declarator_name()                          L410
+//   fn first_named_child_of_kind()                L427
+//   fn string_literal_value()                     L433
+// struct ImportBindings                           L460
+//   fn from_import()                              L467
+//   fn from_require()                             L499
+//   fn from_braced()                              L516
+//   fn parse_segment()                            L570
+//   fn dedupe()                                   L598
+// pub(crate) fn collect_reexports()               L613
+// fn export_specifier_names()                     L661
+// pub(crate) fn collect_specifiers()              L676
+// pub(super) fn discover_workspace_packages()     L689
+// struct WorkspacePatternSet                      L762
+//   fn discover()                                 L769
+//   fn compile_include()                          L795
+//   fn compile_exclude()                          L799
+//   fn path_allowed()                             L803
+//   fn read_pnpm_patterns()                       L822
+//   fn read_package_json_patterns()               L868
+//   fn compile_globset()                          L905
+//   fn globset_matches()                          L921
+// struct PackageManifest                          L938
+//   fn read_name()                                L941
+//   fn read_json()                                L951
+// struct WorkspaceMatch                           L962
+//   fn find()                                     L969
+//   fn resolve()                                  L979
+//   fn split_specifier()                         L1031
+//   fn resolve_target()                          L1061
+//   fn export_target()                           L1072
+//   fn first_export_string()                     L1102
+// mod tests                                      L1120
+// fn multi_named_import_collects_all_names()     L1125
+// fn three_named_imports()                       L1136
+// fn default_plus_named_imports()                L1149
+// fn default_plus_namespace_import()             L1161
+// fn single_named_import_still_works()           L1173
 // ----------------------------------------------------
 
 const TSJS_EXTS: &[&str] = &[

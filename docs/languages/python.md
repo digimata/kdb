@@ -1,3 +1,14 @@
+> [docs](../../docs) · [languages](../languages)
+> ---------------------------------------
+> docs/languages/python.md
+>
+> # Python — Language Support         L12
+> ## Import patterns                  L14
+> ## Reference resolution coverage    L35
+> ## Known gaps                       L49
+> ## Workspace conventions            L57
+> ---------------------------------------
+
 # Python — Language Support
 
 ## Import patterns

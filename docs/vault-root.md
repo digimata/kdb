@@ -1,3 +1,14 @@
+> [docs](../docs)
+> -----------------------------------
+> docs/vault-root.md
+>
+> # Vault Root (.kdb/)            L12
+> ## Why require a vault root?    L25
+> ## How root discovery works     L36
+> ## Monorepo usage               L48
+> ## What lives in .kdb/          L60
+> -----------------------------------
+
 # Vault Root (`.kdb/`)
 
 Every kdb command requires a `.kdb/` directory somewhere in the ancestor path of the target file. This directory is created by `kdb init` and marks the **vault root** — the boundary of the project that kdb indexes and operates on.

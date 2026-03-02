@@ -1,3 +1,31 @@
+> [docs](../../docs) · [specs](../specs)
+> --------------------------------------
+> docs/specs/refs.md
+>
+> # Spec: kdb refs                   L29
+> ## CLI                             L35
+> ### Markdown mode                  L37
+> ### Code mode (-s)                 L42
+> ## Workspace and paths             L55
+> ## Target symbol identity          L61
+> ## What counts as a reference      L70
+> ### Must count                     L75
+> ### Must not count                 L96
+> ## Resolution model               L107
+> ### Pipeline                      L113
+> ### Import binding resolution     L130
+> ### Qualified access              L140
+> ### Re-export following           L149
+> ### Go same-package resolution    L160
+> ## Output contract                L167
+> ### Sort order                    L179
+> ### Text output                   L184
+> ### JSON output                   L200
+> ## Out of scope                   L205
+> ## Unsupported patterns           L217
+> ## Per-language coverage          L229
+> --------------------------------------
+
 # Spec: `kdb refs`
 
 This document defines the intended behavior of `kdb refs`. The eval suite

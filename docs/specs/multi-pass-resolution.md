@@ -1,3 +1,29 @@
+> [docs](../../docs) · [specs](../specs)
+> -----------------------------------------------------
+> docs/specs/multi-pass-resolution.md
+>
+> # Spec: Multi-pass reference resolution           L27
+> ## Current pipeline                               L31
+> ## New pipeline                                   L57
+> ### New data structures                           L71
+> #### ModuleScope                                  L73
+> #### ExportedNames                               L106
+> ### build_module_scopes()                        L123
+> ### resolution_loop()                            L141
+> #### resolve_reexports() → bool                  L159
+> #### expand_qualified_access() → bool            L204
+> #### propagate_glob_imports() → bool             L264
+> #### exported_names()                            L317
+> ### Simplified link_usage_refs()                 L347
+> ### scan_qualified_symbols() — new function      L371
+> ## Convergence                                   L393
+> ## What changes in Indexer                       L405
+> ## What gets deleted                             L439
+> ## What stays unchanged                          L449
+> ## Testing                                       L459
+> ## Implementation order                          L474
+> -----------------------------------------------------
+
 # Spec: Multi-pass reference resolution
 
 Detailed design for iss-0041.

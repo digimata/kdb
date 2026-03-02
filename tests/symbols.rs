@@ -9,7 +9,7 @@ use kdb::symbols::{Symbol, SymbolKind, extract_symbols};
 // fn extract_symbols_python_tracks_visibility_and_display_kind()        L156
 // fn extract_symbols_go_tracks_visibility_and_display_kind()            L227
 // fn extract_symbols_rust_cfg_macro_items()                             L277
-// fn find()                                                             L319
+// fn find()                                                             L325
 // --------------------------------------------------------------------------
 
 #[test]

@@ -16,54 +16,58 @@ use super::{
     to_root_relative,
 };
 
-// ------------------------------------------
+// ---------------------------------------------------------
 // src/resolve/python.rs
 //
-// pub struct PythonWorkspaceCache        L71
-//   pub(super) fn build()                L79
-// pub(crate) struct PythonResolver      L102
-//   pub(super) fn new()                 L109
-//   fn resolve()                        L116
-// struct PythonImportResolver           L121
-//   fn new()                            L128
-//   fn resolve_source()                 L136
-//   fn push_import_statement()          L160
-//   fn push_from_import_statement()     L191
-//   fn resolve_module()                 L267
-//   fn module_paths()                   L276
-//   fn relative_module_path()           L290
-//   fn absolute_module_paths()          L310
-//   fn resolve_module_path()            L340
-// fn extract_python_all()               L354
-// fn python_wildcard_names()            L392
-// pub(crate) fn collect_reexports()     L407
-// fn discover_python_project_roots()    L458
-// fn project_package_roots()            L507
-// fn pyproject_package_roots()          L529
-// fn setup_py_package_roots()           L547
-// fn setup_py_root_tokens()             L562
-// struct SetupPyRootCollector           L568
-//   fn new()                            L574
-//   fn collect()                        L585
-//   fn call_function_name()             L622
-//   fn keyword_argument_value()         L633
-//   fn call_keyword_string_arg()        L662
-//   fn setup_package_dir_root()         L673
-//   fn dictionary_root_value()          L678
-//   fn python_string_literal()          L714
-// fn collect_setuptools_roots()         L749
-// fn collect_poetry_roots()             L789
-// fn collect_hatch_roots()              L814
-// fn push_project_root()                L843
-// fn index_package_root()               L867
-// fn parse_names()                      L908
-// fn split_alias()                      L939
-// fn module_binding_name()              L945
-// fn classify_kind()                    L955
-// fn has_python_top_level_entries()     L967
-// fn is_python_source()                 L986
-// fn is_python_package_dir()            L994
-// ------------------------------------------
+// pub struct PythonWorkspaceCache                       L75
+//   pub(super) fn build()                               L83
+// pub(crate) struct PythonResolver                     L106
+//   pub(super) fn new()                                L113
+//   fn resolve()                                       L120
+// struct PythonImportResolver                          L125
+//   fn new()                                           L132
+//   fn resolve_source()                                L140
+//   fn push_import_statement()                         L164
+//   fn push_from_import_statement()                    L195
+//   fn resolve_module()                                L271
+//   fn module_paths()                                  L280
+//   fn relative_module_path()                          L294
+//   fn absolute_module_paths()                         L314
+//   fn resolve_module_path()                           L344
+// fn extract_python_all()                              L358
+// fn python_wildcard_names()                           L399
+// pub(crate) fn collect_reexports()                    L414
+// fn discover_python_project_roots()                   L465
+// fn project_package_roots()                           L509
+// fn pyproject_package_roots()                         L531
+// fn setup_py_package_roots()                          L549
+// fn setup_py_root_tokens()                            L564
+// struct SetupPyRootCollector                          L570
+//   fn new()                                           L576
+//   fn collect()                                       L587
+//   fn call_function_name()                            L624
+//   fn keyword_argument_value()                        L635
+//   fn call_keyword_string_arg()                       L664
+//   fn setup_package_dir_root()                        L675
+//   fn dictionary_root_value()                         L680
+//   fn python_string_literal()                         L716
+// fn collect_setuptools_roots()                        L751
+// fn collect_poetry_roots()                            L791
+// fn collect_hatch_roots()                             L816
+// fn push_project_root()                               L845
+// fn index_package_root()                              L869
+// fn parse_names()                                     L910
+// fn split_alias()                                     L941
+// fn module_binding_name()                             L947
+// fn classify_kind()                                   L957
+// fn has_python_top_level_entries()                    L969
+// fn is_python_source()                                L988
+// fn is_python_package_dir()                           L996
+// mod tests                                           L1009
+// fn extract_python_all_simple()                      L1013
+// fn extract_python_all_skips_leading_lines()         L1022
+// fn extract_python_all_returns_none_when_absent()    L1031
+// ---------------------------------------------------------
 
 /// Cached Python workspace data: maps top-level package names and module
 /// stems to their directory and file paths.

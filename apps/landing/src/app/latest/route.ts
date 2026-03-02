@@ -1,3 +1,10 @@
+// ----------------------------------
+// apps/landing/src/app/latest/route.ts
+//
+// const GITHUB_API                L8
+// export async function GET()    L11
+// ----------------------------------
+
 const GITHUB_API = "https://api.github.com/repos/dremnik/kdb/releases/latest";
 
 /** GET /latest — returns the latest kdb release tag as plain text. */

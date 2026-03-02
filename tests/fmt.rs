@@ -6,16 +6,21 @@ use tempfile::tempdir;
 // ----------------------------------------------------------------------------------
 // tests/fmt.rs
 //
-// fn write_file()                                                                L21
-// fn write_root_config()                                                         L29
-// fn format_workspace_formats_supported_languages_with_readable_rows()           L34
-// fn format_workspace_places_block_after_language_preamble()                     L90
-// fn format_workspace_is_idempotent()                                           L136
-// fn format_workspace_replaces_existing_index_block_in_preamble()               L158
-// fn format_workspace_replaces_path_like_header_block_after_file_move()         L176
-// fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L195
-// fn format_workspace_respects_gitignore_rules()                                L221
-// fn assert_index_between()                                                     L241
+// fn write_file()                                                                L26
+// fn write_root_config()                                                         L34
+// fn format_workspace_formats_supported_languages_with_readable_rows()           L39
+// fn format_workspace_places_block_after_language_preamble()                     L95
+// fn format_workspace_is_idempotent()                                           L141
+// fn format_workspace_replaces_existing_index_block_in_preamble()               L163
+// fn format_workspace_replaces_path_like_header_block_after_file_move()         L181
+// fn format_workspace_respects_ignore_patterns_and_skips_unsupported_files()    L200
+// fn format_workspace_respects_gitignore_rules()                                L226
+// fn format_workspace_generates_markdown_nav_with_breadcrumb_and_outline()      L247
+// fn format_workspace_markdown_nav_is_idempotent()                              L270
+// fn format_workspace_markdown_nav_root_file_has_no_breadcrumb()                L294
+// fn format_workspace_markdown_nav_no_headings()                                L309
+// fn format_workspace_markdown_nav_preserves_frontmatter()                      L324
+// fn assert_index_between()                                                     L343
 // ----------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
@@ -236,6 +241,103 @@ fn format_workspace_respects_gitignore_rules() {
     let hidden =
         fs::read_to_string(temp.path().join("vendor/hidden.rs")).expect("read hidden file");
     assert!(!hidden.contains("// vendor/hidden.rs"));
+}
+
+#[test]
+fn format_workspace_generates_markdown_nav_with_breadcrumb_and_outline() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+
+    write_file(
+        temp.path(),
+        "docs/arch/overview.md",
+        "---\ntitle: Overview\n---\n\n# Architecture\n\n## Storage\n\n## Query Engine\n",
+    );
+
+    let report = format_workspace(temp.path(), &[]).expect("format workspace");
+    assert_eq!(report.scanned_files, 1);
+    assert_eq!(report.updated_files, 1);
+
+    let md = fs::read_to_string(temp.path().join("docs/arch/overview.md")).expect("read md file");
+    assert!(md.contains("> [docs](../../docs) · [arch](../arch)"));
+    assert!(md.contains("> docs/arch/overview.md"));
+    assert!(md.contains("> # Architecture"));
+    assert!(md.contains("> ## Storage"));
+    assert!(md.contains("> ## Query Engine"));
+}
+
+#[test]
+fn format_workspace_markdown_nav_is_idempotent() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+
+    write_file(
+        temp.path(),
+        "notes/index.md",
+        "# Notes\n\n## First\n\n## Second\n",
+    );
+
+    let first = format_workspace(temp.path(), &[]).expect("first format");
+    assert_eq!(first.updated_files, 1);
+
+    let once = fs::read_to_string(temp.path().join("notes/index.md")).expect("read once");
+    assert!(once.contains("> notes/index.md"));
+
+    let second = format_workspace(temp.path(), &[]).expect("second format");
+    assert_eq!(second.updated_files, 0);
+
+    let twice = fs::read_to_string(temp.path().join("notes/index.md")).expect("read twice");
+    assert_eq!(once, twice);
+}
+
+#[test]
+fn format_workspace_markdown_nav_root_file_has_no_breadcrumb() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+
+    write_file(temp.path(), "readme.md", "# Hello\n\nWorld.\n");
+
+    format_workspace(temp.path(), &[]).expect("format workspace");
+
+    let md = fs::read_to_string(temp.path().join("readme.md")).expect("read md file");
+    assert!(md.contains("> readme.md"));
+    // No breadcrumb line for root-level files.
+    assert!(!md.contains("> ["));
+}
+
+#[test]
+fn format_workspace_markdown_nav_no_headings() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+
+    write_file(temp.path(), "empty.md", "Just text.\n");
+
+    format_workspace(temp.path(), &[]).expect("format workspace");
+
+    let md = fs::read_to_string(temp.path().join("empty.md")).expect("read md file");
+    assert!(md.contains("> empty.md"));
+    // Separator lines are always present, even with no headings.
+    assert!(md.contains("> --------"));
+}
+
+#[test]
+fn format_workspace_markdown_nav_preserves_frontmatter() {
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+
+    write_file(
+        temp.path(),
+        "doc.md",
+        "---\ntitle: Test\n---\n\n# Heading\n",
+    );
+
+    format_workspace(temp.path(), &[]).expect("format workspace");
+
+    let md = fs::read_to_string(temp.path().join("doc.md")).expect("read md file");
+    // Frontmatter must appear before the nav block.
+    let frontmatter_end = md.find("---\n> ").or_else(|| md.find("---\n>"));
+    assert!(frontmatter_end.is_some(), "nav block should follow frontmatter");
+    assert!(md.starts_with("---\ntitle: Test\n---\n"));
 }
 
 fn assert_index_between(content: &str, before: &str, after: &str, header: &str) {
