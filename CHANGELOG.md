@@ -83,6 +83,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] — 2026-03-02
+
+### Added
+
+- LSP autocomplete for `kdb://` root-anchored links — typing `](kdb://` now suggests file and heading completions resolved from vault root
+
 ## [0.21.0] — 2026-03-01
 
 ### Changed

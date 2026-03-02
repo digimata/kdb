@@ -24,13 +24,13 @@ use super::backend::{
 // kdb/src/lsp/completion.rs
 //
 // pub(super) async fn completion()     L38
-// enum CompletionContext               L80
-// fn completion_context()              L95
-// fn parse_markdown_completion()      L115
-// fn parse_wikilink_completion()      L136
-// fn optional_string()                L157
-// fn complete_files()                 L167
-// fn complete_headings()              L201
+// enum CompletionContext               L90
+// fn completion_context()             L110
+// fn parse_markdown_completion()      L134
+// fn parse_wikilink_completion()      L162
+// fn optional_string()                L185
+// fn complete_files()                 L198
+// fn complete_headings()              L240
 // ----------------------------------------
 
 /// Handle a completion request by detecting the link context at the cursor
@@ -59,14 +59,24 @@ pub(super) async fn completion(
 
     let Some(items) = backend
         .with_index(move |index| match context {
-            CompletionContext::File { kind, prefix } => {
-                complete_files(index, &source_rel, kind, &prefix)
-            }
+            CompletionContext::File {
+                kind,
+                prefix,
+                root_relative,
+            } => complete_files(index, &source_rel, kind, &prefix, root_relative),
             CompletionContext::Heading {
                 kind,
                 file,
                 anchor_prefix,
-            } => complete_headings(index, &source_rel, kind, file.as_deref(), &anchor_prefix),
+                root_relative,
+            } => complete_headings(
+                index,
+                &source_rel,
+                kind,
+                file.as_deref(),
+                &anchor_prefix,
+                root_relative,
+            ),
         })
         .await
     else {
@@ -79,12 +89,17 @@ pub(super) async fn completion(
 /// What kind of completion the cursor position calls for.
 enum CompletionContext {
     /// Cursor is in the file portion of a link — suggest file names.
-    File { kind: LinkKind, prefix: String },
+    File {
+        kind: LinkKind,
+        prefix: String,
+        root_relative: bool,
+    },
     /// Cursor is after `#` — suggest heading anchors in the target file.
     Heading {
         kind: LinkKind,
         file: Option<String>,
         anchor_prefix: String,
+        root_relative: bool,
     },
 }
 
@@ -112,23 +127,34 @@ fn completion_context(content: &str, position: Position) -> Option<CompletionCon
 }
 
 /// Parse the fragment after `](` for markdown-style link completion.
+///
+/// Recognizes the `kdb://` prefix for root-relative links.  When present the
+/// prefix is stripped and `root_relative` is set so downstream completion
+/// functions resolve paths from the vault root instead of the source directory.
 fn parse_markdown_completion(fragment: &str) -> Option<CompletionContext> {
     if fragment.contains(')') {
         return None;
     }
 
     let fragment = fragment.trim();
+    let (fragment, root_relative) = match fragment.strip_prefix("kdb://") {
+        Some(rest) => (rest, true),
+        None => (fragment, false),
+    };
+
     if let Some((file, anchor)) = fragment.split_once('#') {
         return Some(CompletionContext::Heading {
             kind: LinkKind::Markdown,
             file: optional_string(file),
             anchor_prefix: anchor.to_string(),
+            root_relative,
         });
     }
 
     Some(CompletionContext::File {
         kind: LinkKind::Markdown,
         prefix: fragment.to_string(),
+        root_relative,
     })
 }
 
@@ -144,12 +170,14 @@ fn parse_wikilink_completion(fragment: &str) -> Option<CompletionContext> {
             kind: LinkKind::Wikilink,
             file: optional_string(file),
             anchor_prefix: anchor.to_string(),
+            root_relative: false,
         });
     }
 
     Some(CompletionContext::File {
         kind: LinkKind::Wikilink,
         prefix: fragment.to_string(),
+        root_relative: false,
     })
 }
 
@@ -164,17 +192,25 @@ fn optional_string(input: &str) -> Option<String> {
 }
 
 /// Generate file name completions filtered by the typed prefix.
+///
+/// When `root_relative` is true, candidates use vault-root paths (as they
+/// appear in the index) instead of paths relative to the source file.
 fn complete_files(
     index: &VaultIndex,
     source_file: &Path,
     kind: LinkKind,
     prefix: &str,
+    root_relative: bool,
 ) -> Vec<CompletionItem> {
     let source_dir = source_file.parent().unwrap_or(Path::new(""));
     let mut items = Vec::new();
 
     for rel_path in index.files.keys() {
-        let mut candidate = relative_path(source_dir, rel_path);
+        let mut candidate = if root_relative {
+            rel_path.to_path_buf()
+        } else {
+            relative_path(source_dir, rel_path)
+        };
         if matches!(kind, LinkKind::Wikilink) && is_markdown_path(&candidate) {
             candidate.set_extension("");
         }
@@ -198,19 +234,23 @@ fn complete_files(
 }
 
 /// Generate heading anchor completions for a target file, filtered by prefix.
+///
+/// When `root_relative` is true, the file path is resolved from the vault root
+/// (matching `kdb://` link semantics) instead of the source file's directory.
 fn complete_headings(
     index: &VaultIndex,
     source_file: &Path,
     kind: LinkKind,
     file: Option<&str>,
     anchor_prefix: &str,
+    root_relative: bool,
 ) -> Vec<CompletionItem> {
     let target_file = match file {
         Some(file) => {
             let target = LinkTarget {
                 file: Some(file.to_string()),
                 anchor: None,
-                root_relative: false,
+                root_relative,
             };
             if let Some(resolved) = resolve_target_path(source_file, kind, &target) {
                 resolved
@@ -218,7 +258,7 @@ fn complete_headings(
                 let target_with_md = LinkTarget {
                     file: Some(format!("{file}.md")),
                     anchor: None,
-                    root_relative: false,
+                    root_relative,
                 };
                 let Some(resolved) = resolve_target_path(source_file, kind, &target_with_md) else {
                     return Vec::new();
