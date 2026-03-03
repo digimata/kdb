@@ -385,6 +385,7 @@ impl LanguageServer for Backend {
                         "[".to_string(),
                         "(".to_string(),
                         "#".to_string(),
+                        "/".to_string(),
                     ]),
                     ..CompletionOptions::default()
                 }),
