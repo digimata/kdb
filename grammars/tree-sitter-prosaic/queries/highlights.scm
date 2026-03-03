@@ -6,3 +6,5 @@
 (file_path) @string.special
 (template_var) @string.escape
 (operator) @operator
+(for_statement "for" @keyword)
+(if_statement "if" @keyword)

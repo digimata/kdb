@@ -34,7 +34,7 @@ scan:
     (block_label)))
 
 ================
-First word is the action verb
+Statement — first word is verb
 ================
 
 list what was actually done
@@ -50,21 +50,7 @@ list what was actually done
     (word)))
 
 ================
-Any word can be the verb
-================
-
-frobnicate the widgets
-
----
-
-(source_file
-  (statement
-    (action_verb)
-    (word)
-    (word)))
-
-================
-For-each with keyword highlighting
+For statement
 ================
 
 for each task in previous_cycle:
@@ -72,12 +58,25 @@ for each task in previous_cycle:
 ---
 
 (source_file
-  (statement
-    (action_verb)
+  (for_statement
     (control_keyword)
     (word)
     (word)
     (identifier)))
+
+================
+If statement
+================
+
+if completed: mark done
+
+---
+
+(source_file
+  (if_statement
+    (identifier)
+    (word)
+    (word)))
 
 ================
 Dot-prefixed file path
@@ -133,6 +132,21 @@ expected_payoff = likelihood × magnitude
     (word)
     (operator)
     (word)))
+
+================
+Arrow operator
+================
+
+copy .tasks/TODO.md → .cycle/{cycle_id}/tasks/{date}.md
+
+---
+
+(source_file
+  (statement
+    (action_verb)
+    (file_path)
+    (operator)
+    (file_path)))
 
 ================
 Block label with trailing tokens

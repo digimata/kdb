@@ -12,7 +12,14 @@ module.exports = grammar({
     _newline: (_) => /\n/,
 
     _line: ($) =>
-      choice($.comment, $.block_label_line, $.statement),
+      choice(
+        $.comment,
+        $.block_label_line,
+        $.for_statement,
+        $.if_statement,
+        $.statement,
+        $.plain_line,
+      ),
 
     // /* ... */ comments (can span multiple lines)
     comment: ($) =>
@@ -38,9 +45,21 @@ module.exports = grammar({
 
     block_label: (_) => /[a-z_]+:/,
 
+    // for each ... :
+    for_statement: ($) =>
+      seq("for", repeat1($._token), $._newline),
+
+    // if ... :
+    if_statement: ($) =>
+      seq("if", repeat1($._token), $._newline),
+
     // first word is the action verb, rest are tokens
     statement: ($) =>
       seq($.action_verb, repeat($._token), $._newline),
+
+    // fallback for lines starting with non-word chars (e.g. ## Schedule)
+    plain_line: ($) =>
+      seq(repeat1($._token), $._newline),
 
     _token: ($) =>
       choice(
@@ -52,7 +71,7 @@ module.exports = grammar({
         $.word,
       ),
 
-    // first word of a statement — always the verb/action
+    // first word of a statement / prompt
     action_verb: (_) => /[a-zA-Z_][a-zA-Z0-9_]*/,
 
     control_keyword: (_) =>
