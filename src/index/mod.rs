@@ -292,19 +292,34 @@ pub struct BrokenLink {
     pub reason: String,
 }
 
+/// A broken embed (`![[target]]`) detected during validation.
+#[derive(Debug, Clone)]
+pub struct BrokenEmbed {
+    /// File containing the broken embed.
+    pub source_file: PathBuf,
+    /// 1-based line number.
+    pub line: usize,
+    /// Raw embed text.
+    pub raw: String,
+    /// Human-readable explanation of why the embed is broken.
+    pub reason: String,
+}
+
 /// Results from running `kdb check` on a vault.
 #[derive(Debug, Clone, Default)]
 pub struct CheckReport {
     /// Links that reference files or headings that don't exist.
     pub broken_links: Vec<BrokenLink>,
+    /// Embeds (`![[]]`) that reference files or headings that don't exist.
+    pub broken_embeds: Vec<BrokenEmbed>,
     /// Files that have no inbound links from other files.
     pub orphans: Vec<PathBuf>,
 }
 
 impl CheckReport {
-    /// Returns `true` if the report contains any broken links.
+    /// Returns `true` if the report contains any broken links or embeds.
     pub fn has_errors(&self) -> bool {
-        !self.broken_links.is_empty()
+        !self.broken_links.is_empty() || !self.broken_embeds.is_empty()
     }
 
     /// Print a human-readable summary to stdout.
@@ -315,6 +330,16 @@ impl CheckReport {
                 broken.source_file.display(),
                 broken.line,
                 broken.column,
+                broken.raw,
+                broken.reason
+            );
+        }
+
+        for broken in &self.broken_embeds {
+            println!(
+                "{}:{} broken embed {} ({})",
+                broken.source_file.display(),
+                broken.line,
                 broken.raw,
                 broken.reason
             );
@@ -337,18 +362,15 @@ impl CheckReport {
             );
         }
 
-        if self.broken_links.is_empty() && self.orphans.is_empty() {
+        let error_count = self.broken_links.len() + self.broken_embeds.len();
+        if error_count == 0 && self.orphans.is_empty() {
             println!("kdb check: no issues found");
             return;
         }
 
-        if !self.broken_links.is_empty() {
-            let noun = if self.broken_links.len() == 1 {
-                "error"
-            } else {
-                "errors"
-            };
-            println!("{} {noun}", self.broken_links.len());
+        if error_count > 0 {
+            let noun = if error_count == 1 { "error" } else { "errors" };
+            println!("{error_count} {noun}");
         }
 
         if !self.orphans.is_empty() {
@@ -367,6 +389,8 @@ impl CheckReport {
     /// Otherwise, only entries whose source file exactly equals `scope_rel` are kept.
     pub fn scoped_to(mut self, scope_rel: &Path, scope_is_dir: bool) -> Self {
         self.broken_links
+            .retain(|broken| path_is_in_check_scope(&broken.source_file, scope_rel, scope_is_dir));
+        self.broken_embeds
             .retain(|broken| path_is_in_check_scope(&broken.source_file, scope_rel, scope_is_dir));
         self.orphans
             .retain(|orphan| path_is_in_check_scope(orphan, scope_rel, scope_is_dir));
@@ -596,9 +620,12 @@ impl VaultIndex {
         }
     }
 
-    /// Validate all links in the vault and return a report of broken references
-    /// and orphan files.
+    /// Validate all links and embeds in the vault and return a report of broken
+    /// references, broken embeds, and orphan files.
     pub fn check(&self) -> CheckReport {
+        use crate::render::include::find_embeds;
+        use crate::render::resolve::validate_embed_target;
+
         let mut report = CheckReport::default();
 
         for (source_file, file_entry) in &self.files {
@@ -611,6 +638,28 @@ impl VaultIndex {
                         raw: link.raw.clone(),
                         reason: error.message(),
                     });
+                }
+            }
+
+            // Validate ![[]] embeds.
+            let abs_path = self.root.join(source_file);
+            if let Ok(source) = std::fs::read_to_string(&abs_path) {
+                let lines: Vec<&str> = source.lines().collect();
+                let embeds = find_embeds(&lines);
+                for embed in &embeds {
+                    if let Err(error) =
+                        validate_embed_target(&self.root, source_file, &embed.directive)
+                    {
+                        report.broken_embeds.push(BrokenEmbed {
+                            source_file: source_file.clone(),
+                            line: embed.line + 1, // convert 0-based to 1-based
+                            raw: format!("![[{}]]", match &embed.directive.anchor {
+                                Some(a) => format!("{}#{}", embed.directive.file, a),
+                                None => embed.directive.file.clone(),
+                            }),
+                            reason: error.to_string(),
+                        });
+                    }
                 }
             }
         }

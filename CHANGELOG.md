@@ -83,6 +83,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] — 2026-03-03
+
+### Added
+
+- `kdb render <file>` — resolve `![[file#heading]]` transclusion embeds and output to stdout (Obsidian-style syntax, recursive with cycle detection)
+- `kdb check` now validates `![[]]` embed targets (file existence + heading anchors)
+- New `src/render/` module: include parsing, recursive resolution engine, public render API
+
 ## [0.24.0] — 2026-03-03
 
 ### Added

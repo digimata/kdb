@@ -23,6 +23,7 @@ pub mod index;
 pub mod lang;
 pub mod lsp;
 pub mod project;
+pub mod render;
 pub mod resolve;
 pub mod symbols;
 pub mod tree;

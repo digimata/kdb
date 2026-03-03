@@ -110,6 +110,11 @@ enum Command {
         /// Optional starting path to discover kdb root from.
         path: Option<PathBuf>,
     },
+    /// Resolve all includes in a markdown file and print the result.
+    Render {
+        /// File path to render.
+        file: PathBuf,
+    },
     /// Generate or update code index headers in supported code files.
     Fmt {
         /// Optional file or directory path to format (defaults to project root).
@@ -174,6 +179,7 @@ async fn main() {
         } => kdb::cmd::refs(target, symbol, context, json, count, files),
         Command::Deps { target, json } => kdb::cmd::deps(target, json),
         Command::Graph { path } => kdb::cmd::graph(path),
+        Command::Render { file } => kdb::cmd::render(file),
         Command::Fmt { path, force } => kdb::cmd::format(path, force),
         Command::Lsp { path } => kdb::lsp::serve(path).await,
         Command::Update { check } => kdb::cmd::update(check),

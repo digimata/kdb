@@ -13,6 +13,7 @@ use crate::fmt;
 use crate::index::{self, ProjectIndex, VaultIndex, deps as md_deps, refs};
 use crate::lang::CodeLanguage;
 use crate::project::{self, ProjectContext};
+use crate::render;
 use crate::symbols;
 use crate::tree;
 use crate::update;
@@ -392,6 +393,18 @@ pub fn graph(path: Option<PathBuf>) -> Result<()> {
     bail!(
         "`kdb graph` is not implemented yet (path: {requested}). See .issues/iss-0021-graph-command.md"
     )
+}
+
+/// Resolve all `![[]]` embeds in a markdown file and print the result to stdout.
+pub fn render(file: PathBuf) -> Result<()> {
+    let ctx = CmdContext::from_path(Some(&file))?;
+    let rel_path = ctx.rel_path(&ctx.start)?;
+
+    let output = render::render_file(&ctx.project.root, &rel_path)
+        .with_context(|| format!("failed to render {}", rel_path.display()))?;
+
+    print!("{output}");
+    Ok(())
 }
 
 /// Generate or update code index headers for supported code files.
