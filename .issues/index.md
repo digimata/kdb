@@ -10,6 +10,7 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 
 | Issue | Label | Status | Priority |
 | --- | --- | --- | --- |
+| [0059 — Prosaic Syntax Highlighting](iss-0059-prosaic-syntax-highlighting.md) | enhancement | done | medium |
 | [0058 — Root-Anchored Links & Fmt Navigation Headers](iss-0058-root-links-and-fmt-nav.md) | enhancement | in_progress | high |
 | [0011 — Install Script and Prebuilt Binaries](iss-0011-install-script.md) | feat | in_progress | high |
 | [0057 — Code Retrieval SOTA Research](iss-0057-code-retrieval-sota.md) | research | proposed | medium |

@@ -1,0 +1,124 @@
+================
+Comments
+================
+
+/* this is a comment */
+
+---
+
+(source_file
+  (comment))
+
+================
+Comment with annotation
+================
+
+/* 1. What happened? (facts, not feelings) */
+
+---
+
+(source_file
+  (comment
+    (annotation)))
+
+================
+Block label
+================
+
+scan:
+
+---
+
+(source_file
+  (block_label_line
+    (block_label)))
+
+================
+Action verb statement
+================
+
+list what was actually done
+
+---
+
+(source_file
+  (statement
+    (action_verb)
+    (word)
+    (word)
+    (word)
+    (word)))
+
+================
+For-each statement
+================
+
+for each task in previous_cycle:
+
+---
+
+(source_file
+  (statement
+    (control_keyword)
+    (word)
+    (control_keyword)
+    (identifier)))
+
+================
+File path
+================
+
+copy .tasks/TODO.md
+
+---
+
+(source_file
+  (statement
+    (action_verb)
+    (file_path)))
+
+================
+Template variable in path
+================
+
+create .cycle/{cycle_id}/plan.md
+
+---
+
+(source_file
+  (statement
+    (action_verb)
+    (file_path)))
+
+================
+Operators
+================
+
+expected_payoff = likelihood × magnitude
+
+---
+
+(source_file
+  (statement
+    (word)
+    (operator)
+    (word)
+    (operator)
+    (word)))
+
+================
+Block label with trailing tokens
+================
+
+output:
+    ranked opportunity table
+
+---
+
+(source_file
+  (block_label_line
+    (block_label))
+  (statement
+    (word)
+    (word)
+    (word)))

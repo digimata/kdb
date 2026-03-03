@@ -83,6 +83,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] — 2026-03-03
+
+### Added
+
+- Tree-sitter grammar for Prosaic pseudocode (`grammars/tree-sitter-prosaic/`) with syntax highlighting for comments, control flow, action verbs, block labels, file paths, template variables, and operators
+- Prosaic language wired into Zed extension — `prosaic` code blocks in markdown now get highlighted
+- Language docs at `docs/languages/prosaic.md`
+
 ## [0.23.0] — 2026-03-02
 
 ### Added
