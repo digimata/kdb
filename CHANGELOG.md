@@ -83,10 +83,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.22.2] — 2026-03-02
+## [0.23.0] — 2026-03-02
+
+### Added
+
+- `kdb://` completion support for wikilinks (`[[kdb://` now suggests files)
 
 ### Fixed
 
+- Completion items use explicit `textEdit` ranges so the editor replaces the full link target instead of guessing word boundaries — fixes garbled insert when selecting `kdb://` suggestions
 - Add `/` as LSP completion trigger character so `kdb://` completions fire after typing the scheme prefix
 
 ## [0.22.1] — 2026-03-02

@@ -11,7 +11,8 @@
 use std::path::Path;
 use tower_lsp::jsonrpc::Result as LspResult;
 use tower_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, Position,
+    CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, CompletionTextEdit,
+    Position, Range, TextEdit,
 };
 
 use crate::index::{LinkKind, LinkTarget, VaultIndex, resolve_target_path, slug_anchor};
@@ -23,14 +24,14 @@ use super::backend::{
 // ----------------------------------------
 // kdb/src/lsp/completion.rs
 //
-// pub(super) async fn completion()     L38
-// enum CompletionContext               L90
-// fn completion_context()             L110
-// fn parse_markdown_completion()      L134
-// fn parse_wikilink_completion()      L162
-// fn optional_string()                L185
-// fn complete_files()                 L198
-// fn complete_headings()              L240
+// pub(super) async fn completion()     L39
+// enum CompletionContext               L94
+// fn completion_context()             L116
+// fn parse_markdown_completion()      L166
+// fn parse_wikilink_completion()      L199
+// fn optional_string()                L229
+// fn complete_files()                 L244
+// fn complete_headings()              L297
 // ----------------------------------------
 
 /// Handle a completion request by detecting the link context at the cursor
@@ -63,12 +64,14 @@ pub(super) async fn completion(
                 kind,
                 prefix,
                 root_relative,
-            } => complete_files(index, &source_rel, kind, &prefix, root_relative),
+                edit_range,
+            } => complete_files(index, &source_rel, kind, &prefix, root_relative, edit_range),
             CompletionContext::Heading {
                 kind,
                 file,
                 anchor_prefix,
                 root_relative,
+                edit_range,
             } => complete_headings(
                 index,
                 &source_rel,
@@ -76,6 +79,7 @@ pub(super) async fn completion(
                 file.as_deref(),
                 &anchor_prefix,
                 root_relative,
+                edit_range,
             ),
         })
         .await
@@ -93,6 +97,7 @@ enum CompletionContext {
         kind: LinkKind,
         prefix: String,
         root_relative: bool,
+        edit_range: Range,
     },
     /// Cursor is after `#` — suggest heading anchors in the target file.
     Heading {
@@ -100,6 +105,7 @@ enum CompletionContext {
         file: Option<String>,
         anchor_prefix: String,
         root_relative: bool,
+        edit_range: Range,
     },
 }
 
@@ -115,14 +121,40 @@ fn completion_context(content: &str, position: Position) -> Option<CompletionCon
     let wiki_start = before_cursor.rfind("[[");
     let markdown_start = before_cursor.rfind("](");
 
-    match (wiki_start, markdown_start) {
+    // Byte offset within the line where the link target begins (after `[[` or `](`).
+    let (fragment, target_col) = match (wiki_start, markdown_start) {
         (Some(wiki), Some(markdown)) if wiki > markdown => {
-            parse_wikilink_completion(&before_cursor[wiki + 2..])
+            (&before_cursor[wiki + 2..], wiki + 2)
         }
-        (Some(_), Some(markdown)) => parse_markdown_completion(&before_cursor[markdown + 2..]),
-        (Some(wiki), None) => parse_wikilink_completion(&before_cursor[wiki + 2..]),
-        (None, Some(markdown)) => parse_markdown_completion(&before_cursor[markdown + 2..]),
-        _ => None,
+        (Some(_), Some(markdown)) => (&before_cursor[markdown + 2..], markdown + 2),
+        (Some(wiki), None) => (&before_cursor[wiki + 2..], wiki + 2),
+        (None, Some(markdown)) => (&before_cursor[markdown + 2..], markdown + 2),
+        _ => return None,
+    };
+
+    let is_wikilink = match (wiki_start, markdown_start) {
+        (Some(wiki), Some(markdown)) => wiki > markdown,
+        (Some(_), None) => true,
+        _ => false,
+    };
+
+    // Build the edit range covering the entire link target (from after the
+    // opening delimiter to the cursor).  Completion items use this to replace
+    // the full typed fragment so the editor doesn't have to guess word
+    // boundaries around `/` or `:`.
+    let target_start = Position {
+        line: position.line,
+        character: target_col as u32,
+    };
+    let edit_range = Range {
+        start: target_start,
+        end: position,
+    };
+
+    if is_wikilink {
+        parse_wikilink_completion(fragment, edit_range)
+    } else {
+        parse_markdown_completion(fragment, edit_range)
     }
 }
 
@@ -131,7 +163,7 @@ fn completion_context(content: &str, position: Position) -> Option<CompletionCon
 /// Recognizes the `kdb://` prefix for root-relative links.  When present the
 /// prefix is stripped and `root_relative` is set so downstream completion
 /// functions resolve paths from the vault root instead of the source directory.
-fn parse_markdown_completion(fragment: &str) -> Option<CompletionContext> {
+fn parse_markdown_completion(fragment: &str, edit_range: Range) -> Option<CompletionContext> {
     if fragment.contains(')') {
         return None;
     }
@@ -148,6 +180,7 @@ fn parse_markdown_completion(fragment: &str) -> Option<CompletionContext> {
             file: optional_string(file),
             anchor_prefix: anchor.to_string(),
             root_relative,
+            edit_range,
         });
     }
 
@@ -155,29 +188,40 @@ fn parse_markdown_completion(fragment: &str) -> Option<CompletionContext> {
         kind: LinkKind::Markdown,
         prefix: fragment.to_string(),
         root_relative,
+        edit_range,
     })
 }
 
 /// Parse the fragment after `[[` for wikilink-style completion.
-fn parse_wikilink_completion(fragment: &str) -> Option<CompletionContext> {
+///
+/// Recognizes the `kdb://` prefix for root-relative links, mirroring the
+/// markdown-link parser.
+fn parse_wikilink_completion(fragment: &str, edit_range: Range) -> Option<CompletionContext> {
     if fragment.contains("]]") {
         return None;
     }
 
     let fragment = fragment.split('|').next().unwrap_or(fragment).trim();
+    let (fragment, root_relative) = match fragment.strip_prefix("kdb://") {
+        Some(rest) => (rest, true),
+        None => (fragment, false),
+    };
+
     if let Some((file, anchor)) = fragment.split_once('#') {
         return Some(CompletionContext::Heading {
             kind: LinkKind::Wikilink,
             file: optional_string(file),
             anchor_prefix: anchor.to_string(),
-            root_relative: false,
+            root_relative,
+            edit_range,
         });
     }
 
     Some(CompletionContext::File {
         kind: LinkKind::Wikilink,
         prefix: fragment.to_string(),
-        root_relative: false,
+        root_relative,
+        edit_range,
     })
 }
 
@@ -194,13 +238,16 @@ fn optional_string(input: &str) -> Option<String> {
 /// Generate file name completions filtered by the typed prefix.
 ///
 /// When `root_relative` is true, candidates use vault-root paths (as they
-/// appear in the index) instead of paths relative to the source file.
+/// appear in the index) instead of paths relative to the source file.  The
+/// replacement text includes the `kdb://` scheme so the editor replaces the
+/// entire link target span.
 fn complete_files(
     index: &VaultIndex,
     source_file: &Path,
     kind: LinkKind,
     prefix: &str,
     root_relative: bool,
+    edit_range: Range,
 ) -> Vec<CompletionItem> {
     let source_dir = source_file.parent().unwrap_or(Path::new(""));
     let mut items = Vec::new();
@@ -220,11 +267,21 @@ fn complete_files(
             continue;
         }
 
+        let insert = if root_relative {
+            format!("kdb://{label}")
+        } else {
+            label.clone()
+        };
+
         items.push(CompletionItem {
             label: label.clone(),
             kind: Some(CompletionItemKind::FILE),
             detail: Some(path_to_slash(rel_path)),
-            insert_text: Some(label),
+            filter_text: Some(insert.clone()),
+            text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                range: edit_range,
+                new_text: insert,
+            })),
             ..CompletionItem::default()
         });
     }
@@ -244,6 +301,7 @@ fn complete_headings(
     file: Option<&str>,
     anchor_prefix: &str,
     root_relative: bool,
+    edit_range: Range,
 ) -> Vec<CompletionItem> {
     let target_file = match file {
         Some(file) => {
@@ -290,7 +348,10 @@ fn complete_headings(
         items.push(CompletionItem {
             label: heading.title.clone(),
             kind: Some(CompletionItemKind::TEXT),
-            insert_text: Some(heading.anchor.clone()),
+            text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                range: edit_range,
+                new_text: heading.anchor.clone(),
+            })),
             ..CompletionItem::default()
         });
     }

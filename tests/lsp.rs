@@ -563,7 +563,7 @@ fn symbols_definition_completion_and_hover_work() {
         .iter()
         .find(|item| item.get("label").and_then(Value::as_str) == Some("Target"))
         .expect("target heading completion");
-    assert_eq!(target_heading["insertText"], json!("target"));
+    assert_eq!(target_heading["textEdit"]["newText"], json!("target"));
 
     session.shutdown();
 }
@@ -792,7 +792,7 @@ fn completion_uses_unsaved_document_buffer_state() {
         .iter()
         .find(|item| item.get("label").and_then(Value::as_str) == Some("Target"))
         .expect("target heading completion");
-    assert_eq!(target_heading["insertText"], json!("target"));
+    assert_eq!(target_heading["textEdit"]["newText"], json!("target"));
 
     session.shutdown();
 }
