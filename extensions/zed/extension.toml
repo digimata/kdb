@@ -15,7 +15,9 @@ name = "kdb"
 languages = ["Markdown", "Rust", "TypeScript", "TSX", "JavaScript", "Python", "Go"]
 
 [grammars.prosaic]
-path = "../../grammars/tree-sitter-prosaic"
+repository = "file:///Users/andjones/Documents/projects/kdb"
+rev = "af536f428fe84369cc3614a58b0e9d31db18ade0"
+path = "grammars/tree-sitter-prosaic"
 
 [language_servers.kdb.language_ids]
 Markdown = "markdown"

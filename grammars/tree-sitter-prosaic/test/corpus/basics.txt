@@ -34,7 +34,7 @@ scan:
     (block_label)))
 
 ================
-Action verb statement
+First word is the action verb
 ================
 
 list what was actually done
@@ -50,7 +50,21 @@ list what was actually done
     (word)))
 
 ================
-For-each statement
+Any word can be the verb
+================
+
+frobnicate the widgets
+
+---
+
+(source_file
+  (statement
+    (action_verb)
+    (word)
+    (word)))
+
+================
+For-each with keyword highlighting
 ================
 
 for each task in previous_cycle:
@@ -59,16 +73,30 @@ for each task in previous_cycle:
 
 (source_file
   (statement
+    (action_verb)
     (control_keyword)
     (word)
-    (control_keyword)
+    (word)
     (identifier)))
 
 ================
-File path
+Dot-prefixed file path
 ================
 
 copy .tasks/TODO.md
+
+---
+
+(source_file
+  (statement
+    (action_verb)
+    (file_path)))
+
+================
+Slash file path
+================
+
+create src/main.rs
 
 ---
 
@@ -100,7 +128,7 @@ expected_payoff = likelihood × magnitude
 
 (source_file
   (statement
-    (word)
+    (action_verb)
     (operator)
     (word)
     (operator)
@@ -119,6 +147,6 @@ output:
   (block_label_line
     (block_label))
   (statement
-    (word)
+    (action_verb)
     (word)
     (word)))

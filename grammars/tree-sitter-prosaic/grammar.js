@@ -1,30 +1,6 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-const ACTION_VERBS = [
-  "copy",
-  "write",
-  "create",
-  "mark",
-  "check",
-  "print",
-  "list",
-  "update",
-  "sort",
-  "tag",
-  "assign",
-  "prune",
-  "classify",
-  "pick",
-  "take",
-  "allocate",
-  "link",
-  "group",
-  "inventory",
-  "note",
-  "review",
-];
-
 module.exports = grammar({
   name: "prosaic",
 
@@ -62,14 +38,13 @@ module.exports = grammar({
 
     block_label: (_) => /[a-z_]+:/,
 
-    // a statement is one or more tokens on a line
+    // first word is the action verb, rest are tokens
     statement: ($) =>
-      seq($._token, repeat($._token), $._newline),
+      seq($.action_verb, repeat($._token), $._newline),
 
     _token: ($) =>
       choice(
         $.control_keyword,
-        $.action_verb,
         $.template_var,
         $.file_path,
         $.operator,
@@ -77,15 +52,20 @@ module.exports = grammar({
         $.word,
       ),
 
-    control_keyword: (_) =>
-      choice("for each", "for", "if", "in", "break"),
+    // first word of a statement — always the verb/action
+    action_verb: (_) => /[a-zA-Z_][a-zA-Z0-9_]*/,
 
-    action_verb: (_) =>
-      choice(...ACTION_VERBS),
+    control_keyword: (_) =>
+      choice("each", "break"),
 
     template_var: (_) => /\{[a-zA-Z_][a-zA-Z0-9_.]*\}/,
 
-    file_path: (_) => /\.[a-zA-Z0-9_/{}.-]+/,
+    // paths: dot-prefixed (.tasks/TODO.md) or contain a slash (src/main.rs)
+    file_path: (_) =>
+      token(choice(
+        /\.[a-zA-Z0-9_/{}.-]+/,
+        /[a-zA-Z0-9_{}.-]+\/[a-zA-Z0-9_/{}.-]*/,
+      )),
 
     operator: (_) => choice("→", "=", "×"),
 

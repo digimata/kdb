@@ -109,7 +109,7 @@
       "members": [
         {
           "type": "SYMBOL",
-          "name": "_token"
+          "name": "action_verb"
         },
         {
           "type": "REPEAT",
@@ -133,10 +133,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "action_verb"
-        },
-        {
-          "type": "SYMBOL",
           "name": "template_var"
         },
         {
@@ -157,117 +153,20 @@
         }
       ]
     },
+    "action_verb": {
+      "type": "PATTERN",
+      "value": "[a-zA-Z_][a-zA-Z0-9_]*"
+    },
     "control_keyword": {
       "type": "CHOICE",
       "members": [
         {
           "type": "STRING",
-          "value": "for each"
-        },
-        {
-          "type": "STRING",
-          "value": "for"
-        },
-        {
-          "type": "STRING",
-          "value": "if"
-        },
-        {
-          "type": "STRING",
-          "value": "in"
+          "value": "each"
         },
         {
           "type": "STRING",
           "value": "break"
-        }
-      ]
-    },
-    "action_verb": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "copy"
-        },
-        {
-          "type": "STRING",
-          "value": "write"
-        },
-        {
-          "type": "STRING",
-          "value": "create"
-        },
-        {
-          "type": "STRING",
-          "value": "mark"
-        },
-        {
-          "type": "STRING",
-          "value": "check"
-        },
-        {
-          "type": "STRING",
-          "value": "print"
-        },
-        {
-          "type": "STRING",
-          "value": "list"
-        },
-        {
-          "type": "STRING",
-          "value": "update"
-        },
-        {
-          "type": "STRING",
-          "value": "sort"
-        },
-        {
-          "type": "STRING",
-          "value": "tag"
-        },
-        {
-          "type": "STRING",
-          "value": "assign"
-        },
-        {
-          "type": "STRING",
-          "value": "prune"
-        },
-        {
-          "type": "STRING",
-          "value": "classify"
-        },
-        {
-          "type": "STRING",
-          "value": "pick"
-        },
-        {
-          "type": "STRING",
-          "value": "take"
-        },
-        {
-          "type": "STRING",
-          "value": "allocate"
-        },
-        {
-          "type": "STRING",
-          "value": "link"
-        },
-        {
-          "type": "STRING",
-          "value": "group"
-        },
-        {
-          "type": "STRING",
-          "value": "inventory"
-        },
-        {
-          "type": "STRING",
-          "value": "note"
-        },
-        {
-          "type": "STRING",
-          "value": "review"
         }
       ]
     },
@@ -276,8 +175,20 @@
       "value": "\\{[a-zA-Z_][a-zA-Z0-9_.]*\\}"
     },
     "file_path": {
-      "type": "PATTERN",
-      "value": "\\.[a-zA-Z0-9_/{}.-]+"
+      "type": "TOKEN",
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "PATTERN",
+            "value": "\\.[a-zA-Z0-9_/{}.-]+"
+          },
+          {
+            "type": "PATTERN",
+            "value": "[a-zA-Z0-9_{}.-]+\\/[a-zA-Z0-9_/{}.-]*"
+          }
+        ]
+      }
     },
     "operator": {
       "type": "CHOICE",

@@ -1,10 +1,5 @@
 [
   {
-    "type": "action_verb",
-    "named": true,
-    "fields": {}
-  },
-  {
     "type": "block_label_line",
     "named": true,
     "fields": {},
@@ -12,10 +7,6 @@
       "multiple": true,
       "required": true,
       "types": [
-        {
-          "type": "action_verb",
-          "named": true
-        },
         {
           "type": "block_label",
           "named": true
@@ -148,16 +139,12 @@
     "named": false
   },
   {
-    "type": "allocate",
-    "named": false
+    "type": "action_verb",
+    "named": true
   },
   {
     "type": "annotation",
     "named": true
-  },
-  {
-    "type": "assign",
-    "named": false
   },
   {
     "type": "block_label",
@@ -168,19 +155,7 @@
     "named": false
   },
   {
-    "type": "check",
-    "named": false
-  },
-  {
-    "type": "classify",
-    "named": false
-  },
-  {
-    "type": "copy",
-    "named": false
-  },
-  {
-    "type": "create",
+    "type": "each",
     "named": false
   },
   {
@@ -188,92 +163,16 @@
     "named": true
   },
   {
-    "type": "for",
-    "named": false
-  },
-  {
-    "type": "for each",
-    "named": false
-  },
-  {
-    "type": "group",
-    "named": false
-  },
-  {
     "type": "identifier",
     "named": true
-  },
-  {
-    "type": "if",
-    "named": false
-  },
-  {
-    "type": "in",
-    "named": false
-  },
-  {
-    "type": "inventory",
-    "named": false
-  },
-  {
-    "type": "link",
-    "named": false
-  },
-  {
-    "type": "list",
-    "named": false
-  },
-  {
-    "type": "mark",
-    "named": false
-  },
-  {
-    "type": "note",
-    "named": false
-  },
-  {
-    "type": "pick",
-    "named": false
-  },
-  {
-    "type": "print",
-    "named": false
-  },
-  {
-    "type": "prune",
-    "named": false
-  },
-  {
-    "type": "review",
-    "named": false
-  },
-  {
-    "type": "sort",
-    "named": false
-  },
-  {
-    "type": "tag",
-    "named": false
-  },
-  {
-    "type": "take",
-    "named": false
   },
   {
     "type": "template_var",
     "named": true
   },
   {
-    "type": "update",
-    "named": false
-  },
-  {
     "type": "word",
     "named": true
-  },
-  {
-    "type": "write",
-    "named": false
   },
   {
     "type": "×",
