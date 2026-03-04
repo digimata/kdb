@@ -5,13 +5,14 @@
 //!
 //! # Modules
 //!
-//! - [`cmd`] — CLI command implementations (`init`, `check`, `outline`, `tree`, `symbols`, `fmt`, `lsp`).
+//! - [`cmd`] — CLI command implementations (`init`, `check`, `render`, `tree`, `symbols`, `fmt`, `lsp`).
 //! - [`deps`] — Code dependency extraction for `kdb deps`.
 //! - [`fmt`] — Code file index header generation and maintenance.
 //! - [`index`] — Markdown parser, vault indexer, and link resolver.
 //! - [`lang`] — Shared code language identifiers and file-type detection.
 //! - [`lsp`] — Language Server Protocol implementation.
 //! - [`project`] — Shared project infrastructure (root, config, discovery, paths, ignore).
+//! - [`render`] — Transclusion resolution for `![[file#heading]]` embeds.
 //! - [`resolve`] — Workspace-aware code import resolution.
 //! - [`symbols`] — Multi-language code symbol extraction.
 //! - [`tree`] — Filtered tree rendering for project orientation.
@@ -32,16 +33,17 @@ pub mod update;
 // ----------------------
 // kdb/src/lib.rs
 //
-// pub mod cmd        L19
-// pub mod deps       L20
-// pub mod fmt        L21
-// pub mod index      L22
-// pub mod lang       L23
-// pub mod lsp        L24
-// pub mod project    L25
-// pub mod resolve    L26
-// pub mod symbols    L27
-// pub mod tree       L28
-// pub mod update     L29
+// pub mod cmd        L20
+// pub mod deps       L21
+// pub mod fmt        L22
+// pub mod index      L23
+// pub mod lang       L24
+// pub mod lsp        L25
+// pub mod project    L26
+// pub mod render     L27
+// pub mod resolve    L28
+// pub mod symbols    L29
+// pub mod tree       L30
+// pub mod update     L31
 // ----------------------
 

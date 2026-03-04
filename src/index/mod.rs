@@ -58,46 +58,47 @@ pub use markdown::{
 // pub mod refs                          L20
 // mod scanner                           L21
 // mod scope                             L22
-// pub struct VaultIndex                L108
-// pub struct CodeIndex                 L126
-// pub struct SymbolKey                 L141
-// pub struct SymbolRef                 L156
-// pub struct ProjectIndex              L175
-// pub struct FileEntry                 L184
-// pub struct Heading                   L197
-// pub enum LinkKind                    L213
-// pub struct LinkTarget                L222
-// pub struct Link                      L231
-// pub struct HeadingKey                L246
-// pub struct LinkRef                   L255
-// pub struct ParsedDocument            L270
-// pub struct BrokenLink                L279
-// pub struct CheckReport               L294
-//   pub fn has_errors()                L303
-//   pub fn print()                     L308
-//   pub fn scoped_to()                 L365
-// fn path_is_in_check_scope()          L374
-//   pub fn build()                     L392
-//   pub fn build_for_target()          L406
-//   pub fn build_with_symbol_refs()    L424
-//   pub fn build()                     L439
-//   pub fn build_with_ignores()        L444
-//   pub fn build_for_target()          L456
-//   pub fn build_with_symbol_refs()    L471
-//   pub fn build()                     L486
-//   pub fn build_with_ignores()        L494
-//   pub fn upsert_file()               L538
-//   pub fn reload_file()               L561
-//   pub fn remove_file()               L590
-//   pub fn check()                     L598
-//   fn populate_inbound()              L637
-//   fn resolve_link()                  L690
-// enum ResolveError                    L723
-//   fn message()                       L730
-// fn discover_markdown_files()         L745
-// fn resolve_target_file()             L763
-// pub fn resolve_target_path()         L776
-// pub fn resolve_file_target()         L804
+// pub struct VaultIndex                L109
+// pub struct CodeIndex                 L127
+// pub struct SymbolKey                 L142
+// pub struct SymbolRef                 L157
+// pub struct ProjectIndex              L176
+// pub struct FileEntry                 L185
+// pub struct Heading                   L198
+// pub enum LinkKind                    L214
+// pub struct LinkTarget                L223
+// pub struct Link                      L235
+// pub struct HeadingKey                L250
+// pub struct LinkRef                   L259
+// pub struct ParsedDocument            L274
+// pub struct BrokenLink                L283
+// pub struct BrokenEmbed               L298
+// pub struct CheckReport               L311
+//   pub fn has_errors()                L322
+//   pub fn print()                     L327
+//   pub fn scoped_to()                 L391
+// fn path_is_in_check_scope()          L402
+//   pub fn build()                     L420
+//   pub fn build_for_target()          L434
+//   pub fn build_with_symbol_refs()    L452
+//   pub fn build()                     L467
+//   pub fn build_with_ignores()        L472
+//   pub fn build_for_target()          L484
+//   pub fn build_with_symbol_refs()    L499
+//   pub fn build()                     L514
+//   pub fn build_with_ignores()        L522
+//   pub fn upsert_file()               L566
+//   pub fn reload_file()               L589
+//   pub fn remove_file()               L618
+//   pub fn check()                     L626
+//   fn populate_inbound()              L690
+//   fn resolve_link()                  L743
+// enum ResolveError                    L776
+//   fn message()                       L783
+// fn discover_markdown_files()         L798
+// fn resolve_target_file()             L816
+// pub fn resolve_target_path()         L829
+// pub fn resolve_file_target()         L861
 // -----------------------------------------
 
 /// Complete index of a markdown vault.

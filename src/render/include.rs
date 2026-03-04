@@ -9,20 +9,21 @@ use std::sync::LazyLock;
 // -------------------------------------------
 // kdb/src/render/include.rs
 //
-// static EMBED_RE                         L29
-// pub struct IncludeDirective             L34
-// pub struct Embed                        L45
-// pub fn parse_embed_target()             L67
-// pub fn find_embeds()                   L127
-// mod tests                              L144
-// fn parse_simple_file()                 L148
-// fn parse_file_with_anchor()            L156
-// fn parse_kdb_scheme()                  L164
-// fn parse_with_alias()                  L172
-// fn parse_empty_returns_none()          L180
-// fn parse_anchor_only_returns_none()    L186
-// fn find_embeds_standalone_only()       L191
-// fn find_embeds_empty_doc()             L207
+// static EMBED_RE                         L30
+// pub struct IncludeDirective             L35
+// pub struct Embed                        L46
+// pub fn parse_embed_target()             L68
+// pub fn find_embeds()                   L129
+// mod tests                              L158
+// fn parse_simple_file()                 L162
+// fn parse_file_with_anchor()            L170
+// fn parse_kdb_scheme()                  L178
+// fn parse_with_alias()                  L186
+// fn parse_empty_returns_none()          L194
+// fn parse_anchor_only_returns_none()    L200
+// fn find_embeds_standalone_only()       L205
+// fn find_embeds_empty_doc()             L221
+// fn find_embeds_skips_code_fences()     L227
 // -------------------------------------------
 
 /// Matches `![[target]]` on a line by itself (optional surrounding whitespace).
@@ -107,6 +108,7 @@ pub fn parse_embed_target(raw: &str) -> Option<IncludeDirective> {
 /// Scan lines for `![[target]]` embeds.
 ///
 /// Only matches lines where the embed is the sole content (trimmed).
+/// Skips embeds inside fenced code blocks (` ``` ` or `~~~`).
 ///
 /// # Examples
 ///
@@ -126,9 +128,21 @@ pub fn parse_embed_target(raw: &str) -> Option<IncludeDirective> {
 /// ```
 pub fn find_embeds(lines: &[&str]) -> Vec<Embed> {
     let mut results = Vec::new();
+    let mut in_code_fence = false;
 
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
+
+        // Toggle code fence state on ``` or ~~~ lines.
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_code_fence = !in_code_fence;
+            continue;
+        }
+
+        if in_code_fence {
+            continue;
+        }
+
         if let Some(caps) = EMBED_RE.captures(trimmed) {
             let inner = caps.get(1).map(|m| m.as_str()).unwrap_or("");
             if let Some(directive) = parse_embed_target(inner) {
@@ -207,5 +221,20 @@ mod tests {
     fn find_embeds_empty_doc() {
         let lines: Vec<&str> = vec![];
         assert!(find_embeds(&lines).is_empty());
+    }
+
+    #[test]
+    fn find_embeds_skips_code_fences() {
+        let lines = vec![
+            "![[real.md]]",
+            "```markdown",
+            "![[example.md]]",
+            "```",
+            "![[also-real.md]]",
+        ];
+        let embeds = find_embeds(&lines);
+        assert_eq!(embeds.len(), 2);
+        assert_eq!(embeds[0].directive.file, "real.md");
+        assert_eq!(embeds[1].directive.file, "also-real.md");
     }
 }

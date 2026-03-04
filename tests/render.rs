@@ -221,3 +221,41 @@ fn check_valid_embed_no_errors() {
 
     assert!(report.broken_embeds.is_empty(), "expected no broken embeds");
 }
+
+#[test]
+fn render_file_skips_embeds_in_code_blocks() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    write_root_config(root);
+    write_file(
+        root,
+        "main.md",
+        "# Example\n\n```markdown\n![[nonexistent.md]]\n```\n",
+    );
+
+    let output = render::render_file(root, Path::new("main.md")).unwrap();
+    assert!(
+        output.contains("![[nonexistent.md]]"),
+        "embed inside code block should be preserved"
+    );
+}
+
+#[test]
+fn check_ignores_embeds_in_code_blocks() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    write_root_config(root);
+    write_file(
+        root,
+        "main.md",
+        "# Example\n\n```markdown\n![[nonexistent.md]]\n```\n",
+    );
+
+    let index = VaultIndex::build(root).unwrap();
+    let report = index.check();
+
+    assert!(
+        report.broken_embeds.is_empty(),
+        "embeds inside code blocks should not be checked"
+    );
+}

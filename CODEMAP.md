@@ -6,7 +6,7 @@ outline: |
     ◦ Data flow             L22
     ◦ Key conventions       L31
     ◦ Modules               L40
-    ◦ Testing              L107
+    ◦ Testing              L112
 ---
 
 # Codemap
@@ -25,7 +25,7 @@ kdb is a compiler and language server for markdown knowledge bases. It treats a 
 2. **Markdown parsing**: `parse_markdown()` extracts headings and links from each `.md` file
 3. **Vault indexing**: `VaultIndex::build()` assembles the file map and inbound link graphs
 4. **Code indexing**: `CodeIndex::build()` scans code files and resolves imports per language
-5. **Validation**: `VaultIndex::check()` resolves every link, reports broken refs and orphans
+5. **Validation**: `VaultIndex::check()` resolves every link and embed, reports broken refs and orphans
 6. **Resolution**: links resolve relative to their source file; wikilinks auto-append `.md`
 
 ## Key conventions
@@ -88,6 +88,11 @@ src/
     display.rs      Text output formatting for symbol results
     tree.rs         Symbol tree building (qualified names, nesting)
 
+  render/
+    mod.rs          Public API — render_file, render_content
+    include.rs      ![[target]] embed parsing (regex, types)
+    resolve.rs      Recursive resolution engine (cycle detection, section extraction)
+
   fmt/
     mod.rs          Code file index header generation — workspace walker + rewriter
     preamble.rs     Language-specific preamble detection (doc comments, imports)
@@ -112,5 +117,6 @@ src/
 - `tests/fmt.rs` — code index header formatting tests
 - `tests/lsp.rs` — LSP integration tests (diagnostics, completion, definition, hover, symbols)
 - `tests/root.rs` — project root discovery tests
+- `tests/render.rs` — transclusion resolution tests (embeds, recursion, cycles, check validation)
 - `tests/symbols.rs` — symbol extraction tests (all languages)
 - Run: `cargo test`

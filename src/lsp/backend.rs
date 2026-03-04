@@ -51,21 +51,21 @@ use super::{completion, definition, diagnostics, formatting, hover, symbols};
 //   async fn register_markdown_watcher()              L270
 //   async fn sync_watched_files_into_index()          L310
 //   async fn initialize()                             L359
-//   async fn initialized()                            L398
-//   async fn shutdown()                               L409
-//   async fn did_open()                               L413
-//   async fn did_change()                             L424
-//   async fn did_close()                              L434
-//   async fn did_change_watched_files()               L441
-//   async fn document_symbol()                        L447
-//   async fn goto_definition()                        L454
-//   async fn completion()                             L461
-//   async fn hover()                                  L465
-//   async fn formatting()                             L469
-// pub(super) fn is_markdown_path()                    L478
-// pub(super) fn relative_path()                       L488
-// pub(super) fn path_to_slash()                       L519
-// pub(super) fn position_to_byte_offset()             L527
+//   async fn initialized()                            L399
+//   async fn shutdown()                               L410
+//   async fn did_open()                               L414
+//   async fn did_change()                             L425
+//   async fn did_close()                              L435
+//   async fn did_change_watched_files()               L442
+//   async fn document_symbol()                        L448
+//   async fn goto_definition()                        L455
+//   async fn completion()                             L462
+//   async fn hover()                                  L466
+//   async fn formatting()                             L470
+// pub(super) fn is_markdown_path()                    L479
+// pub(super) fn relative_path()                       L489
+// pub(super) fn path_to_slash()                       L520
+// pub(super) fn position_to_byte_offset()             L528
 // --------------------------------------------------------
 
 /// Start the LSP server on stdin/stdout.

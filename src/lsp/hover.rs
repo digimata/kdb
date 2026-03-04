@@ -32,9 +32,9 @@ use super::{
 // fn rewrite_preview_links()     L130
 // fn resolve_target_url()        L184
 // fn outline_row_hover()         L205
-// fn is_external_link()          L242
-// fn section_preview()           L249
-// fn truncate_chars()            L259
+// fn is_external_link()          L246
+// fn section_preview()           L253
+// fn truncate_chars()            L263
 // -----------------------------------
 
 const HOVER_CHAR_LIMIT: usize = 420;

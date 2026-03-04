@@ -1,15 +1,16 @@
 ---
 path: kdb/README.md
 outline: |
-  • kdb                           L15
-    ◦ Overview                    L21
-      ▪ Supported languages       L29
-    ◦ Quickstart                  L37
-    ◦ Commands                    L66
-      ▪ Markdown links            L81
-      ▪ LSP                       L90
-    ◦ Development                L108
-    ◦ License                    L112
+  • kdb                           L16
+    ◦ Overview                    L22
+      ▪ Supported languages       L30
+    ◦ Quickstart                  L38
+    ◦ Commands                    L67
+      ▪ Markdown links            L82
+      ▪ Transclusion              L91
+      ▪ LSP                      L102
+    ◦ Development                L120
+    ◦ License                    L124
 ---
 
 # kdb
@@ -70,8 +71,8 @@ kdb symbols <path>      # list symbols in a file (headings, functions, types, et
 kdb refs <target>       # find inbound references to a file or heading
 kdb refs <file> -s <s>  # find who imports a code symbol
 kdb deps <file>         # list outbound dependencies (links, imports)
-kdb check               # report broken links and orphan files
-kdb index               # build or rebuild the project index
+kdb check               # report broken links, broken embeds, and orphan files
+kdb render <file>       # resolve ![[]] embeds and print to stdout
 kdb tree [path]         # print filtered directory tree
 kdb graph               # output dependency graph (dot format)
 kdb fmt [path]          # generate/update code index headers
@@ -86,6 +87,17 @@ Both standard links and wikilinks are supported:
 [React Hooks](react/hooks.md#useEffect)
 [[react/hooks#useEffect]]
 ```
+
+### Transclusion
+
+Embed content from other files using Obsidian-style syntax:
+
+```markdown
+![[SOP.md#setup]]
+![[kdb://lib/glossary.md]]
+```
+
+`kdb render` resolves embeds recursively and prints the result to stdout. Useful for composing documents from canonical sources at runtime.
 
 ### LSP
 

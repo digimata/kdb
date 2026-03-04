@@ -21,20 +21,21 @@ use crate::update;
 // --------------------------------------
 // kdb/src/cmd.rs
 //
-// pub struct CmdContext              L40
-//   pub fn from_path()               L51
-//   pub fn build_index()             L61
-//   pub fn build_project_index()     L66
-//   pub fn rel_path()                L74
-// pub fn init()                     L101
-// pub fn check()                    L155
-// pub fn tree()                     L172
-// pub fn symbols()                  L220
-// pub fn refs()                     L281
-// pub fn deps()                     L352
-// pub fn graph()                    L387
-// pub fn format()                   L401
-// pub fn update()                   L442
+// pub struct CmdContext              L42
+//   pub fn from_path()               L53
+//   pub fn build_index()             L63
+//   pub fn build_project_index()     L68
+//   pub fn rel_path()                L76
+// pub fn init()                     L103
+// pub fn check()                    L157
+// pub fn tree()                     L174
+// pub fn symbols()                  L222
+// pub fn refs()                     L283
+// pub fn deps()                     L354
+// pub fn graph()                    L389
+// pub fn render()                   L400
+// pub fn format()                   L415
+// pub fn update()                   L456
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
