@@ -1,5 +1,5 @@
 ---
-path: kdb/README.md
+path: projects/kdb/README.md
 outline: |
   • kdb                           L16
     ◦ Overview                    L22
@@ -73,10 +73,16 @@ kdb refs <file> -s <s>  # find who imports a code symbol
 kdb deps <file>         # list outbound dependencies (links, imports)
 kdb check               # report broken links, broken embeds, and orphan files
 kdb render <file>       # resolve ![[]] embeds and print to stdout
+kdb render --project <slug> | --all
+                        # materialize TODO.md files from the relational layer
 kdb tree [path]         # print filtered directory tree
 kdb graph               # output dependency graph (dot format)
 kdb fmt [path]          # generate/update code index headers
 kdb lsp                 # start the language server (stdio)
+kdb projects {list|add|edit|show}
+                        # register and manage projects in the relational layer
+kdb tasks {list|add|edit|show|done|park|reopen}
+                        # manage tasks (per-project seq ids, priorities, statuses)
 ```
 
 ### Markdown links

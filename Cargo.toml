@@ -1,6 +1,6 @@
 [package]
 name = "kdb"
-version = "0.25.0"
+version = "0.26.0"
 edition = "2024"
 description = "Code intelligence CLI and LSP for knowledge bases"
 license = "MIT"
@@ -31,3 +31,5 @@ ureq = "3"
 flate2 = "1"
 tar = "0.4"
 sha2 = "0.10"
+rusqlite = { version = "0.39.0", features = ["bundled"] }
+chrono = { version = "0.4.44", default-features = false, features = ["clock", "serde"] }

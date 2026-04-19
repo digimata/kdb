@@ -9,17 +9,23 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::db;
 use crate::fmt;
 use crate::index::{self, ProjectIndex, VaultIndex, deps as md_deps, refs};
 use crate::lang::CodeLanguage;
+use crate::materialize;
 use crate::project::{self, ProjectContext};
+use crate::projects;
 use crate::render;
 use crate::symbols;
+use crate::tasks;
 use crate::tree;
 use crate::update;
 
+use rusqlite::Connection;
+
 // --------------------------------------
-// kdb/src/cmd.rs
+// projects/kdb/src/cmd.rs
 //
 // pub struct CmdContext              L42
 //   pub fn from_path()               L53
@@ -36,6 +42,10 @@ use crate::update;
 // pub fn render()                   L400
 // pub fn format()                   L415
 // pub fn update()                   L456
+// pub fn projects_list()
+// pub fn projects_add()
+// pub fn projects_edit()
+// pub fn projects_show()
 // --------------------------------------
 
 /// CLI command context: resolved start path + project state.
@@ -144,6 +154,10 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
     let ignore_path = marker_dir.join("ignore");
     fs::write(&ignore_path, project::ignore::DEFAULT_IGNORE)
         .with_context(|| format!("failed to write {}", ignore_path.display()))?;
+
+    db::open(&root).with_context(|| {
+        format!("failed to initialize {}", db::db_path(&root).display())
+    })?;
 
     println!("initialized kdb project at {}", root.display());
 
@@ -396,8 +410,41 @@ pub fn graph(path: Option<PathBuf>) -> Result<()> {
     )
 }
 
-/// Resolve all `![[]]` embeds in a markdown file and print the result to stdout.
-pub fn render(file: PathBuf) -> Result<()> {
+/// Resolve markdown includes, or materialize per-project TODO files.
+///
+/// With `file`: resolve `![[]]` embeds to stdout. With `--project` or
+/// `--all`: write materialized `TODO.md` files for the matching projects.
+pub fn render(
+    file: Option<PathBuf>,
+    project: Option<String>,
+    all: bool,
+) -> Result<()> {
+    if all || project.is_some() {
+        if file.is_some() {
+            bail!("--project/--all cannot be combined with a file argument");
+        }
+        let ctx = CmdContext::from_path(None)?;
+        let conn = db::open(&ctx.project.root)?;
+        let written = if all {
+            materialize::materialize_all(&conn, &ctx.project.root)?
+        } else {
+            let slug = project.expect("project checked above");
+            vec![materialize::materialize_project(
+                &conn,
+                &ctx.project.root,
+                &slug,
+            )?]
+        };
+        for p in &written {
+            println!("wrote {}", p.display());
+        }
+        return Ok(());
+    }
+
+    let file = file.context(
+        "missing file argument — pass a markdown file, \
+         --project <slug>, or --all",
+    )?;
     let ctx = CmdContext::from_path(Some(&file))?;
     let rel_path = ctx.rel_path(&ctx.start)?;
 
@@ -456,4 +503,293 @@ pub fn format(path: Option<PathBuf>, force: bool) -> Result<()> {
 pub fn update(check_only: bool) -> Result<()> {
     let updater = update::Updater::new();
     updater.run(check_only)
+}
+
+/// List projects. Archived projects are hidden unless `include_archived`.
+pub fn projects_list(include_archived: bool, as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let rows = projects::list(&conn, include_archived)?;
+
+    if as_json {
+        let output = serde_json::to_string_pretty(&rows)
+            .context("failed to serialize projects as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", projects::render_list(&rows));
+    }
+    Ok(())
+}
+
+/// Insert a new project.
+pub fn projects_add(
+    slug: String,
+    path: String,
+    name: Option<String>,
+    description: Option<String>,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let created = projects::add(
+        &conn,
+        projects::AddArgs {
+            slug: &slug,
+            name: name.as_deref(),
+            path: &path,
+            description: description.as_deref(),
+        },
+    )?;
+    println!("added project {} ({})", created.slug, created.path);
+    Ok(())
+}
+
+/// Update mutable fields on an existing project.
+pub fn projects_edit(
+    slug: String,
+    name: Option<String>,
+    path: Option<String>,
+    status: Option<String>,
+    description: Option<String>,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let updated = projects::edit(
+        &conn,
+        &slug,
+        projects::EditArgs {
+            name: name.as_deref(),
+            path: path.as_deref(),
+            status: status.as_deref(),
+            description: description.as_deref(),
+        },
+    )?;
+    println!("updated project {}", updated.slug);
+    Ok(())
+}
+
+/// Show a single project.
+pub fn projects_show(slug: String, as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let project = projects::get_by_slug(&conn, &slug)?
+        .with_context(|| format!("project not found: {slug}"))?;
+
+    if as_json {
+        let output = serde_json::to_string_pretty(&project)
+            .context("failed to serialize project as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", projects::render_show(&project));
+    }
+    Ok(())
+}
+
+/// Resolve the project to operate on. Prefers the explicit `--project`
+/// flag; otherwise falls back to the project registered at the current
+/// working directory.
+fn resolve_project(
+    conn: &Connection,
+    root: &Path,
+    explicit: Option<&str>,
+) -> Result<projects::Project> {
+    if let Some(slug) = explicit {
+        return projects::get_by_slug(conn, slug)?
+            .with_context(|| format!("project not found: {slug}"));
+    }
+    let cwd = env::current_dir().context("failed to read current directory")?;
+    let cwd = cwd
+        .canonicalize()
+        .unwrap_or(cwd);
+    projects::resolve_active(conn, root, &cwd)?.context(
+        "no project for current directory — pass -P/--project or \
+         register one with `kdb projects add`",
+    )
+}
+
+/// Resolve an optional cycle key to its numeric id.
+fn resolve_cycle(
+    conn: &Connection,
+    key: Option<&str>,
+) -> Result<Option<Option<i64>>> {
+    match key {
+        None => Ok(None),
+        Some(k) if k.is_empty() => Ok(Some(None)),
+        Some(k) => {
+            let id: i64 = conn
+                .query_row("SELECT id FROM cycles WHERE key = ?", [k], |row| row.get(0))
+                .with_context(|| format!("cycle not found: {k}"))?;
+            Ok(Some(Some(id)))
+        }
+    }
+}
+
+/// Resolve an optional parent task id (external form `slug-seq`).
+fn resolve_parent(
+    conn: &Connection,
+    id: Option<&str>,
+) -> Result<Option<Option<i64>>> {
+    match id {
+        None => Ok(None),
+        Some(s) if s.is_empty() => Ok(Some(None)),
+        Some(s) => {
+            let parsed = tasks::TaskId::parse(s)?;
+            let view = tasks::get(conn, &parsed)?
+                .with_context(|| format!("parent task not found: {s}"))?;
+            Ok(Some(Some(view.task.id)))
+        }
+    }
+}
+
+fn parse_statuses(s: &str) -> Result<Option<Vec<String>>> {
+    if s == "all" {
+        return Ok(None);
+    }
+    let parts: Vec<String> = s
+        .split(',')
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect();
+    for p in &parts {
+        if !tasks::STATUSES.contains(&p.as_str()) {
+            bail!(
+                "invalid status '{p}' (expected {} or 'all')",
+                tasks::STATUSES.join(", ")
+            );
+        }
+    }
+    Ok(Some(parts))
+}
+
+/// List tasks.
+pub fn tasks_list(
+    status: String,
+    project: Option<String>,
+    cycle: Option<String>,
+    priority: Option<i64>,
+    limit: Option<i64>,
+    as_json: bool,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+
+    let statuses_owned = parse_statuses(&status)?;
+    let statuses_refs: Option<Vec<&str>> = statuses_owned
+        .as_ref()
+        .map(|v| v.iter().map(|s| s.as_str()).collect());
+
+    let project_slug = match project.as_deref() {
+        Some("all") | Some("") | None => None,
+        Some(s) => Some(s.to_string()),
+    };
+
+    let filters = tasks::ListFilters {
+        statuses: statuses_refs.as_deref(),
+        project_slug: project_slug.as_deref(),
+        cycle_key: cycle.as_deref(),
+        priority,
+        limit,
+    };
+    let rows = tasks::list(&conn, filters)?;
+
+    if as_json {
+        let output = serde_json::to_string_pretty(&rows)
+            .context("failed to serialize tasks as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", tasks::render_list(&rows));
+    }
+    Ok(())
+}
+
+/// Add a new task.
+pub fn tasks_add(
+    title: String,
+    project: Option<String>,
+    body: Option<String>,
+    priority: Option<i64>,
+    cycle: Option<String>,
+    parent: Option<String>,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let mut conn = db::open(&ctx.project.root)?;
+    let proj = resolve_project(&conn, &ctx.project.root, project.as_deref())?;
+
+    let cycle_id = resolve_cycle(&conn, cycle.as_deref())?.flatten();
+    let parent_id = resolve_parent(&conn, parent.as_deref())?.flatten();
+
+    let view = tasks::add(
+        &mut conn,
+        tasks::AddArgs {
+            project_id: proj.id,
+            title: &title,
+            body: body.as_deref(),
+            priority,
+            cycle_id,
+            parent_id,
+        },
+    )?;
+    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug)?;
+    println!("added task {}", view.external_id());
+    Ok(())
+}
+
+/// Edit an existing task.
+pub fn tasks_edit(
+    id: String,
+    title: Option<String>,
+    body: Option<String>,
+    priority: Option<i64>,
+    cycle: Option<String>,
+    parent: Option<String>,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let parsed = tasks::TaskId::parse(&id)?;
+
+    let cycle_update = resolve_cycle(&conn, cycle.as_deref())?;
+    let parent_update = resolve_parent(&conn, parent.as_deref())?;
+
+    let view = tasks::edit(
+        &conn,
+        &parsed,
+        tasks::EditArgs {
+            title: title.as_deref(),
+            body: body.as_deref(),
+            priority,
+            cycle_id: cycle_update,
+            parent_id: parent_update,
+        },
+    )?;
+    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug)?;
+    println!("updated task {}", view.external_id());
+    Ok(())
+}
+
+/// Show a single task.
+pub fn tasks_show(id: String, as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let parsed = tasks::TaskId::parse(&id)?;
+    let view = tasks::get(&conn, &parsed)?
+        .with_context(|| format!("task not found: {id}"))?;
+
+    if as_json {
+        let output = serde_json::to_string_pretty(&view)
+            .context("failed to serialize task as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", tasks::render_show(&view));
+    }
+    Ok(())
+}
+
+/// Transition a task to a new status.
+pub fn tasks_set_status(id: String, status: &str) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let parsed = tasks::TaskId::parse(&id)?;
+    let view = tasks::set_status(&conn, &parsed, status)?;
+    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug)?;
+    println!("{} -> {}", view.external_id(), view.task.status);
+    Ok(())
 }

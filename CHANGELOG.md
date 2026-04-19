@@ -1,5 +1,5 @@
 ---
-path: kdb/CHANGELOG.md
+path: projects/kdb/CHANGELOG.md
 outline: |
   • Changelog                              L91
     ◦ [0.25.0] — 2026-03-03                L97
@@ -93,6 +93,15 @@ outline: |
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.26.0] — 2026-04-19
+
+### Added
+
+- Relational layer backed by SQLite at `.kdb/index.db` (see `.issues/iss-0063-relational-layer.md`). Schema covers projects, cycles, tasks, labels, and `task_labels`. Migrations run automatically on `kdb init` and on first DB open.
+- `kdb projects {list|add|edit|show}` — register and manage projects in the relational layer.
+- `kdb tasks {list|add|edit|show|done|park|reopen}` — manage tasks with per-project `seq` ids (external form `{slug}-{seq}`), priorities 1–5, and `open|in_progress|done|parked` statuses. CWD resolves the active project by walking up registered project paths.
+- `kdb render --project <slug>` / `--all` — materialize top-N TODO files to `<project>/.tasks/TODO.md`. Task mutations auto-regenerate the affected project's file.
 
 ## [0.25.0] — 2026-03-03
 

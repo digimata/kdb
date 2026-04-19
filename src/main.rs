@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 // -----------------------
-// kdb/src/main.rs
+// projects/kdb/src/main.rs
 //
 // struct Cli          L19
 // enum Command        L25
@@ -110,10 +110,16 @@ enum Command {
         /// Optional starting path to discover kdb root from.
         path: Option<PathBuf>,
     },
-    /// Resolve all includes in a markdown file and print the result.
+    /// Resolve markdown includes, or materialize per-project TODO files.
     Render {
-        /// File path to render.
-        file: PathBuf,
+        /// File path to render (resolves `![[]]` embeds to stdout).
+        file: Option<PathBuf>,
+        /// Materialize TODO for a single project slug.
+        #[arg(short = 'P', long)]
+        project: Option<String>,
+        /// Materialize TODO for every non-archived project.
+        #[arg(long)]
+        all: bool,
     },
     /// Generate or update code index headers in supported code files.
     Fmt {
@@ -134,6 +140,140 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+    /// Manage projects in the relational layer.
+    Projects {
+        #[command(subcommand)]
+        action: ProjectsCmd,
+    },
+    /// Manage tasks in the relational layer.
+    Tasks {
+        #[command(subcommand)]
+        action: Option<TasksCmd>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ProjectsCmd {
+    /// List projects.
+    #[command(alias = "ls")]
+    List {
+        /// Include archived projects.
+        #[arg(short = 'a', long)]
+        all: bool,
+        /// Emit structured JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add a new project.
+    Add {
+        /// Unique slug (e.g. "hermaeus").
+        slug: String,
+        /// Relative path from kdb root (e.g. "projects/hermaeus").
+        #[arg(short = 'p', long)]
+        path: String,
+        /// Display name (defaults to slug).
+        #[arg(short = 'n', long)]
+        name: Option<String>,
+        /// Optional description.
+        #[arg(short = 'd', long)]
+        description: Option<String>,
+    },
+    /// Edit an existing project.
+    Edit {
+        /// Project slug to edit.
+        slug: String,
+        #[arg(short = 'n', long)]
+        name: Option<String>,
+        #[arg(short = 'p', long)]
+        path: Option<String>,
+        #[arg(long, value_parser = ["active", "paused", "archived"])]
+        status: Option<String>,
+        #[arg(short = 'd', long)]
+        description: Option<String>,
+    },
+    /// Show a project.
+    Show {
+        /// Project slug to show.
+        slug: String,
+        /// Emit structured JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum TasksCmd {
+    /// List tasks.
+    #[command(alias = "ls")]
+    List {
+        /// Comma-separated statuses (open,in_progress,done,parked) or "all".
+        #[arg(short = 's', long, default_value = "open,in_progress")]
+        status: String,
+        /// Filter by project slug (defaults to the active project).
+        #[arg(short = 'P', long)]
+        project: Option<String>,
+        /// Filter by cycle key.
+        #[arg(short = 'c', long)]
+        cycle: Option<String>,
+        /// Filter by priority (1-5).
+        #[arg(short = 'p', long)]
+        priority: Option<i64>,
+        /// Limit to N rows.
+        #[arg(short = 'n', long)]
+        limit: Option<i64>,
+        /// Emit structured JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add a new task.
+    Add {
+        /// Task title.
+        title: String,
+        /// Project slug (defaults to the active project).
+        #[arg(short = 'P', long)]
+        project: Option<String>,
+        /// Body text.
+        #[arg(short = 'b', long)]
+        body: Option<String>,
+        /// Priority (1-5, default 3).
+        #[arg(short = 'p', long)]
+        priority: Option<i64>,
+        /// Cycle key (e.g. C-14).
+        #[arg(short = 'c', long)]
+        cycle: Option<String>,
+        /// Parent task id.
+        #[arg(long)]
+        parent: Option<String>,
+    },
+    /// Edit an existing task.
+    Edit {
+        /// Task id (e.g. hermaeus-42).
+        id: String,
+        #[arg(short = 't', long)]
+        title: Option<String>,
+        #[arg(short = 'b', long)]
+        body: Option<String>,
+        #[arg(short = 'p', long)]
+        priority: Option<i64>,
+        /// Set cycle key (use empty string to clear).
+        #[arg(short = 'c', long)]
+        cycle: Option<String>,
+        /// Set parent task id (use empty string to clear).
+        #[arg(long)]
+        parent: Option<String>,
+    },
+    /// Show a task.
+    Show {
+        id: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Mark a task as done.
+    Done { id: String },
+    /// Mark a task as parked.
+    Park { id: String },
+    /// Reopen a parked or done task.
+    Reopen { id: String },
 }
 
 #[tokio::main]
@@ -179,10 +319,66 @@ async fn main() {
         } => kdb::cmd::refs(target, symbol, context, json, count, files),
         Command::Deps { target, json } => kdb::cmd::deps(target, json),
         Command::Graph { path } => kdb::cmd::graph(path),
-        Command::Render { file } => kdb::cmd::render(file),
+        Command::Render { file, project, all } => {
+            kdb::cmd::render(file, project, all)
+        }
         Command::Fmt { path, force } => kdb::cmd::format(path, force),
         Command::Lsp { path } => kdb::lsp::serve(path).await,
         Command::Update { check } => kdb::cmd::update(check),
+        Command::Projects { action } => match action {
+            ProjectsCmd::List { all, json } => kdb::cmd::projects_list(all, json),
+            ProjectsCmd::Add {
+                slug,
+                path,
+                name,
+                description,
+            } => kdb::cmd::projects_add(slug, path, name, description),
+            ProjectsCmd::Edit {
+                slug,
+                name,
+                path,
+                status,
+                description,
+            } => kdb::cmd::projects_edit(slug, name, path, status, description),
+            ProjectsCmd::Show { slug, json } => kdb::cmd::projects_show(slug, json),
+        },
+        Command::Tasks { action } => match action.unwrap_or(TasksCmd::List {
+            status: "open,in_progress".to_string(),
+            project: None,
+            cycle: None,
+            priority: None,
+            limit: None,
+            json: false,
+        }) {
+            TasksCmd::List {
+                status,
+                project,
+                cycle,
+                priority,
+                limit,
+                json,
+            } => kdb::cmd::tasks_list(status, project, cycle, priority, limit, json),
+            TasksCmd::Add {
+                title,
+                project,
+                body,
+                priority,
+                cycle,
+                parent,
+            } => kdb::cmd::tasks_add(title, project, body, priority, cycle, parent),
+            TasksCmd::Edit {
+                id,
+                title,
+                body,
+                priority,
+                cycle,
+                parent,
+            } => kdb::cmd::tasks_edit(id, title, body, priority, cycle, parent),
+            TasksCmd::Show { id, json } => kdb::cmd::tasks_show(id, json),
+            TasksCmd::Done { id } => kdb::cmd::tasks_set_status(id, "done"),
+            TasksCmd::Park { id } => kdb::cmd::tasks_set_status(id, "parked"),
+            TasksCmd::Reopen { id } => kdb::cmd::tasks_set_status(id, "open"),
+        },
     };
 
     if let Err(error) = result {
