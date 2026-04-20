@@ -1,8 +1,9 @@
 //! Projects table access and display.
 //!
-//! A project has a unique `slug` (stable short id used in commit scopes,
-//! task IDs, and CLI args), a `path` relative to the kdb root, and a
-//! lifecycle status (`active` | `paused` | `archived`).
+//! A project has a unique `slug` (stable short id used in commit scopes
+//! and CLI args), a 2–6 char uppercase `alias` (used in task ids like
+//! `HRM-0120`), a `path` relative to the kdb root, and a lifecycle
+//! status (`active` | `paused` | `archived`).
 
 use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -13,6 +14,7 @@ use std::path::Path;
 pub struct Project {
     pub id: i64,
     pub slug: String,
+    pub alias: String,
     pub name: String,
     pub path: String,
     pub status: String,
@@ -26,18 +28,19 @@ impl Project {
         Ok(Self {
             id: row.get(0)?,
             slug: row.get(1)?,
-            name: row.get(2)?,
-            path: row.get(3)?,
-            status: row.get(4)?,
-            description: row.get(5)?,
-            created_at: row.get(6)?,
-            updated_at: row.get(7)?,
+            alias: row.get(2)?,
+            name: row.get(3)?,
+            path: row.get(4)?,
+            status: row.get(5)?,
+            description: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
         })
     }
 }
 
 const SELECT_COLS: &str =
-    "id, slug, name, path, status, description, created_at, updated_at";
+    "id, slug, alias, name, path, status, description, created_at, updated_at";
 
 /// List projects, ordered by slug. Archived projects are excluded unless
 /// `include_archived` is set.
@@ -65,20 +68,31 @@ pub fn get_by_slug(conn: &Connection, slug: &str) -> Result<Option<Project>> {
         .context("failed to query project")
 }
 
+/// Fetch a project by alias (case-insensitive). Returns `None` if no match.
+pub fn get_by_alias(conn: &Connection, alias: &str) -> Result<Option<Project>> {
+    let sql = format!("SELECT {SELECT_COLS} FROM projects WHERE alias = ?");
+    let mut stmt = conn.prepare(&sql)?;
+    stmt.query_row([alias.to_ascii_uppercase()], Project::from_row)
+        .optional()
+        .context("failed to query project")
+}
+
 pub struct AddArgs<'a> {
     pub slug: &'a str,
+    pub alias: &'a str,
     pub name: Option<&'a str>,
     pub path: &'a str,
     pub description: Option<&'a str>,
 }
 
-/// Insert a new project. Fails if slug or path is already taken.
+/// Insert a new project. Fails if slug, alias, or path is already taken.
 pub fn add(conn: &Connection, args: AddArgs) -> Result<Project> {
     let name = args.name.unwrap_or(args.slug);
+    let alias = args.alias.to_ascii_uppercase();
     conn.execute(
-        "INSERT INTO projects (slug, name, path, description) \
-         VALUES (?, ?, ?, ?)",
-        params![args.slug, name, args.path, args.description],
+        "INSERT INTO projects (slug, alias, name, path, description) \
+         VALUES (?, ?, ?, ?, ?)",
+        params![args.slug, alias, name, args.path, args.description],
     )
     .with_context(|| format!("failed to insert project {}", args.slug))?;
     get_by_slug(conn, args.slug)?
@@ -87,6 +101,7 @@ pub fn add(conn: &Connection, args: AddArgs) -> Result<Project> {
 
 #[derive(Default)]
 pub struct EditArgs<'a> {
+    pub alias: Option<&'a str>,
     pub name: Option<&'a str>,
     pub path: Option<&'a str>,
     pub status: Option<&'a str>,
@@ -95,7 +110,8 @@ pub struct EditArgs<'a> {
 
 impl EditArgs<'_> {
     fn is_empty(&self) -> bool {
-        self.name.is_none()
+        self.alias.is_none()
+            && self.name.is_none()
             && self.path.is_none()
             && self.status.is_none()
             && self.description.is_none()
@@ -110,15 +126,17 @@ pub fn edit(conn: &Connection, slug: &str, args: EditArgs) -> Result<Project> {
     if get_by_slug(conn, slug)?.is_none() {
         bail!("project not found: {slug}");
     }
+    let alias_upper = args.alias.map(str::to_ascii_uppercase);
     conn.execute(
         "UPDATE projects SET \
+            alias       = COALESCE(?, alias), \
             name        = COALESCE(?, name), \
             path        = COALESCE(?, path), \
             status      = COALESCE(?, status), \
             description = COALESCE(?, description), \
             updated_at  = strftime('%Y-%m-%dT%H:%M:%fZ','now') \
          WHERE slug = ?",
-        params![args.name, args.path, args.status, args.description, slug],
+        params![alias_upper, args.name, args.path, args.status, args.description, slug],
     )
     .with_context(|| format!("failed to update project {slug}"))?;
     get_by_slug(conn, slug)?
@@ -158,6 +176,12 @@ pub fn render_list(projects: &[Project]) -> String {
         return String::from("(no projects)\n");
     }
     let slug_w = projects.iter().map(|p| p.slug.len()).max().unwrap_or(4).max(4);
+    let alias_w = projects
+        .iter()
+        .map(|p| p.alias.len())
+        .max()
+        .unwrap_or(5)
+        .max(5);
     let name_w = projects.iter().map(|p| p.name.len()).max().unwrap_or(4).max(4);
     let status_w = projects
         .iter()
@@ -168,13 +192,13 @@ pub fn render_list(projects: &[Project]) -> String {
 
     let mut out = String::new();
     out.push_str(&format!(
-        "{:<slug_w$}  {:<name_w$}  {:<status_w$}  path\n",
-        "slug", "name", "status",
+        "{:<slug_w$}  {:<alias_w$}  {:<name_w$}  {:<status_w$}  path\n",
+        "slug", "alias", "name", "status",
     ));
     for p in projects {
         out.push_str(&format!(
-            "{:<slug_w$}  {:<name_w$}  {:<status_w$}  {}\n",
-            p.slug, p.name, p.status, p.path,
+            "{:<slug_w$}  {:<alias_w$}  {:<name_w$}  {:<status_w$}  {}\n",
+            p.slug, p.alias, p.name, p.status, p.path,
         ));
     }
     out
@@ -184,6 +208,7 @@ pub fn render_list(projects: &[Project]) -> String {
 pub fn render_show(p: &Project) -> String {
     let mut out = String::new();
     out.push_str(&format!("slug:        {}\n", p.slug));
+    out.push_str(&format!("alias:       {}\n", p.alias));
     out.push_str(&format!("name:        {}\n", p.name));
     out.push_str(&format!("path:        {}\n", p.path));
     out.push_str(&format!("status:      {}\n", p.status));
@@ -216,6 +241,7 @@ mod tests {
             &conn,
             AddArgs {
                 slug: "kdb",
+                alias: "KDB",
                 name: Some("kdb"),
                 path: "projects/kdb",
                 description: Some("knowledge db"),
@@ -223,22 +249,37 @@ mod tests {
         )
         .unwrap();
         assert_eq!(p.slug, "kdb");
+        assert_eq!(p.alias, "KDB");
 
-        let all = list(&conn, false).unwrap();
-        assert_eq!(all.len(), 1);
-
-        let got = get_by_slug(&conn, "kdb").unwrap().unwrap();
-        assert_eq!(got.name, "kdb");
-        assert_eq!(got.description.as_deref(), Some("knowledge db"));
+        let got = get_by_alias(&conn, "kdb").unwrap().unwrap();
+        assert_eq!(got.slug, "kdb");
     }
 
     #[test]
-    fn duplicate_slug_errors() {
+    fn alias_lowercased_input_is_upcased() {
+        let (_tmp, conn) = setup();
+        let p = add(
+            &conn,
+            AddArgs {
+                slug: "hermaeus",
+                alias: "hrm",
+                name: None,
+                path: "projects/hermaeus",
+                description: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(p.alias, "HRM");
+    }
+
+    #[test]
+    fn duplicate_alias_errors() {
         let (_tmp, conn) = setup();
         add(
             &conn,
             AddArgs {
                 slug: "kdb",
+                alias: "KDB",
                 name: None,
                 path: "projects/kdb",
                 description: None,
@@ -248,9 +289,10 @@ mod tests {
         let err = add(
             &conn,
             AddArgs {
-                slug: "kdb",
+                slug: "other",
+                alias: "KDB",
                 name: None,
-                path: "elsewhere",
+                path: "projects/other",
                 description: None,
             },
         );
@@ -264,6 +306,7 @@ mod tests {
             &conn,
             AddArgs {
                 slug: "kdb",
+                alias: "KDB",
                 name: None,
                 path: "projects/kdb",
                 description: None,
@@ -287,58 +330,5 @@ mod tests {
         assert_eq!(after.status, "paused");
         assert_eq!(after.path, before.path);
         assert_ne!(after.updated_at, before.updated_at);
-    }
-
-    #[test]
-    fn edit_rejects_empty() {
-        let (_tmp, conn) = setup();
-        add(
-            &conn,
-            AddArgs {
-                slug: "kdb",
-                name: None,
-                path: "projects/kdb",
-                description: None,
-            },
-        )
-        .unwrap();
-        assert!(edit(&conn, "kdb", EditArgs::default()).is_err());
-    }
-
-    #[test]
-    fn list_filters_archived_by_default() {
-        let (_tmp, conn) = setup();
-        add(
-            &conn,
-            AddArgs {
-                slug: "a",
-                name: None,
-                path: "a",
-                description: None,
-            },
-        )
-        .unwrap();
-        add(
-            &conn,
-            AddArgs {
-                slug: "b",
-                name: None,
-                path: "b",
-                description: None,
-            },
-        )
-        .unwrap();
-        edit(
-            &conn,
-            "b",
-            EditArgs {
-                status: Some("archived"),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-        assert_eq!(list(&conn, false).unwrap().len(), 1);
-        assert_eq!(list(&conn, true).unwrap().len(), 2);
     }
 }

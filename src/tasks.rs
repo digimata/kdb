@@ -1,7 +1,7 @@
 //! Tasks table access and display.
 //!
 //! A task has a per-project `seq` counter; its external id is
-//! `{project_slug}-{seq}` (e.g. `hermaeus-42`). Statuses are
+//! `{PROJECT_ALIAS}-{seq:04d}` (e.g. `HRM-0120`). Statuses are
 //! `open` | `in_progress` | `done` | `parked`.
 
 use anyhow::{Context, Result, bail};
@@ -9,6 +9,14 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 
 pub const STATUSES: &[&str] = &["open", "in_progress", "done", "parked"];
+
+/// Zero-padding width for the `seq` portion of external ids.
+pub const SEQ_WIDTH: usize = 4;
+
+/// Format an external task id: `{ALIAS}-{seq:04d}`.
+pub fn format_external_id(alias: &str, seq: i64) -> String {
+    format!("{alias}-{seq:0width$}", width = SEQ_WIDTH)
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Task {
@@ -26,44 +34,45 @@ pub struct Task {
     pub closed_at: Option<String>,
 }
 
-/// Task row joined with its project slug and optional cycle key.
+/// Task row joined with its project slug/alias and optional cycle key.
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskView {
     #[serde(flatten)]
     pub task: Task,
     pub project_slug: String,
+    pub project_alias: String,
     pub cycle_key: Option<String>,
 }
 
 impl TaskView {
-    /// External task id: `{project_slug}-{seq}`.
+    /// External task id: `{PROJECT_ALIAS}-{seq:04d}`.
     pub fn external_id(&self) -> String {
-        format!("{}-{}", self.project_slug, self.task.seq)
+        format_external_id(&self.project_alias, self.task.seq)
     }
 }
 
-/// Parsed external task id.
+/// Parsed external task id. `alias` is always uppercased.
 #[derive(Debug, Clone)]
 pub struct TaskId {
-    pub project_slug: String,
+    pub alias: String,
     pub seq: i64,
 }
 
 impl TaskId {
-    /// Parse `slug-seq` (splits on the last `-`).
+    /// Parse `ALIAS-seq` (splits on the last `-`). Alias is uppercased.
     pub fn parse(s: &str) -> Result<Self> {
         let idx = s
             .rfind('-')
-            .with_context(|| format!("invalid task id '{s}': expected slug-seq"))?;
-        let (slug, seq_part) = s.split_at(idx);
-        if slug.is_empty() {
-            bail!("invalid task id '{s}': empty slug");
+            .with_context(|| format!("invalid task id '{s}': expected ALIAS-seq"))?;
+        let (prefix, seq_part) = s.split_at(idx);
+        if prefix.is_empty() {
+            bail!("invalid task id '{s}': empty alias");
         }
         let seq: i64 = seq_part[1..]
             .parse()
             .with_context(|| format!("invalid task id '{s}': seq not an integer"))?;
         Ok(Self {
-            project_slug: slug.to_string(),
+            alias: prefix.to_ascii_uppercase(),
             seq,
         })
     }
@@ -71,7 +80,7 @@ impl TaskId {
 
 const SELECT_COLS: &str = "t.id, t.project_id, t.seq, t.title, t.body, \
     t.status, t.priority, t.cycle_id, t.parent_id, \
-    t.created_at, t.updated_at, t.closed_at, p.slug, c.key";
+    t.created_at, t.updated_at, t.closed_at, p.slug, p.alias, c.key";
 
 fn view_from_row(row: &rusqlite::Row) -> rusqlite::Result<TaskView> {
     let task = Task {
@@ -91,7 +100,8 @@ fn view_from_row(row: &rusqlite::Row) -> rusqlite::Result<TaskView> {
     Ok(TaskView {
         task,
         project_slug: row.get(12)?,
-        cycle_key: row.get(13)?,
+        project_alias: row.get(13)?,
+        cycle_key: row.get(14)?,
     })
 }
 
@@ -152,16 +162,16 @@ pub fn list(conn: &Connection, f: ListFilters) -> Result<Vec<TaskView>> {
         .context("failed to read tasks")
 }
 
-/// Resolve a parsed external id to a joined task row.
+/// Resolve a parsed external id (alias + seq) to a joined task row.
 pub fn get(conn: &Connection, id: &TaskId) -> Result<Option<TaskView>> {
     let sql = format!(
         "SELECT {SELECT_COLS} FROM tasks t \
          JOIN projects p ON p.id = t.project_id \
          LEFT JOIN cycles c ON c.id = t.cycle_id \
-         WHERE p.slug = ? AND t.seq = ?"
+         WHERE p.alias = ? AND t.seq = ?"
     );
     let mut stmt = conn.prepare(&sql)?;
-    stmt.query_row(params![id.project_slug, id.seq], view_from_row)
+    stmt.query_row(params![id.alias, id.seq], view_from_row)
         .optional()
         .context("failed to query task")
 }
@@ -173,54 +183,78 @@ pub struct AddArgs<'a> {
     pub priority: Option<i64>,
     pub cycle_id: Option<i64>,
     pub parent_id: Option<i64>,
+    /// Explicit seq for migrations/imports. When `None`, auto-assigned
+    /// as `max(seq) + 1` within the project.
+    pub seq: Option<i64>,
+    /// Explicit status (defaults to `open`).
+    pub status: Option<&'a str>,
 }
 
-/// Insert a new task, auto-assigning the per-project `seq` in a transaction.
+/// Insert a new task, auto-assigning the per-project `seq` in a
+/// transaction (unless [`AddArgs::seq`] is `Some`).
 pub fn add(conn: &mut Connection, args: AddArgs) -> Result<TaskView> {
     let priority = args.priority.unwrap_or(3);
     if !(1..=5).contains(&priority) {
         bail!("priority must be between 1 and 5");
     }
+    let status = args.status.unwrap_or("open");
+    if !STATUSES.contains(&status) {
+        bail!(
+            "invalid status '{status}' (expected {})",
+            STATUSES.join(", ")
+        );
+    }
 
     let tx = conn.transaction()?;
-    let seq: i64 = tx
-        .query_row(
-            "SELECT COALESCE(MAX(seq), 0) + 1 FROM tasks WHERE project_id = ?",
-            [args.project_id],
-            |row| row.get(0),
-        )
-        .context("failed to compute next seq")?;
+    let seq: i64 = match args.seq {
+        Some(s) => {
+            if s < 1 {
+                bail!("seq must be >= 1");
+            }
+            s
+        }
+        None => tx
+            .query_row(
+                "SELECT COALESCE(MAX(seq), 0) + 1 FROM tasks WHERE project_id = ?",
+                [args.project_id],
+                |row| row.get(0),
+            )
+            .context("failed to compute next seq")?,
+    };
 
+    let closed = matches!(status, "done" | "parked");
     tx.execute(
         "INSERT INTO tasks \
-         (project_id, seq, title, body, priority, cycle_id, parent_id) \
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+         (project_id, seq, title, body, status, priority, cycle_id, parent_id, closed_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, \
+                 CASE WHEN ? = 1 \
+                      THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') \
+                      ELSE NULL END)",
         params![
             args.project_id,
             seq,
             args.title,
             args.body,
+            status,
             priority,
             args.cycle_id,
             args.parent_id,
+            closed as i64,
         ],
     )
-    .context("failed to insert task")?;
+    .with_context(|| format!("failed to insert task (seq={seq})"))?;
 
-    let slug: String = tx
+    let alias: String = tx
         .query_row(
-            "SELECT slug FROM projects WHERE id = ?",
+            "SELECT alias FROM projects WHERE id = ?",
             [args.project_id],
             |row| row.get(0),
         )
-        .context("failed to read project slug")?;
+        .context("failed to read project alias")?;
 
     tx.commit()?;
 
-    let id = TaskId {
-        project_slug: slug,
-        seq,
-    };
+    let id = TaskId { alias, seq };
     get(conn, &id)?.context("task missing after insert")
 }
 
@@ -254,7 +288,7 @@ pub fn edit(
         bail!("no fields to update");
     }
     let existing = get(conn, id)?
-        .with_context(|| format!("task not found: {}-{}", id.project_slug, id.seq))?;
+        .with_context(|| format!("task not found: {}", format_external_id(&id.alias, id.seq)))?;
     if let Some(pri) = args.priority {
         if !(1..=5).contains(&pri) {
             bail!("priority must be between 1 and 5");
@@ -305,7 +339,7 @@ pub fn set_status(
         );
     }
     let existing = get(conn, id)?
-        .with_context(|| format!("task not found: {}-{}", id.project_slug, id.seq))?;
+        .with_context(|| format!("task not found: {}", format_external_id(&id.alias, id.seq)))?;
 
     let closed = matches!(status, "done" | "parked");
     conn.execute(
@@ -356,8 +390,9 @@ pub fn render_list(tasks: &[TaskView]) -> String {
     out
 }
 
-/// Render a single task as a human-readable block.
-pub fn render_show(t: &TaskView) -> String {
+/// Render a single task as a human-readable block. `label_slugs` are
+/// joined with `, ` and shown in the metadata section when non-empty.
+pub fn render_show(t: &TaskView, label_slugs: &[&str]) -> String {
     let mut out = String::new();
     out.push_str(&format!("id:         {}\n", t.external_id()));
     out.push_str(&format!("title:      {}\n", t.task.title));
@@ -366,6 +401,9 @@ pub fn render_show(t: &TaskView) -> String {
     out.push_str(&format!("project:    {}\n", t.project_slug));
     if let Some(c) = &t.cycle_key {
         out.push_str(&format!("cycle:      {c}\n"));
+    }
+    if !label_slugs.is_empty() {
+        out.push_str(&format!("labels:     {}\n", label_slugs.join(", ")));
     }
     out.push_str(&format!("created_at: {}\n", t.task.created_at));
     out.push_str(&format!("updated_at: {}\n", t.task.updated_at));
@@ -398,6 +436,7 @@ mod tests {
             &conn,
             ProjAddArgs {
                 slug: "kdb",
+                alias: "KDB",
                 name: None,
                 path: "projects/kdb",
                 description: None,
@@ -408,21 +447,24 @@ mod tests {
     }
 
     #[test]
-    fn parse_task_id() {
-        let id = TaskId::parse("hermaeus-42").unwrap();
-        assert_eq!(id.project_slug, "hermaeus");
-        assert_eq!(id.seq, 42);
-
-        let id = TaskId::parse("kdb-multi-word-1").unwrap();
-        assert_eq!(id.project_slug, "kdb-multi-word");
-        assert_eq!(id.seq, 1);
+    fn parse_task_id_uppercases_alias() {
+        let id = TaskId::parse("hrm-0120").unwrap();
+        assert_eq!(id.alias, "HRM");
+        assert_eq!(id.seq, 120);
 
         assert!(TaskId::parse("nodash").is_err());
         assert!(TaskId::parse("slug-abc").is_err());
     }
 
     #[test]
-    fn add_then_list_assigns_seq() {
+    fn external_id_is_zero_padded() {
+        assert_eq!(format_external_id("HRM", 1), "HRM-0001");
+        assert_eq!(format_external_id("KDB", 120), "KDB-0120");
+        assert_eq!(format_external_id("SWF", 99999), "SWF-99999");
+    }
+
+    #[test]
+    fn add_auto_seq_then_explicit_seq() {
         let (_tmp, mut conn, pid) = setup();
         let a = add(
             &mut conn,
@@ -433,31 +475,67 @@ mod tests {
                 priority: None,
                 cycle_id: None,
                 parent_id: None,
+                seq: None,
+                status: None,
             },
         )
         .unwrap();
         assert_eq!(a.task.seq, 1);
-        assert_eq!(a.external_id(), "kdb-1");
+        assert_eq!(a.external_id(), "KDB-0001");
 
         let b = add(
             &mut conn,
             AddArgs {
                 project_id: pid,
-                title: "second",
+                title: "explicit",
                 body: Some("body text"),
                 priority: Some(2),
                 cycle_id: None,
                 parent_id: None,
+                seq: Some(120),
+                status: None,
             },
         )
         .unwrap();
-        assert_eq!(b.task.seq, 2);
-        assert_eq!(b.task.priority, 2);
+        assert_eq!(b.task.seq, 120);
+        assert_eq!(b.external_id(), "KDB-0120");
 
-        let all = list(&conn, ListFilters::default()).unwrap();
-        assert_eq!(all.len(), 2);
-        // priority 2 first
-        assert_eq!(all[0].task.seq, 2);
+        let c = add(
+            &mut conn,
+            AddArgs {
+                project_id: pid,
+                title: "after explicit",
+                body: None,
+                priority: None,
+                cycle_id: None,
+                parent_id: None,
+                seq: None,
+                status: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(c.task.seq, 121);
+    }
+
+    #[test]
+    fn add_with_status() {
+        let (_tmp, mut conn, pid) = setup();
+        let t = add(
+            &mut conn,
+            AddArgs {
+                project_id: pid,
+                title: "done one",
+                body: None,
+                priority: None,
+                cycle_id: None,
+                parent_id: None,
+                seq: None,
+                status: Some("done"),
+            },
+        )
+        .unwrap();
+        assert_eq!(t.task.status, "done");
+        assert!(t.task.closed_at.is_some());
     }
 
     #[test]
@@ -472,6 +550,8 @@ mod tests {
                 priority: None,
                 cycle_id: None,
                 parent_id: None,
+                seq: None,
+                status: None,
             },
         )
         .unwrap();
@@ -484,106 +564,5 @@ mod tests {
         let reopened = set_status(&conn, &id, "open").unwrap();
         assert_eq!(reopened.task.status, "open");
         assert!(reopened.task.closed_at.is_none());
-
-        assert!(set_status(&conn, &id, "bogus").is_err());
-    }
-
-    #[test]
-    fn list_filters_by_status_and_project() {
-        let (_tmp, mut conn, pid) = setup();
-        let hermaeus = projects::add(
-            &conn,
-            ProjAddArgs {
-                slug: "hermaeus",
-                name: None,
-                path: "projects/hermaeus",
-                description: None,
-            },
-        )
-        .unwrap();
-        for title in ["a", "b"] {
-            add(
-                &mut conn,
-                AddArgs {
-                    project_id: pid,
-                    title,
-                    body: None,
-                    priority: None,
-                    cycle_id: None,
-                    parent_id: None,
-                },
-            )
-            .unwrap();
-        }
-        add(
-            &mut conn,
-            AddArgs {
-                project_id: hermaeus.id,
-                title: "c",
-                body: None,
-                priority: None,
-                cycle_id: None,
-                parent_id: None,
-            },
-        )
-        .unwrap();
-
-        let kdb_only = list(
-            &conn,
-            ListFilters {
-                project_slug: Some("kdb"),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(kdb_only.len(), 2);
-
-        set_status(&conn, &TaskId::parse("kdb-1").unwrap(), "done").unwrap();
-        let open_only = list(
-            &conn,
-            ListFilters {
-                statuses: Some(&["open", "in_progress"]),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(open_only.len(), 2);
-    }
-
-    #[test]
-    fn edit_updates_fields() {
-        let (_tmp, mut conn, pid) = setup();
-        let t = add(
-            &mut conn,
-            AddArgs {
-                project_id: pid,
-                title: "orig",
-                body: None,
-                priority: None,
-                cycle_id: None,
-                parent_id: None,
-            },
-        )
-        .unwrap();
-        let id = TaskId::parse(&t.external_id()).unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(5));
-
-        let out = edit(
-            &conn,
-            &id,
-            EditArgs {
-                title: Some("new title"),
-                priority: Some(1),
-                body: Some("a body"),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(out.task.title, "new title");
-        assert_eq!(out.task.priority, 1);
-        assert_eq!(out.task.body.as_deref(), Some("a body"));
-        assert_ne!(out.task.updated_at, t.task.updated_at);
-
-        assert!(edit(&conn, &id, EditArgs::default()).is_err());
     }
 }

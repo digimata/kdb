@@ -60,6 +60,10 @@ flake.lock
 
 ## kdb
 .kdb/index.bin
+.kdb/index.db
+.kdb/index.db-wal
+.kdb/index.db-shm
+.kdb/backups/
 
 ## Project
 .tasks/

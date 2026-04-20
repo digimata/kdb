@@ -9,9 +9,11 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::cycles;
 use crate::db;
 use crate::fmt;
 use crate::index::{self, ProjectIndex, VaultIndex, deps as md_deps, refs};
+use crate::labels;
 use crate::lang::CodeLanguage;
 use crate::materialize;
 use crate::project::{self, ProjectContext};
@@ -410,14 +412,16 @@ pub fn graph(path: Option<PathBuf>) -> Result<()> {
     )
 }
 
-/// Resolve markdown includes, or materialize per-project TODO files.
+/// Resolve markdown includes, or materialize per-project task files.
 ///
 /// With `file`: resolve `![[]]` embeds to stdout. With `--project` or
-/// `--all`: write materialized `TODO.md` files for the matching projects.
+/// `--all`: write materialized `index.md` + per-task files for the
+/// matching projects.
 pub fn render(
     file: Option<PathBuf>,
     project: Option<String>,
     all: bool,
+    limit: Option<i64>,
 ) -> Result<()> {
     if all || project.is_some() {
         if file.is_some() {
@@ -426,19 +430,23 @@ pub fn render(
         let ctx = CmdContext::from_path(None)?;
         let conn = db::open(&ctx.project.root)?;
         let written = if all {
-            materialize::materialize_all(&conn, &ctx.project.root)?
+            materialize::materialize_all(&conn, &ctx.project.root, limit)?
         } else {
             let slug = project.expect("project checked above");
             vec![materialize::materialize_project(
                 &conn,
                 &ctx.project.root,
                 &slug,
+                limit,
             )?]
         };
         for p in &written {
             println!("wrote {}", p.display());
         }
         return Ok(());
+    }
+    if limit.is_some() {
+        bail!("--limit only applies with --project/--all");
     }
 
     let file = file.context(
@@ -524,6 +532,7 @@ pub fn projects_list(include_archived: bool, as_json: bool) -> Result<()> {
 /// Insert a new project.
 pub fn projects_add(
     slug: String,
+    alias: String,
     path: String,
     name: Option<String>,
     description: Option<String>,
@@ -534,18 +543,23 @@ pub fn projects_add(
         &conn,
         projects::AddArgs {
             slug: &slug,
+            alias: &alias,
             name: name.as_deref(),
             path: &path,
             description: description.as_deref(),
         },
     )?;
-    println!("added project {} ({})", created.slug, created.path);
+    println!(
+        "added project {} [{}] ({})",
+        created.slug, created.alias, created.path
+    );
     Ok(())
 }
 
 /// Update mutable fields on an existing project.
 pub fn projects_edit(
     slug: String,
+    alias: Option<String>,
     name: Option<String>,
     path: Option<String>,
     status: Option<String>,
@@ -557,6 +571,7 @@ pub fn projects_edit(
         &conn,
         &slug,
         projects::EditArgs {
+            alias: alias.as_deref(),
             name: name.as_deref(),
             path: path.as_deref(),
             status: status.as_deref(),
@@ -726,9 +741,11 @@ pub fn tasks_add(
             priority,
             cycle_id,
             parent_id,
+            seq: None,
+            status: None,
         },
     )?;
-    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug)?;
+    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
     println!("added task {}", view.external_id());
     Ok(())
 }
@@ -760,7 +777,7 @@ pub fn tasks_edit(
             parent_id: parent_update,
         },
     )?;
-    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug)?;
+    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
     println!("updated task {}", view.external_id());
     Ok(())
 }
@@ -772,14 +789,206 @@ pub fn tasks_show(id: String, as_json: bool) -> Result<()> {
     let parsed = tasks::TaskId::parse(&id)?;
     let view = tasks::get(&conn, &parsed)?
         .with_context(|| format!("task not found: {id}"))?;
+    let task_labels = labels::for_task(&conn, view.task.id)?;
+    let slugs: Vec<&str> = task_labels.iter().map(|l| l.slug.as_str()).collect();
 
     if as_json {
-        let output = serde_json::to_string_pretty(&view)
-            .context("failed to serialize task as JSON")?;
+        #[derive(serde::Serialize)]
+        struct TaskShowOutput<'a> {
+            #[serde(flatten)]
+            task: &'a tasks::TaskView,
+            labels: &'a [labels::Label],
+        }
+        let output = serde_json::to_string_pretty(&TaskShowOutput {
+            task: &view,
+            labels: &task_labels,
+        })
+        .context("failed to serialize task as JSON")?;
         println!("{output}");
     } else {
-        print!("{}", tasks::render_show(&view));
+        print!("{}", tasks::render_show(&view, &slugs));
     }
+    Ok(())
+}
+
+/// List cycles.
+pub fn cycles_list(as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let rows = cycles::list(&conn)?;
+    if as_json {
+        let output = serde_json::to_string_pretty(&rows)
+            .context("failed to serialize cycles as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", cycles::render_list(&rows));
+    }
+    Ok(())
+}
+
+pub fn cycles_add(
+    key: String,
+    start: String,
+    end: String,
+    description: Option<String>,
+    status: Option<String>,
+    path: Option<String>,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let created = cycles::add(
+        &conn,
+        cycles::AddArgs {
+            key: &key,
+            start_date: &start,
+            end_date: &end,
+            description: description.as_deref(),
+            status: status.as_deref(),
+            path: path.as_deref(),
+        },
+    )?;
+    println!("added cycle {} ({} → {})", created.key, created.start_date, created.end_date);
+    Ok(())
+}
+
+pub fn cycles_edit(
+    key: String,
+    start: Option<String>,
+    end: Option<String>,
+    description: Option<String>,
+    status: Option<String>,
+    path: Option<String>,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let updated = cycles::edit(
+        &conn,
+        &key,
+        cycles::EditArgs {
+            start_date: start.as_deref(),
+            end_date: end.as_deref(),
+            description: description.as_deref(),
+            status: status.as_deref(),
+            path: path.as_deref(),
+        },
+    )?;
+    println!("updated cycle {}", updated.key);
+    Ok(())
+}
+
+pub fn cycles_show(key: String, as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let cycle = cycles::get_by_key(&conn, &key)?
+        .with_context(|| format!("cycle not found: {key}"))?;
+    if as_json {
+        let output = serde_json::to_string_pretty(&cycle)
+            .context("failed to serialize cycle as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", cycles::render_show(&cycle));
+    }
+    Ok(())
+}
+
+/// List labels.
+pub fn labels_list(as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let rows = labels::list(&conn)?;
+    if as_json {
+        let output = serde_json::to_string_pretty(&rows)
+            .context("failed to serialize labels as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", labels::render_list(&rows));
+    }
+    Ok(())
+}
+
+pub fn labels_add(slug: String, name: Option<String>, color: Option<String>) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let created = labels::add(
+        &conn,
+        labels::AddArgs {
+            slug: &slug,
+            name: name.as_deref(),
+            color: color.as_deref(),
+        },
+    )?;
+    println!("added label {}", created.slug);
+    Ok(())
+}
+
+pub fn labels_edit(slug: String, name: Option<String>, color: Option<String>) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let updated = labels::edit(
+        &conn,
+        &slug,
+        labels::EditArgs {
+            name: name.as_deref(),
+            color: color.as_deref(),
+        },
+    )?;
+    println!("updated label {}", updated.slug);
+    Ok(())
+}
+
+pub fn labels_show(slug: String, as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let label = labels::get_by_slug(&conn, &slug)?
+        .with_context(|| format!("label not found: {slug}"))?;
+    if as_json {
+        let output = serde_json::to_string_pretty(&label)
+            .context("failed to serialize label as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", labels::render_show(&label));
+    }
+    Ok(())
+}
+
+/// Attach one or more labels to a task. Unknown label slugs are
+/// created on the fly.
+pub fn tasks_label_add(id: String, label_slugs: Vec<String>) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let parsed = tasks::TaskId::parse(&id)?;
+    let view = tasks::get(&conn, &parsed)?
+        .with_context(|| format!("task not found: {id}"))?;
+    for slug in &label_slugs {
+        let label = labels::upsert_by_slug(&conn, slug)?;
+        labels::attach(&conn, view.task.id, label.id)?;
+    }
+    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
+    println!(
+        "attached {} label(s) to {}",
+        label_slugs.len(),
+        view.external_id()
+    );
+    Ok(())
+}
+
+/// Detach one or more labels from a task.
+pub fn tasks_label_rm(id: String, label_slugs: Vec<String>) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.project.root)?;
+    let parsed = tasks::TaskId::parse(&id)?;
+    let view = tasks::get(&conn, &parsed)?
+        .with_context(|| format!("task not found: {id}"))?;
+    let mut removed = 0usize;
+    for slug in &label_slugs {
+        if let Some(label) = labels::get_by_slug(&conn, slug)? {
+            if labels::detach(&conn, view.task.id, label.id)? {
+                removed += 1;
+            }
+        }
+    }
+    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
+    println!("detached {removed} label(s) from {}", view.external_id());
     Ok(())
 }
 
@@ -789,7 +998,7 @@ pub fn tasks_set_status(id: String, status: &str) -> Result<()> {
     let conn = db::open(&ctx.project.root)?;
     let parsed = tasks::TaskId::parse(&id)?;
     let view = tasks::set_status(&conn, &parsed, status)?;
-    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug)?;
+    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
     println!("{} -> {}", view.external_id(), view.task.status);
     Ok(())
 }

@@ -120,6 +120,10 @@ enum Command {
         /// Materialize TODO for every non-archived project.
         #[arg(long)]
         all: bool,
+        /// Cap per-task file materialization to N top-priority open tasks
+        /// (in_progress tasks always included). Defaults to `meta.top_n`.
+        #[arg(short = 'n', long)]
+        limit: Option<i64>,
     },
     /// Generate or update code index headers in supported code files.
     Fmt {
@@ -150,6 +154,16 @@ enum Command {
         #[command(subcommand)]
         action: Option<TasksCmd>,
     },
+    /// Manage cycles in the relational layer.
+    Cycles {
+        #[command(subcommand)]
+        action: CyclesCmd,
+    },
+    /// Manage labels in the relational layer.
+    Labels {
+        #[command(subcommand)]
+        action: LabelsCmd,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -168,6 +182,9 @@ enum ProjectsCmd {
     Add {
         /// Unique slug (e.g. "hermaeus").
         slug: String,
+        /// 2–6 char uppercase alias used in task ids (e.g. "HRM").
+        #[arg(short = 'a', long)]
+        alias: String,
         /// Relative path from kdb root (e.g. "projects/hermaeus").
         #[arg(short = 'p', long)]
         path: String,
@@ -182,6 +199,9 @@ enum ProjectsCmd {
     Edit {
         /// Project slug to edit.
         slug: String,
+        /// New 2–6 char uppercase alias.
+        #[arg(short = 'a', long)]
+        alias: Option<String>,
         #[arg(short = 'n', long)]
         name: Option<String>,
         #[arg(short = 'p', long)]
@@ -274,6 +294,113 @@ enum TasksCmd {
     Park { id: String },
     /// Reopen a parked or done task.
     Reopen { id: String },
+    /// Manage labels on a task.
+    Label {
+        #[command(subcommand)]
+        action: TaskLabelCmd,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum TaskLabelCmd {
+    /// Attach one or more labels to a task (unknown slugs are created).
+    Add {
+        /// Task id (e.g. HRM-0120).
+        id: String,
+        /// Label slugs to attach.
+        #[arg(required = true)]
+        labels: Vec<String>,
+    },
+    /// Detach one or more labels from a task.
+    Rm {
+        id: String,
+        #[arg(required = true)]
+        labels: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum CyclesCmd {
+    /// List cycles (ordered by start_date desc).
+    #[command(alias = "ls")]
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add a new cycle.
+    Add {
+        /// Cycle key (e.g. C-15).
+        key: String,
+        /// Start date (YYYY-MM-DD).
+        #[arg(short = 's', long)]
+        start: String,
+        /// End date (YYYY-MM-DD).
+        #[arg(short = 'e', long)]
+        end: String,
+        /// Optional description.
+        #[arg(short = 'd', long)]
+        description: Option<String>,
+        #[arg(long, value_parser = ["planned", "active", "done", "abandoned"])]
+        status: Option<String>,
+        /// Optional path to the cycle's plan/review artifacts.
+        #[arg(short = 'p', long)]
+        path: Option<String>,
+    },
+    /// Edit an existing cycle.
+    Edit {
+        key: String,
+        #[arg(short = 's', long)]
+        start: Option<String>,
+        #[arg(short = 'e', long)]
+        end: Option<String>,
+        #[arg(short = 'd', long)]
+        description: Option<String>,
+        #[arg(long, value_parser = ["planned", "active", "done", "abandoned"])]
+        status: Option<String>,
+        #[arg(short = 'p', long)]
+        path: Option<String>,
+    },
+    /// Show a cycle.
+    Show {
+        key: String,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum LabelsCmd {
+    /// List labels.
+    #[command(alias = "ls")]
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add a new label.
+    Add {
+        /// Label slug (unique).
+        slug: String,
+        /// Display name (defaults to slug).
+        #[arg(short = 'n', long)]
+        name: Option<String>,
+        /// Optional hex color (e.g. #ff0000).
+        #[arg(short = 'c', long)]
+        color: Option<String>,
+    },
+    /// Edit an existing label.
+    Edit {
+        slug: String,
+        #[arg(short = 'n', long)]
+        name: Option<String>,
+        #[arg(short = 'c', long)]
+        color: Option<String>,
+    },
+    /// Show a label.
+    Show {
+        slug: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[tokio::main]
@@ -319,9 +446,12 @@ async fn main() {
         } => kdb::cmd::refs(target, symbol, context, json, count, files),
         Command::Deps { target, json } => kdb::cmd::deps(target, json),
         Command::Graph { path } => kdb::cmd::graph(path),
-        Command::Render { file, project, all } => {
-            kdb::cmd::render(file, project, all)
-        }
+        Command::Render {
+            file,
+            project,
+            all,
+            limit,
+        } => kdb::cmd::render(file, project, all, limit),
         Command::Fmt { path, force } => kdb::cmd::format(path, force),
         Command::Lsp { path } => kdb::lsp::serve(path).await,
         Command::Update { check } => kdb::cmd::update(check),
@@ -329,17 +459,19 @@ async fn main() {
             ProjectsCmd::List { all, json } => kdb::cmd::projects_list(all, json),
             ProjectsCmd::Add {
                 slug,
+                alias,
                 path,
                 name,
                 description,
-            } => kdb::cmd::projects_add(slug, path, name, description),
+            } => kdb::cmd::projects_add(slug, alias, path, name, description),
             ProjectsCmd::Edit {
                 slug,
+                alias,
                 name,
                 path,
                 status,
                 description,
-            } => kdb::cmd::projects_edit(slug, name, path, status, description),
+            } => kdb::cmd::projects_edit(slug, alias, name, path, status, description),
             ProjectsCmd::Show { slug, json } => kdb::cmd::projects_show(slug, json),
         },
         Command::Tasks { action } => match action.unwrap_or(TasksCmd::List {
@@ -378,6 +510,36 @@ async fn main() {
             TasksCmd::Done { id } => kdb::cmd::tasks_set_status(id, "done"),
             TasksCmd::Park { id } => kdb::cmd::tasks_set_status(id, "parked"),
             TasksCmd::Reopen { id } => kdb::cmd::tasks_set_status(id, "open"),
+            TasksCmd::Label { action } => match action {
+                TaskLabelCmd::Add { id, labels } => kdb::cmd::tasks_label_add(id, labels),
+                TaskLabelCmd::Rm { id, labels } => kdb::cmd::tasks_label_rm(id, labels),
+            },
+        },
+        Command::Cycles { action } => match action {
+            CyclesCmd::List { json } => kdb::cmd::cycles_list(json),
+            CyclesCmd::Add {
+                key,
+                start,
+                end,
+                description,
+                status,
+                path,
+            } => kdb::cmd::cycles_add(key, start, end, description, status, path),
+            CyclesCmd::Edit {
+                key,
+                start,
+                end,
+                description,
+                status,
+                path,
+            } => kdb::cmd::cycles_edit(key, start, end, description, status, path),
+            CyclesCmd::Show { key, json } => kdb::cmd::cycles_show(key, json),
+        },
+        Command::Labels { action } => match action {
+            LabelsCmd::List { json } => kdb::cmd::labels_list(json),
+            LabelsCmd::Add { slug, name, color } => kdb::cmd::labels_add(slug, name, color),
+            LabelsCmd::Edit { slug, name, color } => kdb::cmd::labels_edit(slug, name, color),
+            LabelsCmd::Show { slug, json } => kdb::cmd::labels_show(slug, json),
         },
     };
 

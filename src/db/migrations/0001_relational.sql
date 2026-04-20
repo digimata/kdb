@@ -4,6 +4,10 @@
 CREATE TABLE projects (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   slug        TEXT NOT NULL UNIQUE,
+  alias       TEXT NOT NULL UNIQUE
+              CHECK (alias = UPPER(alias)
+                     AND LENGTH(alias) BETWEEN 2 AND 6
+                     AND alias GLOB '[A-Z][A-Z0-9]*'),
   name        TEXT NOT NULL,
   path        TEXT NOT NULL UNIQUE,
   status      TEXT NOT NULL DEFAULT 'active'

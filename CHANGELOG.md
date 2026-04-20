@@ -94,14 +94,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.26.0] — 2026-04-19
+## [0.26.0] — 2026-04-20
 
 ### Added
 
 - Relational layer backed by SQLite at `.kdb/index.db` (see `.issues/iss-0063-relational-layer.md`). Schema covers projects, cycles, tasks, labels, and `task_labels`. Migrations run automatically on `kdb init` and on first DB open.
-- `kdb projects {list|add|edit|show}` — register and manage projects in the relational layer.
-- `kdb tasks {list|add|edit|show|done|park|reopen}` — manage tasks with per-project `seq` ids (external form `{slug}-{seq}`), priorities 1–5, and `open|in_progress|done|parked` statuses. CWD resolves the active project by walking up registered project paths.
-- `kdb render --project <slug>` / `--all` — materialize top-N TODO files to `<project>/.tasks/TODO.md`. Task mutations auto-regenerate the affected project's file.
+- `kdb projects {list|add|edit|show}` — register and manage projects in the relational layer. Projects have a 2–6 char uppercase `alias` (e.g. `HRM`) used as the prefix for task ids.
+- `kdb tasks {list|add|edit|show|done|park|reopen}` — manage tasks with per-project `seq` ids (external form `{ALIAS}-{seq:04d}`, e.g. `HRM-0120`), priorities 1–5, and `open|in_progress|done|parked` statuses. CWD resolves the active project by walking up registered project paths.
+- `kdb cycles {list|add|edit|show}` — manage time-boxed cycles (key, start/end dates, status, optional path/description). Tasks can be scoped to a cycle via `-c C-NN`.
+- `kdb labels {list|add|edit|show}` and `kdb tasks label {add|rm}` — free-form tags with optional name/color, attached to tasks via `task_labels`. `tasks label add` upserts unknown slugs on the fly; `tasks show` renders the attached label list.
+- `kdb render --project <slug>` / `--all [--limit N]` — materialize `<project>/.tasks/index.md` (table-format task index grouped by status with cycle + priority columns) plus one `T-{seq:04d}.md` file per active task (all `in_progress` + top-N `open`, default N from `meta.top_n`). Task mutations auto-regenerate the affected project's files. `TODO.md` and other hand-written notes in the same directory are left alone.
 
 ## [0.25.0] — 2026-03-03
 

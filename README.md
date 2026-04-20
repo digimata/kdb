@@ -73,16 +73,22 @@ kdb refs <file> -s <s>  # find who imports a code symbol
 kdb deps <file>         # list outbound dependencies (links, imports)
 kdb check               # report broken links, broken embeds, and orphan files
 kdb render <file>       # resolve ![[]] embeds and print to stdout
-kdb render --project <slug> | --all
-                        # materialize TODO.md files from the relational layer
+kdb render --project <slug> | --all [--limit N]
+                        # materialize .tasks/index.md + per-task files
+                        # (in_progress + top-N open) from the relational layer
 kdb tree [path]         # print filtered directory tree
 kdb graph               # output dependency graph (dot format)
 kdb fmt [path]          # generate/update code index headers
 kdb lsp                 # start the language server (stdio)
 kdb projects {list|add|edit|show}
-                        # register and manage projects in the relational layer
-kdb tasks {list|add|edit|show|done|park|reopen}
+                        # register and manage projects (slug, 2–6 char alias)
+kdb tasks {list|add|edit|show|done|park|reopen|label}
                         # manage tasks (per-project seq ids, priorities, statuses)
+                        # tasks label {add|rm} <id> <label>... — attach/detach labels
+kdb cycles {list|add|edit|show}
+                        # manage time-boxed cycles (C-NN, start/end, status)
+kdb labels {list|add|edit|show}
+                        # manage free-form task tags (slug, name, optional color)
 ```
 
 ### Markdown links

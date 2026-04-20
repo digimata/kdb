@@ -22,10 +22,12 @@
 //! - [`tree`] — Filtered tree rendering for project orientation.
 
 pub mod cmd;
+pub mod cycles;
 pub mod db;
 pub mod deps;
 pub mod fmt;
 pub mod index;
+pub mod labels;
 pub mod lang;
 pub mod lsp;
 pub mod materialize;
@@ -35,6 +37,7 @@ pub mod render;
 pub mod resolve;
 pub mod symbols;
 pub mod tasks;
+pub mod tasks_import;
 pub mod tree;
 pub mod update;
 
