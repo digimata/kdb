@@ -3,7 +3,7 @@
 # kdb installer — downloads the latest prebuilt binary from GitHub releases.
 #
 # Usage:
-#   curl -fsSL https://kdb.kernl.sh/install | bash
+#   curl -fsSL https://kdb.digimata.dev/install | bash
 #
 set -euo pipefail
 
@@ -49,7 +49,7 @@ detect_platform() {
 
 fetch_latest_tag() {
     info "fetching latest release..."
-    TAG="$(curl -fsSL "https://kdb.kernl.sh/latest" | tr -d '[:space:]')"
+    TAG="$(curl -fsSL "https://kdb.digimata.dev/latest" | tr -d '[:space:]')"
 
     if [ -z "$TAG" ]; then
         err "could not determine latest release"

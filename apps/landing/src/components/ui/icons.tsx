@@ -1,5 +1,5 @@
 // --------------------------------------
-// qmd/apps/landing/src/components/ui/icons.tsx
+// projects/kdb/apps/landing/src/components/ui/icons.tsx
 //
 // export function GithubIcon()        L9
 // export function ClipboardIcon()    L23
@@ -9,8 +9,8 @@
 export function GithubIcon() {
   return (
     <svg
-      width="20"
-      height="20"
+      width="16"
+      height="16"
       viewBox="0 0 24 24"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
@@ -34,6 +34,19 @@ export function ClipboardIcon() {
     >
       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
       <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+    </svg>
+  );
+}
+
+export function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16.001"
+      fill="currentColor"
+      className={className}
+    >
+      <path d="M7.078,0V7.077H0V8.923H7.078V16H8.924V8.923H16V7.077H8.924V0Z" />
     </svg>
   );
 }

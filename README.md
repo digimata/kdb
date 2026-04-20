@@ -40,7 +40,7 @@ Both sides share the same model — symbols, references, dependencies — and th
 1. Install:
 
 ```
-curl -fsSL https://kernl.sh/kdb/install | bash
+curl -fsSL https://kdb.digimata.dev/install | bash
 ```
 
 Or from source (requires Rust):
@@ -67,7 +67,7 @@ This creates a `.kdb/` directory that marks the project root. All commands run r
 ## Commands
 
 ```
-kdb symbols <path>      # list symbols in a file (headings, functions, types, etc.)
+kdb outline <path>      # list the outline of a file (headings, functions, types, etc.)
 kdb refs <target>       # find inbound references to a file or heading
 kdb refs <file> -s <s>  # find who imports a code symbol
 kdb deps <file>         # list outbound dependencies (links, imports)

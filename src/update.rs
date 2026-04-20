@@ -7,7 +7,7 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 
 // ---------------------------------
-// kdb/src/update.rs
+// projects/kdb/src/update.rs
 //
 // const LATEST_URL              L26
 // const RELEASE_BASE            L27
@@ -23,7 +23,7 @@ use std::path::PathBuf;
 // pub fn exe_path()            L225
 // ---------------------------------
 
-const LATEST_URL: &str = "https://kdb.kernl.sh/latest";
+const LATEST_URL: &str = "https://kdb.digimata.dev/latest";
 const RELEASE_BASE: &str = "https://github.com/dremnik/kdb/releases/download";
 
 /// Handles checking for updates and replacing the current binary.

@@ -3,7 +3,7 @@
 # kdb installer — downloads the latest prebuilt binary from GitHub releases.
 #
 # Usage:
-#   curl -fsSL https://kdb.kernl.sh/install | bash
+#   curl -fsSL https://kdb.digimata.dev/install | bash
 #
 set -euo pipefail
 

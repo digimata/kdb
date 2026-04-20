@@ -62,8 +62,9 @@ enum Command {
         /// Optional path to render (defaults to project root).
         path: Option<PathBuf>,
     },
-    /// Print symbols for files and/or directories.
-    Symbols {
+    /// Print the outline (headings / symbols) for files and/or directories.
+    #[command(alias = "symbols")]
+    Outline {
         /// File or directory paths to inspect (accepts multiple).
         #[arg(required = true)]
         paths: Vec<PathBuf>,
@@ -430,7 +431,7 @@ async fn main() {
         } => kdb::cmd::tree(
             path, level, json, all, dirs_only, full_path, ignore, pattern,
         ),
-        Command::Symbols {
+        Command::Outline {
             paths,
             symbols,
             json,
