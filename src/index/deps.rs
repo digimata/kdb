@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use super::{CodeIndex, VaultIndex, resolve_target_path};
 
 // -------------------------------------
-// kdb/src/index/deps.rs
+// projects/kdb/src/index/deps.rs
 //
 // pub struct Dependency             L19
 // pub fn collect_outbound()         L25

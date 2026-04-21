@@ -10,7 +10,7 @@ use super::ignore::path_is_ignored;
 use super::paths::normalize_rel_path;
 
 // ------------------------------
-// kdb/src/project/discover.rs
+// projects/kdb/src/workspace/discover.rs
 //
 // pub fn discover_files()    L25
 // fn rel_path_from_root()    L94

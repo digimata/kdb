@@ -15,7 +15,7 @@ mod typescript;
 mod utils;
 
 // --------------------------------
-// kdb/src/deps/mod.rs
+// projects/kdb/src/deps/mod.rs
 //
 // mod go                       L11
 // mod python                   L12

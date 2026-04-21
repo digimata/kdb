@@ -1,10 +1,10 @@
-use kdb::project::root::{config_path, find_root};
+use kdb::workspace::root::{config_path, find_root};
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
 
 // -------------------------------------------------------
-// kdb/tests/root.rs
+// projects/kdb/tests/root.rs
 //
 // fn write_file()                                     L18
 // fn find_root_from_nested_file_path()                L27
@@ -29,7 +29,7 @@ fn find_root_from_nested_file_path() {
     write_file(
         temp.path(),
         ".kdb/config.toml",
-        "[project]\nname = \"fixture\"\n",
+        "[workspace]\nname = \"fixture\"\n",
     );
     write_file(temp.path(), "notes/sub/file.md", "# test\n");
 
@@ -45,7 +45,7 @@ fn find_root_when_starting_at_root_directory() {
     write_file(
         temp.path(),
         ".kdb/config.toml",
-        "[project]\nname = \"fixture\"\n",
+        "[workspace]\nname = \"fixture\"\n",
     );
 
     let found = find_root(temp.path()).expect("find root");
@@ -58,7 +58,7 @@ fn find_root_from_nested_directory_path() {
     write_file(
         temp.path(),
         ".kdb/config.toml",
-        "[project]\nname = \"fixture\"\n",
+        "[workspace]\nname = \"fixture\"\n",
     );
     fs::create_dir_all(temp.path().join("notes/sub")).expect("create nested dirs");
 

@@ -9,7 +9,7 @@ use super::{
 };
 
 // -------------------------------------------
-// kdb/src/symbols/extract/rust.rs
+// projects/kdb/src/symbols/extract/rust.rs
 //
 // pub(in crate::symbols) fn extract()     L36
 // fn method_parent()                     L170

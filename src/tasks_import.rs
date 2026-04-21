@@ -12,6 +12,28 @@ use std::path::Path;
 use crate::projects::Project;
 use crate::tasks::{self, AddArgs};
 
+// -------------------------------------
+// projects/kdb/src/tasks_import.rs
+//
+// pub struct ImportReport           L39
+// pub struct ImportedRow            L45
+// pub struct SkipReason             L51
+// struct ParsedFile                 L56
+// pub fn import_dir()               L65
+// fn parse_task_file()             L142
+// fn split_frontmatter()           L172
+// fn parse_frontmatter()           L193
+// fn unquote_scalar()              L227
+// fn parse_seq()                   L241
+// fn map_status()                  L251
+// fn map_priority()                L260
+// fn strip_leading_heading()       L276
+// mod tests                        L291
+// fn parses_basic_frontmatter()    L295
+// fn maps_priorities()             L306
+// fn maps_statuses()               L314
+// -------------------------------------
+
 /// Result of an import run.
 #[derive(Debug, Default)]
 pub struct ImportReport {

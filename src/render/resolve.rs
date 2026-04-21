@@ -9,12 +9,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::index::{parse_markdown, section_byte_bounds};
-use crate::project::paths::normalize_rel_path;
+use crate::workspace::paths::normalize_rel_path;
 
 use super::include::{IncludeDirective, find_embeds};
 
 // --------------------------------------
-// kdb/src/render/resolve.rs
+// projects/kdb/src/render/resolve.rs
 //
 // const MAX_DEPTH                    L30
 // pub enum IncludeError              L34

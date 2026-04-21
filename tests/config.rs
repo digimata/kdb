@@ -1,10 +1,10 @@
-use kdb::project::config::load_index_ignores;
+use kdb::workspace::config::load_index_ignores;
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
 
 // -----------------------------------------------------------------------
-// kdb/tests/config.rs
+// projects/kdb/tests/config.rs
 //
 // fn write_file()                                                     L16
 // fn load_index_ignores_returns_empty_when_config_missing()           L25
@@ -34,7 +34,7 @@ fn load_index_ignores_returns_empty_when_index_section_missing() {
     write_file(
         temp.path(),
         ".kdb/config.toml",
-        "[project]\nname = \"demo\"\n",
+        "[workspace]\nname = \"demo\"\n",
     );
 
     let patterns = load_index_ignores(temp.path()).expect("load ignores");
@@ -47,7 +47,7 @@ fn load_index_ignores_reads_patterns() {
     write_file(
         temp.path(),
         ".kdb/config.toml",
-        "[project]\nname = \"demo\"\n[index]\nignore = [\"archive/**\", \"drafts/*.md\"]\n",
+        "[workspace]\nname = \"demo\"\n[index]\nignore = [\"archive/**\", \"drafts/*.md\"]\n",
     );
 
     let patterns = load_index_ignores(temp.path()).expect("load ignores");
@@ -60,7 +60,7 @@ fn load_index_ignores_rejects_invalid_ignore_shape() {
     write_file(
         temp.path(),
         ".kdb/config.toml",
-        "[project]\nname = \"demo\"\n[index]\nignore = \"archive/**\"\n",
+        "[workspace]\nname = \"demo\"\n[index]\nignore = \"archive/**\"\n",
     );
 
     let error = load_index_ignores(temp.path()).expect_err("invalid ignore shape");

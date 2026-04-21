@@ -4,6 +4,30 @@ use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
 
+// ---------------------------------------------------------------------
+// projects/kdb/tests/render.rs
+//
+// fn write_file()                                                   L31
+// fn write_root_config()                                            L39
+// fn render_file_no_embeds_returns_content_unchanged()              L44
+// fn render_file_resolves_whole_file_embed()                        L55
+// fn render_file_resolves_heading_section()                         L67
+// fn render_file_resolves_relative_path()                           L85
+// fn render_file_resolves_kdb_root_relative()                       L97
+// fn render_file_resolves_wikilink_without_extension()             L109
+// fn render_file_recursive_embeds()                                L121
+// fn render_file_cycle_detected()                                  L134
+// fn render_file_missing_target()                                  L148
+// fn render_file_missing_heading()                                 L164
+// fn render_file_multiple_embeds_in_one_file()                     L181
+// fn render_content_inline_embeds_not_on_own_line_are_ignored()    L194
+// fn check_reports_broken_embed()                                  L206
+// fn check_reports_broken_embed_heading()                          L221
+// fn check_valid_embed_no_errors()                                 L236
+// fn render_file_skips_embeds_in_code_blocks()                     L250
+// fn check_ignores_embeds_in_code_blocks()                         L268
+// ---------------------------------------------------------------------
+
 fn write_file(root: &Path, rel_path: &str, content: &str) {
     let path = root.join(rel_path);
     if let Some(parent) = path.parent() {
@@ -13,7 +37,7 @@ fn write_file(root: &Path, rel_path: &str, content: &str) {
 }
 
 fn write_root_config(root: &Path) {
-    write_file(root, ".kdb/config.toml", "[project]\nname = \"fixture\"\n");
+    write_file(root, ".kdb/config.toml", "[workspace]\nname = \"fixture\"\n");
 }
 
 #[test]

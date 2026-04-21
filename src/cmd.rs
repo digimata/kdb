@@ -12,73 +12,93 @@ use std::path::{Path, PathBuf};
 use crate::cycles;
 use crate::db;
 use crate::fmt;
-use crate::index::{self, ProjectIndex, VaultIndex, deps as md_deps, refs};
+use crate::index::{self, VaultIndex, WorkspaceIndex, deps as md_deps, refs};
 use crate::labels;
 use crate::lang::CodeLanguage;
 use crate::materialize;
-use crate::project::{self, ProjectContext};
 use crate::projects;
 use crate::render;
 use crate::symbols;
 use crate::tasks;
 use crate::tree;
 use crate::update;
+use crate::workspace::{self, WorkspaceContext};
 
 use rusqlite::Connection;
 
-// --------------------------------------
+// -----------------------------------------
 // projects/kdb/src/cmd.rs
 //
-// pub struct CmdContext              L42
-//   pub fn from_path()               L53
-//   pub fn build_index()             L63
-//   pub fn build_project_index()     L68
-//   pub fn rel_path()                L76
-// pub fn init()                     L103
-// pub fn check()                    L157
-// pub fn tree()                     L174
-// pub fn symbols()                  L222
-// pub fn refs()                     L283
-// pub fn deps()                     L354
-// pub fn graph()                    L389
-// pub fn render()                   L400
-// pub fn format()                   L415
-// pub fn update()                   L456
-// pub fn projects_list()
-// pub fn projects_add()
-// pub fn projects_edit()
-// pub fn projects_show()
-// --------------------------------------
+// pub struct CmdContext                 L74
+//   pub fn from_path()                  L85
+//   pub fn build_index()                L95
+//   pub fn build_workspace_index()     L100
+//   pub fn rel_path()                  L108
+// pub fn init()                        L135
+// pub fn check()                       L192
+// pub fn tree()                        L209
+// pub fn symbols()                     L257
+// pub fn refs()                        L318
+// pub fn deps()                        L389
+// pub fn graph()                       L424
+// pub fn render()                      L439
+// pub fn format()                      L489
+// pub fn update()                      L530
+// pub fn projects_list()               L536
+// pub fn projects_add()                L552
+// pub fn projects_edit()               L579
+// pub fn projects_show()               L605
+// fn resolve_project()                 L624
+// fn resolve_cycle()                   L642
+// fn resolve_parent()                  L656
+// fn parse_statuses()                  L669
+// pub fn tasks_list()                  L690
+// pub fn tasks_add()                   L731
+// pub fn tasks_edit()                  L765
+// pub fn tasks_show()                  L797
+// struct TaskShowOutput                L807
+// pub fn cycles_list()                 L825
+// pub fn cycles_add()                  L839
+// pub fn cycles_edit()                 L867
+// pub fn cycles_show()                 L892
+// pub fn labels_list()                 L908
+// pub fn labels_add()                  L922
+// pub fn labels_edit()                 L937
+// pub fn labels_show()                 L952
+// pub fn tasks_label_add()             L969
+// pub fn tasks_label_rm()              L988
+// pub fn tasks_set_status()           L1007
+// -----------------------------------------
 
-/// CLI command context: resolved start path + project state.
+/// CLI command context: resolved start path + workspace state.
 pub struct CmdContext {
     /// Resolved absolute start path (from CLI arg or cwd).
     pub start: PathBuf,
-    /// Discovered project context (root, ignore patterns, ignore set).
-    pub project: ProjectContext,
+    /// Discovered workspace context (root, ignore patterns, ignore set).
+    pub workspace: WorkspaceContext,
 }
 
 impl CmdContext {
-    /// Resolve a start path and discover the project root.
+    /// Resolve a start path and discover the workspace root.
     ///
     /// When `path` is `None`, falls back to the current working directory.
     pub fn from_path(path: Option<&Path>) -> Result<Self> {
         let start = match path {
-            Some(p) => project::root::make_absolute(p)?,
+            Some(p) => workspace::root::make_absolute(p)?,
             None => env::current_dir().context("failed to read current directory")?,
         };
-        let project = ProjectContext::discover(&start)?;
-        Ok(Self { start, project })
+        let workspace = WorkspaceContext::discover(&start)?;
+        Ok(Self { start, workspace })
     }
 
-    /// Build a [`VaultIndex`] (markdown only) using the project's ignore patterns.
+    /// Build a [`VaultIndex`] (markdown only) using the workspace's ignore patterns.
     pub fn build_index(&self) -> Result<VaultIndex> {
-        VaultIndex::build_with_ignores(&self.project.root, &self.project.ignore_patterns)
+        VaultIndex::build_with_ignores(&self.workspace.root, &self.workspace.ignore_patterns)
     }
 
-    /// Build a [`ProjectIndex`] (vault + code) using the project's ignore patterns.
-    pub fn build_project_index(&self) -> Result<ProjectIndex> {
-        ProjectIndex::build_with_ignores(&self.project.root, &self.project.ignore_patterns)
+    /// Build a [`WorkspaceIndex`] (vault + code) using the workspace's ignore patterns.
+    pub fn build_workspace_index(&self) -> Result<WorkspaceIndex> {
+        WorkspaceIndex::build_with_ignores(&self.workspace.root, &self.workspace.ignore_patterns)
     }
 
     /// Canonicalize an absolute path and return its root-relative form.
@@ -89,7 +109,7 @@ impl CmdContext {
         let canonical = abs
             .canonicalize()
             .with_context(|| format!("failed to canonicalize {}", abs.display()))?;
-        let root = &self.project.root;
+        let root = &self.workspace.root;
         canonical
             .strip_prefix(root)
             .with_context(|| {
@@ -100,7 +120,7 @@ impl CmdContext {
                 )
             })
             .and_then(|rel| {
-                project::paths::normalize_rel_path(rel).with_context(|| {
+                workspace::paths::normalize_rel_path(rel).with_context(|| {
                     format!(
                         "path {} resolves outside kdb root {}",
                         canonical.display(),
@@ -111,10 +131,10 @@ impl CmdContext {
     }
 }
 
-/// Initialize a kdb project by creating `.kdb/config.toml`.
+/// Initialize a kdb workspace by creating `.kdb/config.toml`.
 pub fn init(path: Option<PathBuf>) -> Result<()> {
     let start = match path {
-        Some(path) => project::root::make_absolute(&path)?,
+        Some(path) => workspace::root::make_absolute(&path)?,
         None => env::current_dir().context("failed to read current directory")?,
     };
 
@@ -130,11 +150,11 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
         .canonicalize()
         .with_context(|| format!("failed to canonicalize {}", start.display()))?;
 
-    let marker_dir = root.join(project::root::ROOT_MARKER);
+    let marker_dir = root.join(workspace::root::ROOT_MARKER);
     if marker_dir.exists() {
         bail!(
             "{} already exists in {}",
-            project::root::ROOT_MARKER,
+            workspace::root::ROOT_MARKER,
             root.display()
         );
     }
@@ -142,26 +162,25 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
     fs::create_dir_all(&marker_dir)
         .with_context(|| format!("failed to create {}", marker_dir.display()))?;
 
-    let project_name = root
+    let workspace_name = root
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("kdb")
         .replace('"', "\\\"");
 
-    let config = project::root::config_path(&root);
-    let default_config = format!("[project]\nname = \"{project_name}\"\n");
+    let config = workspace::root::config_path(&root);
+    let default_config = format!("[workspace]\nname = \"{workspace_name}\"\n");
     fs::write(&config, default_config)
         .with_context(|| format!("failed to write {}", config.display()))?;
 
     let ignore_path = marker_dir.join("ignore");
-    fs::write(&ignore_path, project::ignore::DEFAULT_IGNORE)
+    fs::write(&ignore_path, workspace::ignore::DEFAULT_IGNORE)
         .with_context(|| format!("failed to write {}", ignore_path.display()))?;
 
-    db::open(&root).with_context(|| {
-        format!("failed to initialize {}", db::db_path(&root).display())
-    })?;
+    db::open(&root)
+        .with_context(|| format!("failed to initialize {}", db::db_path(&root).display()))?;
 
-    println!("initialized kdb project at {}", root.display());
+    println!("initialized kdb workspace at {}", root.display());
 
     Ok(())
 }
@@ -186,7 +205,7 @@ pub fn check(path: Option<PathBuf>, list_orphans: bool) -> Result<bool> {
     Ok(report.has_errors())
 }
 
-/// Print a filtered project tree for a path under the current kdb root.
+/// Print a filtered workspace tree for a path under the current kdb root.
 pub fn tree(
     path: Option<PathBuf>,
     level: Option<usize>,
@@ -207,13 +226,13 @@ pub fn tree(
     let tree_start = if has_explicit_path {
         ctx.start.clone()
     } else {
-        ctx.project.root.clone()
+        ctx.workspace.root.clone()
     };
 
     let tree = tree::build_tree(
-        &ctx.project.root,
+        &ctx.workspace.root,
         &tree_start,
-        &ctx.project.ignore_patterns,
+        &ctx.workspace.ignore_patterns,
         tree::TreeOptions {
             max_depth: level,
             show_hidden: all,
@@ -244,7 +263,7 @@ pub fn symbols(
     assert!(!paths.is_empty(), "at least one path is required");
 
     let ctx = CmdContext::from_path(Some(&paths[0]))?;
-    let files = symbols::query::expand_paths(&ctx.project, &paths)?;
+    let files = symbols::query::expand_paths(&ctx.workspace, &paths)?;
     assert!(!files.is_empty(), "no supported files found in given paths");
 
     let multi = files.len() > 1;
@@ -258,7 +277,7 @@ pub fn symbols(
     if selectors.is_empty() {
         let mut all_rows: Vec<(PathBuf, Vec<symbols::display::SymbolRow>)> = Vec::new();
         for (abs, rel) in &files {
-            let mut rows = symbols::query::collect_rows(&ctx.project.root, abs, rel)?;
+            let mut rows = symbols::query::collect_rows(&ctx.workspace.root, abs, rel)?;
             if public_only {
                 rows.retain(|row| row.is_public);
             }
@@ -307,13 +326,13 @@ pub fn refs(
     let ctx = CmdContext::from_path(None)?;
 
     if let Some(symbol_name) = symbol {
-        let index = ProjectIndex::build_for_target(
-            &ctx.project.root,
-            &ctx.project.ignore_patterns,
+        let index = WorkspaceIndex::build_for_target(
+            &ctx.workspace.root,
+            &ctx.workspace.ignore_patterns,
             &target,
         )?;
         let inbound =
-            refs::collect_symbol_refs(&index.code, &ctx.project.root, &target, &symbol_name)?;
+            refs::collect_symbol_refs(&index.code, &ctx.workspace.root, &target, &symbol_name)?;
 
         if count_only {
             println!("{}", inbound.len());
@@ -331,7 +350,7 @@ pub fn refs(
             println!("{output}");
         } else {
             let options = refs::SymbolRefRenderOptions::new(context_lines.unwrap_or(0));
-            refs::print_symbol_refs_text(&ctx.project.root, &inbound, options)?;
+            refs::print_symbol_refs_text(&ctx.workspace.root, &inbound, options)?;
         }
 
         return Ok(());
@@ -343,7 +362,7 @@ pub fn refs(
 
     let target = index::refs::parse_target(&target)?;
     let index = ctx.build_index()?;
-    let inbound = refs::collect_inbound(&index, &ctx.project.root, target)?;
+    let inbound = refs::collect_inbound(&index, &ctx.workspace.root, target)?;
 
     if count_only {
         println!("{}", inbound.len());
@@ -369,7 +388,7 @@ pub fn refs(
 /// List outbound dependencies for a markdown or supported code file.
 pub fn deps(target: String, as_json: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let source_file = index::resolve_file_target(&ctx.project.root, &target)?;
+    let source_file = index::resolve_file_target(&ctx.workspace.root, &target)?;
     let is_markdown = source_file
         .extension()
         .and_then(|ext| ext.to_str())
@@ -382,7 +401,7 @@ pub fn deps(target: String, as_json: bool) -> Result<()> {
         );
     }
 
-    let pi = ctx.build_project_index()?;
+    let pi = ctx.build_workspace_index()?;
 
     let outbound = if is_markdown {
         md_deps::collect_outbound(&pi.vault, &source_file)?
@@ -428,14 +447,14 @@ pub fn render(
             bail!("--project/--all cannot be combined with a file argument");
         }
         let ctx = CmdContext::from_path(None)?;
-        let conn = db::open(&ctx.project.root)?;
+        let conn = db::open(&ctx.workspace.root)?;
         let written = if all {
-            materialize::materialize_all(&conn, &ctx.project.root, limit)?
+            materialize::materialize_all(&conn, &ctx.workspace.root, limit)?
         } else {
             let slug = project.expect("project checked above");
             vec![materialize::materialize_project(
                 &conn,
-                &ctx.project.root,
+                &ctx.workspace.root,
                 &slug,
                 limit,
             )?]
@@ -456,7 +475,7 @@ pub fn render(
     let ctx = CmdContext::from_path(Some(&file))?;
     let rel_path = ctx.rel_path(&ctx.start)?;
 
-    let output = render::render_file(&ctx.project.root, &rel_path)
+    let output = render::render_file(&ctx.workspace.root, &rel_path)
         .with_context(|| format!("failed to render {}", rel_path.display()))?;
 
     print!("{output}");
@@ -465,7 +484,7 @@ pub fn render(
 
 /// Generate or update code index headers for supported code files.
 ///
-/// Walks the project root and rewrites Rust, TypeScript/JavaScript, Python,
+/// Walks the workspace root and rewrites Rust, TypeScript/JavaScript, Python,
 /// and Go files with a managed index block at the top of each file.
 pub fn format(path: Option<PathBuf>, force: bool) -> Result<()> {
     let has_explicit_path = path.is_some();
@@ -478,12 +497,12 @@ pub fn format(path: Option<PathBuf>, force: bool) -> Result<()> {
     let fmt_target = if has_explicit_path {
         ctx.start
     } else {
-        ctx.project.root.clone()
+        ctx.workspace.root.clone()
     };
     let report = fmt::format_path(
-        &ctx.project.root,
+        &ctx.workspace.root,
         &fmt_target,
-        &ctx.project.ignore_patterns,
+        &ctx.workspace.ignore_patterns,
         force,
     )?;
     println!(
@@ -516,12 +535,12 @@ pub fn update(check_only: bool) -> Result<()> {
 /// List projects. Archived projects are hidden unless `include_archived`.
 pub fn projects_list(include_archived: bool, as_json: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let rows = projects::list(&conn, include_archived)?;
 
     if as_json {
-        let output = serde_json::to_string_pretty(&rows)
-            .context("failed to serialize projects as JSON")?;
+        let output =
+            serde_json::to_string_pretty(&rows).context("failed to serialize projects as JSON")?;
         println!("{output}");
     } else {
         print!("{}", projects::render_list(&rows));
@@ -538,7 +557,7 @@ pub fn projects_add(
     description: Option<String>,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let created = projects::add(
         &conn,
         projects::AddArgs {
@@ -566,7 +585,7 @@ pub fn projects_edit(
     description: Option<String>,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let updated = projects::edit(
         &conn,
         &slug,
@@ -585,7 +604,7 @@ pub fn projects_edit(
 /// Show a single project.
 pub fn projects_show(slug: String, as_json: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let project = projects::get_by_slug(&conn, &slug)?
         .with_context(|| format!("project not found: {slug}"))?;
 
@@ -612,9 +631,7 @@ fn resolve_project(
             .with_context(|| format!("project not found: {slug}"));
     }
     let cwd = env::current_dir().context("failed to read current directory")?;
-    let cwd = cwd
-        .canonicalize()
-        .unwrap_or(cwd);
+    let cwd = cwd.canonicalize().unwrap_or(cwd);
     projects::resolve_active(conn, root, &cwd)?.context(
         "no project for current directory — pass -P/--project or \
          register one with `kdb projects add`",
@@ -622,10 +639,7 @@ fn resolve_project(
 }
 
 /// Resolve an optional cycle key to its numeric id.
-fn resolve_cycle(
-    conn: &Connection,
-    key: Option<&str>,
-) -> Result<Option<Option<i64>>> {
+fn resolve_cycle(conn: &Connection, key: Option<&str>) -> Result<Option<Option<i64>>> {
     match key {
         None => Ok(None),
         Some(k) if k.is_empty() => Ok(Some(None)),
@@ -639,10 +653,7 @@ fn resolve_cycle(
 }
 
 /// Resolve an optional parent task id (external form `slug-seq`).
-fn resolve_parent(
-    conn: &Connection,
-    id: Option<&str>,
-) -> Result<Option<Option<i64>>> {
+fn resolve_parent(conn: &Connection, id: Option<&str>) -> Result<Option<Option<i64>>> {
     match id {
         None => Ok(None),
         Some(s) if s.is_empty() => Ok(Some(None)),
@@ -685,7 +696,7 @@ pub fn tasks_list(
     as_json: bool,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
 
     let statuses_owned = parse_statuses(&status)?;
     let statuses_refs: Option<Vec<&str>> = statuses_owned
@@ -707,8 +718,8 @@ pub fn tasks_list(
     let rows = tasks::list(&conn, filters)?;
 
     if as_json {
-        let output = serde_json::to_string_pretty(&rows)
-            .context("failed to serialize tasks as JSON")?;
+        let output =
+            serde_json::to_string_pretty(&rows).context("failed to serialize tasks as JSON")?;
         println!("{output}");
     } else {
         print!("{}", tasks::render_list(&rows));
@@ -726,8 +737,8 @@ pub fn tasks_add(
     parent: Option<String>,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let mut conn = db::open(&ctx.project.root)?;
-    let proj = resolve_project(&conn, &ctx.project.root, project.as_deref())?;
+    let mut conn = db::open(&ctx.workspace.root)?;
+    let proj = resolve_project(&conn, &ctx.workspace.root, project.as_deref())?;
 
     let cycle_id = resolve_cycle(&conn, cycle.as_deref())?.flatten();
     let parent_id = resolve_parent(&conn, parent.as_deref())?.flatten();
@@ -745,7 +756,7 @@ pub fn tasks_add(
             status: None,
         },
     )?;
-    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
+    materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
     println!("added task {}", view.external_id());
     Ok(())
 }
@@ -760,7 +771,7 @@ pub fn tasks_edit(
     parent: Option<String>,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let parsed = tasks::TaskId::parse(&id)?;
 
     let cycle_update = resolve_cycle(&conn, cycle.as_deref())?;
@@ -777,7 +788,7 @@ pub fn tasks_edit(
             parent_id: parent_update,
         },
     )?;
-    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
+    materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
     println!("updated task {}", view.external_id());
     Ok(())
 }
@@ -785,10 +796,9 @@ pub fn tasks_edit(
 /// Show a single task.
 pub fn tasks_show(id: String, as_json: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let parsed = tasks::TaskId::parse(&id)?;
-    let view = tasks::get(&conn, &parsed)?
-        .with_context(|| format!("task not found: {id}"))?;
+    let view = tasks::get(&conn, &parsed)?.with_context(|| format!("task not found: {id}"))?;
     let task_labels = labels::for_task(&conn, view.task.id)?;
     let slugs: Vec<&str> = task_labels.iter().map(|l| l.slug.as_str()).collect();
 
@@ -814,11 +824,11 @@ pub fn tasks_show(id: String, as_json: bool) -> Result<()> {
 /// List cycles.
 pub fn cycles_list(as_json: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let rows = cycles::list(&conn)?;
     if as_json {
-        let output = serde_json::to_string_pretty(&rows)
-            .context("failed to serialize cycles as JSON")?;
+        let output =
+            serde_json::to_string_pretty(&rows).context("failed to serialize cycles as JSON")?;
         println!("{output}");
     } else {
         print!("{}", cycles::render_list(&rows));
@@ -835,7 +845,7 @@ pub fn cycles_add(
     path: Option<String>,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let created = cycles::add(
         &conn,
         cycles::AddArgs {
@@ -847,7 +857,10 @@ pub fn cycles_add(
             path: path.as_deref(),
         },
     )?;
-    println!("added cycle {} ({} → {})", created.key, created.start_date, created.end_date);
+    println!(
+        "added cycle {} ({} → {})",
+        created.key, created.start_date, created.end_date
+    );
     Ok(())
 }
 
@@ -860,7 +873,7 @@ pub fn cycles_edit(
     path: Option<String>,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let updated = cycles::edit(
         &conn,
         &key,
@@ -878,12 +891,12 @@ pub fn cycles_edit(
 
 pub fn cycles_show(key: String, as_json: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
-    let cycle = cycles::get_by_key(&conn, &key)?
-        .with_context(|| format!("cycle not found: {key}"))?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let cycle =
+        cycles::get_by_key(&conn, &key)?.with_context(|| format!("cycle not found: {key}"))?;
     if as_json {
-        let output = serde_json::to_string_pretty(&cycle)
-            .context("failed to serialize cycle as JSON")?;
+        let output =
+            serde_json::to_string_pretty(&cycle).context("failed to serialize cycle as JSON")?;
         println!("{output}");
     } else {
         print!("{}", cycles::render_show(&cycle));
@@ -894,11 +907,11 @@ pub fn cycles_show(key: String, as_json: bool) -> Result<()> {
 /// List labels.
 pub fn labels_list(as_json: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let rows = labels::list(&conn)?;
     if as_json {
-        let output = serde_json::to_string_pretty(&rows)
-            .context("failed to serialize labels as JSON")?;
+        let output =
+            serde_json::to_string_pretty(&rows).context("failed to serialize labels as JSON")?;
         println!("{output}");
     } else {
         print!("{}", labels::render_list(&rows));
@@ -908,7 +921,7 @@ pub fn labels_list(as_json: bool) -> Result<()> {
 
 pub fn labels_add(slug: String, name: Option<String>, color: Option<String>) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let created = labels::add(
         &conn,
         labels::AddArgs {
@@ -923,7 +936,7 @@ pub fn labels_add(slug: String, name: Option<String>, color: Option<String>) -> 
 
 pub fn labels_edit(slug: String, name: Option<String>, color: Option<String>) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let updated = labels::edit(
         &conn,
         &slug,
@@ -938,12 +951,12 @@ pub fn labels_edit(slug: String, name: Option<String>, color: Option<String>) ->
 
 pub fn labels_show(slug: String, as_json: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
-    let label = labels::get_by_slug(&conn, &slug)?
-        .with_context(|| format!("label not found: {slug}"))?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let label =
+        labels::get_by_slug(&conn, &slug)?.with_context(|| format!("label not found: {slug}"))?;
     if as_json {
-        let output = serde_json::to_string_pretty(&label)
-            .context("failed to serialize label as JSON")?;
+        let output =
+            serde_json::to_string_pretty(&label).context("failed to serialize label as JSON")?;
         println!("{output}");
     } else {
         print!("{}", labels::render_show(&label));
@@ -955,15 +968,14 @@ pub fn labels_show(slug: String, as_json: bool) -> Result<()> {
 /// created on the fly.
 pub fn tasks_label_add(id: String, label_slugs: Vec<String>) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let parsed = tasks::TaskId::parse(&id)?;
-    let view = tasks::get(&conn, &parsed)?
-        .with_context(|| format!("task not found: {id}"))?;
+    let view = tasks::get(&conn, &parsed)?.with_context(|| format!("task not found: {id}"))?;
     for slug in &label_slugs {
         let label = labels::upsert_by_slug(&conn, slug)?;
         labels::attach(&conn, view.task.id, label.id)?;
     }
-    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
+    materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
     println!(
         "attached {} label(s) to {}",
         label_slugs.len(),
@@ -975,10 +987,9 @@ pub fn tasks_label_add(id: String, label_slugs: Vec<String>) -> Result<()> {
 /// Detach one or more labels from a task.
 pub fn tasks_label_rm(id: String, label_slugs: Vec<String>) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let parsed = tasks::TaskId::parse(&id)?;
-    let view = tasks::get(&conn, &parsed)?
-        .with_context(|| format!("task not found: {id}"))?;
+    let view = tasks::get(&conn, &parsed)?.with_context(|| format!("task not found: {id}"))?;
     let mut removed = 0usize;
     for slug in &label_slugs {
         if let Some(label) = labels::get_by_slug(&conn, slug)? {
@@ -987,7 +998,7 @@ pub fn tasks_label_rm(id: String, label_slugs: Vec<String>) -> Result<()> {
             }
         }
     }
-    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
+    materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
     println!("detached {removed} label(s) from {}", view.external_id());
     Ok(())
 }
@@ -995,10 +1006,10 @@ pub fn tasks_label_rm(id: String, label_slugs: Vec<String>) -> Result<()> {
 /// Transition a task to a new status.
 pub fn tasks_set_status(id: String, status: &str) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.project.root)?;
+    let conn = db::open(&ctx.workspace.root)?;
     let parsed = tasks::TaskId::parse(&id)?;
     let view = tasks::set_status(&conn, &parsed, status)?;
-    materialize::materialize_project(&conn, &ctx.project.root, &view.project_slug, None)?;
+    materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
     println!("{} -> {}", view.external_id(), view.task.status);
     Ok(())
 }

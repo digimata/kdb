@@ -9,7 +9,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 // ----------------------------------------------------------
-// kdb/src/project/ignore.rs
+// projects/kdb/src/workspace/ignore.rs
 //
 // pub const ALWAYS_IGNORED_DIR                           L30
 // pub const DEFAULT_IGNORE                               L36
@@ -34,7 +34,7 @@ pub const ALWAYS_IGNORED_DIR: &str = ".kdb";
 /// These match the previously hardcoded `ALWAYS_IGNORED_DIRS` list (minus
 /// `.kdb` which is handled separately).
 pub const DEFAULT_IGNORE: &str = "\
-# Default ignore patterns — edit to suit your project.
+# Default ignore patterns — edit to suit your workspace.
 .git
 target
 node_modules
@@ -54,7 +54,7 @@ __pycache__
 /// preserving the behavior of the old hardcoded directory list.
 ///
 /// If the file does not exist, returns the same defaults that `kdb init` would
-/// write, ensuring backwards compatibility for existing projects.
+/// write, ensuring backwards compatibility for existing workspaces.
 pub fn load_ignore_file(root: &Path) -> Result<Vec<String>> {
     let ignore_path = root.join(".kdb").join("ignore");
 

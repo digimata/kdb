@@ -1,10 +1,10 @@
-use kdb::index::ProjectIndex;
+use kdb::index::WorkspaceIndex;
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
 
 // ------------------------------------------------------
-// kdb/tests/refs_eval.rs
+// projects/kdb/tests/refs_eval.rs
 //
 // fn write_file()                                    L61
 // fn write_root_config()                             L69
@@ -67,7 +67,7 @@ fn write_file(root: &Path, rel_path: &str, content: &str) {
 }
 
 fn write_root_config(root: &Path) {
-    write_file(root, ".kdb/config.toml", "[project]\nname = \"fixture\"\n");
+    write_file(root, ".kdb/config.toml", "[workspace]\nname = \"fixture\"\n");
 }
 
 /// Build the index and collect symbol refs for `symbol` defined in `target_file`.
@@ -80,7 +80,7 @@ fn eval_refs(files: &[(&str, &str)], target_file: &str, symbol: &str) -> (usize,
     for (path, content) in files {
         write_file(tmp.path(), path, content);
     }
-    let pi = ProjectIndex::build_with_symbol_refs(tmp.path(), &[])
+    let pi = WorkspaceIndex::build_with_symbol_refs(tmp.path(), &[])
         .expect("build project index with symbol refs");
     let rows = kdb::index::refs::collect_symbol_refs(&pi.code, tmp.path(), target_file, symbol)
         .expect("collect symbol refs");

@@ -7,6 +7,31 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 
+// ----------------------------------------
+// projects/kdb/src/labels.rs
+//
+// pub struct Label                     L36
+//   fn from_row()                      L44
+// const SELECT_COLS                    L54
+// pub fn list()                        L57
+// pub fn get_by_slug()                 L66
+// pub fn for_task()                    L75
+// pub struct AddArgs                   L87
+// pub fn add()                         L94
+// pub struct EditArgs                 L106
+//   fn is_empty()                     L112
+// pub fn edit()                       L117
+// pub fn attach()                     L136
+// pub fn detach()                     L146
+// pub fn upsert_by_slug()             L158
+// pub fn render_list()                L172
+// pub fn render_show()                L205
+// mod tests                           L216
+// fn setup()                          L224
+// fn attach_detach_label_to_task()    L232
+// fn add_edit()                       L273
+// ----------------------------------------
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Label {
     pub id: i64,
@@ -104,8 +129,7 @@ pub fn edit(conn: &Connection, slug: &str, args: EditArgs) -> Result<Label> {
         params![args.name, args.color, slug],
     )
     .with_context(|| format!("failed to update label {slug}"))?;
-    get_by_slug(conn, slug)?
-        .with_context(|| format!("label {slug} missing after update"))
+    get_by_slug(conn, slug)?.with_context(|| format!("label {slug} missing after update"))
 }
 
 /// Attach a label to a task. Idempotent.
@@ -149,8 +173,18 @@ pub fn render_list(labels: &[Label]) -> String {
     if labels.is_empty() {
         return String::from("(no labels)\n");
     }
-    let slug_w = labels.iter().map(|l| l.slug.len()).max().unwrap_or(4).max(4);
-    let name_w = labels.iter().map(|l| l.name.len()).max().unwrap_or(4).max(4);
+    let slug_w = labels
+        .iter()
+        .map(|l| l.slug.len())
+        .max()
+        .unwrap_or(4)
+        .max(4);
+    let name_w = labels
+        .iter()
+        .map(|l| l.name.len())
+        .max()
+        .unwrap_or(4)
+        .max(4);
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -182,7 +216,7 @@ pub fn render_show(l: &Label) -> String {
 mod tests {
     use super::*;
     use crate::db;
-    use crate::project::root::ROOT_MARKER;
+    use crate::workspace::root::ROOT_MARKER;
     use crate::projects::{self, AddArgs as ProjAddArgs};
     use crate::tasks::{self, AddArgs as TaskAddArgs};
     use tempfile::TempDir;

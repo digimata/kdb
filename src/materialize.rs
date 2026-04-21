@@ -18,6 +18,33 @@ use std::path::{Path, PathBuf};
 use crate::projects::{self, Project};
 use crate::tasks::{self, ListFilters, TaskView};
 
+// -------------------------------------------------
+// projects/kdb/src/materialize.rs
+//
+// const TASKS_DIR                               L49
+// const INDEX_FILE                              L50
+// const GENERATED_NOTE                          L53
+// struct Counts                                 L57
+// pub fn materialize_project()                  L67
+// pub fn materialize_all()                      L79
+// fn materialize()                              L88
+// fn read_top_n()                              L157
+// fn count_by_status()                         L175
+// fn render_index()                            L189
+// fn push_table()                              L250
+// fn task_file_name()                          L279
+// fn escape_md_cell()                          L283
+// fn render_task_file()                        L289
+// fn yaml_scalar()                             L329
+// fn clean_stale_task_files()                  L345
+// const PREFIX                                 L346
+// mod tests                                    L377
+// fn setup()                                   L385
+// fn materialize_writes_todo_and_per_task()    L393
+// fn stale_task_files_are_cleaned()            L440
+// fn top_n_truncates_open_list()               L486
+// -------------------------------------------------
+
 /// Subdir under each project's path where materialized files live.
 const TASKS_DIR: &str = ".tasks";
 const INDEX_FILE: &str = "index.md";
@@ -43,17 +70,13 @@ pub fn materialize_project(
     slug: &str,
     limit: Option<i64>,
 ) -> Result<PathBuf> {
-    let project = projects::get_by_slug(conn, slug)?
-        .with_context(|| format!("project not found: {slug}"))?;
+    let project =
+        projects::get_by_slug(conn, slug)?.with_context(|| format!("project not found: {slug}"))?;
     materialize(conn, root, &project, limit)
 }
 
 /// Write materialized files for every non-archived project.
-pub fn materialize_all(
-    conn: &Connection,
-    root: &Path,
-    limit: Option<i64>,
-) -> Result<Vec<PathBuf>> {
+pub fn materialize_all(conn: &Connection, root: &Path, limit: Option<i64>) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     for project in projects::list(conn, false)? {
         let path = materialize(conn, root, &project, limit)?;
@@ -133,11 +156,9 @@ fn materialize(
 
 fn read_top_n(conn: &Connection) -> Result<i64> {
     let raw: Option<String> = conn
-        .query_row(
-            "SELECT value FROM meta WHERE key = 'top_n'",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT value FROM meta WHERE key = 'top_n'", [], |row| {
+            row.get(0)
+        })
         .map(Some)
         .or_else(|e| match e {
             rusqlite::Error::QueryReturnedNoRows => Ok(None),
@@ -321,10 +342,7 @@ fn yaml_scalar(s: &str) -> String {
 /// DB. Only the exact pattern (uppercase `T-`, all-digit stem, `.md`
 /// suffix) is touched; TODO.md and other hand-written notes are left
 /// alone.
-fn clean_stale_task_files(
-    dir: &Path,
-    expected: &HashSet<String>,
-) -> Result<()> {
+fn clean_stale_task_files(dir: &Path, expected: &HashSet<String>) -> Result<()> {
     const PREFIX: &str = "T-";
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
@@ -345,7 +363,10 @@ fn clean_stale_task_files(
         }
         if !expected.contains(&name) {
             fs::remove_file(entry.path()).with_context(|| {
-                format!("failed to remove stale task file {}", entry.path().display())
+                format!(
+                    "failed to remove stale task file {}",
+                    entry.path().display()
+                )
             })?;
         }
     }
@@ -356,7 +377,7 @@ fn clean_stale_task_files(
 mod tests {
     use super::*;
     use crate::db;
-    use crate::project::root::ROOT_MARKER;
+    use crate::workspace::root::ROOT_MARKER;
     use crate::projects::{self as projects_mod, AddArgs as ProjAddArgs};
     use crate::tasks::{self as tasks_mod, AddArgs as TaskAddArgs};
     use tempfile::TempDir;
@@ -475,11 +496,8 @@ mod tests {
             },
         )
         .unwrap();
-        conn.execute(
-            "UPDATE meta SET value = '2' WHERE key = 'top_n'",
-            [],
-        )
-        .unwrap();
+        conn.execute("UPDATE meta SET value = '2' WHERE key = 'top_n'", [])
+            .unwrap();
         let p = projects_mod::get_by_slug(&conn, "kdb").unwrap().unwrap();
         for i in 0..5 {
             tasks_mod::add(

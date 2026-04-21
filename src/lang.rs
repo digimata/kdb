@@ -3,7 +3,7 @@
 use std::path::Path;
 
 // ----------------------------
-// kdb/src/lang.rs
+// projects/kdb/src/lang.rs
 //
 // pub enum CodeLanguage    L15
 //   pub fn from_path()     L26

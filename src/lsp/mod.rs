@@ -19,7 +19,7 @@ mod symbols;
 
 pub use backend::serve;
 // --------------------------
-// kdb/src/lsp/mod.rs
+// projects/kdb/src/lsp/mod.rs
 //
 // mod backend            L11
 // mod completion         L12

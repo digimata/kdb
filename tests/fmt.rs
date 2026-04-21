@@ -4,7 +4,7 @@ use std::path::Path;
 use tempfile::tempdir;
 
 // ----------------------------------------------------------------------------------
-// kdb/tests/fmt.rs
+// projects/kdb/tests/fmt.rs
 //
 // fn write_file()                                                                L27
 // fn write_root_config()                                                         L35
@@ -33,7 +33,7 @@ fn write_file(root: &Path, rel_path: &str, content: &str) {
 }
 
 fn write_root_config(root: &Path) {
-    write_file(root, ".kdb/config.toml", "[project]\nname = \"fixture\"\n");
+    write_file(root, ".kdb/config.toml", "[workspace]\nname = \"fixture\"\n");
 }
 
 #[test]

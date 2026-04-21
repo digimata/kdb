@@ -10,6 +10,31 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use std::path::Path;
 
+// ----------------------------------------------
+// projects/kdb/src/projects.rs
+//
+// pub struct Project                         L39
+//   fn from_row()                            L52
+// const SELECT_COLS                          L67
+// pub fn list()                              L72
+// pub fn get_by_slug()                       L88
+// pub fn get_by_alias()                      L97
+// pub struct AddArgs                        L105
+// pub fn add()                              L114
+// pub struct EditArgs                       L128
+//   fn is_empty()                           L137
+// pub fn edit()                             L147
+// pub fn resolve_active()                   L179
+// pub fn render_list()                      L201
+// pub fn render_show()                      L245
+// mod tests                                 L261
+// fn setup()                                L267
+// fn add_then_list_and_show()               L275
+// fn alias_lowercased_input_is_upcased()    L296
+// fn duplicate_alias_errors()               L313
+// fn edit_updates_fields_and_timestamp()    L340
+// ----------------------------------------------
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Project {
     pub id: i64,
@@ -136,20 +161,22 @@ pub fn edit(conn: &Connection, slug: &str, args: EditArgs) -> Result<Project> {
             description = COALESCE(?, description), \
             updated_at  = strftime('%Y-%m-%dT%H:%M:%fZ','now') \
          WHERE slug = ?",
-        params![alias_upper, args.name, args.path, args.status, args.description, slug],
+        params![
+            alias_upper,
+            args.name,
+            args.path,
+            args.status,
+            args.description,
+            slug
+        ],
     )
     .with_context(|| format!("failed to update project {slug}"))?;
-    get_by_slug(conn, slug)?
-        .with_context(|| format!("project {slug} missing after update"))
+    get_by_slug(conn, slug)?.with_context(|| format!("project {slug} missing after update"))
 }
 
 /// Return the registered project whose `path` is the deepest prefix of
 /// `cwd` relative to the kdb `root`. Returns `None` if no project matches.
-pub fn resolve_active(
-    conn: &Connection,
-    root: &Path,
-    cwd: &Path,
-) -> Result<Option<Project>> {
+pub fn resolve_active(conn: &Connection, root: &Path, cwd: &Path) -> Result<Option<Project>> {
     let rel = match cwd.strip_prefix(root) {
         Ok(r) => r.to_path_buf(),
         Err(_) => return Ok(None),
@@ -175,14 +202,24 @@ pub fn render_list(projects: &[Project]) -> String {
     if projects.is_empty() {
         return String::from("(no projects)\n");
     }
-    let slug_w = projects.iter().map(|p| p.slug.len()).max().unwrap_or(4).max(4);
+    let slug_w = projects
+        .iter()
+        .map(|p| p.slug.len())
+        .max()
+        .unwrap_or(4)
+        .max(4);
     let alias_w = projects
         .iter()
         .map(|p| p.alias.len())
         .max()
         .unwrap_or(5)
         .max(5);
-    let name_w = projects.iter().map(|p| p.name.len()).max().unwrap_or(4).max(4);
+    let name_w = projects
+        .iter()
+        .map(|p| p.name.len())
+        .max()
+        .unwrap_or(4)
+        .max(4);
     let status_w = projects
         .iter()
         .map(|p| p.status.len())
@@ -224,7 +261,7 @@ pub fn render_show(p: &Project) -> String {
 mod tests {
     use super::*;
     use crate::db;
-    use crate::project::root::ROOT_MARKER;
+    use crate::workspace::root::ROOT_MARKER;
     use tempfile::TempDir;
 
     fn setup() -> (TempDir, Connection) {

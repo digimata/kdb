@@ -25,12 +25,12 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::index::VaultIndex;
 use crate::lang::CodeLanguage;
-use crate::project;
+use crate::workspace;
 
 use super::{completion, definition, diagnostics, formatting, hover, symbols};
 
 // --------------------------------------------------------
-// kdb/src/lsp/backend.rs
+// projects/kdb/src/lsp/backend.rs
 //
 // pub async fn serve()                                 L75
 // pub(super) struct Backend                            L97
@@ -78,7 +78,7 @@ pub async fn serve(path: Option<PathBuf>) -> Result<()> {
         None => std::env::current_dir().context("failed to read current directory")?,
     };
 
-    let root = project::root::find_root(&start)?;
+    let root = workspace::root::find_root(&start)?;
     let root_for_backend = root.clone();
 
     let (service, socket) =
@@ -128,7 +128,7 @@ impl Backend {
 
     async fn build_index(&self) -> Result<VaultIndex> {
         let root = self.root.clone();
-        let ignore_patterns = project::config::load_index_ignores(&root)?;
+        let ignore_patterns = workspace::config::load_index_ignores(&root)?;
         task::spawn_blocking(move || VaultIndex::build_with_ignores(&root, &ignore_patterns))
             .await
             .context("failed to join vault index build task")?
@@ -182,7 +182,7 @@ impl Backend {
         }
 
         let rel = abs.strip_prefix(&self.root).ok()?;
-        let rel = crate::project::paths::normalize_rel_path(rel)?;
+        let rel = crate::workspace::paths::normalize_rel_path(rel)?;
         if !is_markdown_path(&rel) {
             return None;
         }
@@ -198,7 +198,7 @@ impl Backend {
         }
 
         let rel = abs.strip_prefix(&self.root).ok()?;
-        let rel = crate::project::paths::normalize_rel_path(rel)?;
+        let rel = crate::workspace::paths::normalize_rel_path(rel)?;
         if CodeLanguage::from_path(&rel).is_none() {
             return None;
         }

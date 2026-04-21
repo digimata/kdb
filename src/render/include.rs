@@ -7,7 +7,7 @@ use regex::Regex;
 use std::sync::LazyLock;
 
 // -------------------------------------------
-// kdb/src/render/include.rs
+// projects/kdb/src/render/include.rs
 //
 // static EMBED_RE                         L30
 // pub struct IncludeDirective             L35

@@ -8,7 +8,7 @@ use tree_sitter_md::{MarkdownParser, MarkdownTree};
 use super::{Heading, Link, LinkKind, LinkTarget, ParsedDocument};
 
 // ---------------------------------------------
-// kdb/src/index/markdown.rs
+// projects/kdb/src/index/markdown.rs
 //
 // static WIKILINK_RE                        L42
 // static MARKDOWN_LINK_RE                   L44

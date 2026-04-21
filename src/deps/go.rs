@@ -7,7 +7,7 @@ use crate::index::deps::Dependency;
 use super::utils::list_go_package_files;
 
 // -------------------------------
-// kdb/src/deps/go.rs
+// projects/kdb/src/deps/go.rs
 //
 // pub(super) fn collect()     L18
 // fn go_module_name()         L62

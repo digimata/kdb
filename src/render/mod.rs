@@ -14,7 +14,7 @@ use std::path::Path;
 pub use resolve::IncludeError;
 
 // ------------------------------
-// kdb/src/render/mod.rs
+// projects/kdb/src/render/mod.rs
 //
 // pub mod include             L8
 // pub mod resolve             L9

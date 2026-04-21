@@ -1,13 +1,18 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-// -----------------------
+// -------------------------
 // projects/kdb/src/main.rs
 //
-// struct Cli          L19
-// enum Command        L25
-// async fn main()    L140
-// -----------------------
+// struct Cli            L24
+// enum Command          L30
+// enum ProjectsCmd     L176
+// enum TasksCmd        L231
+// enum TaskLabelCmd    L311
+// enum CyclesCmd       L329
+// enum LabelsCmd       L378
+// async fn main()      L413
+// -------------------------
 
 #[derive(Debug, Parser)]
 #[command(
@@ -23,7 +28,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Initialize a kdb project in a directory.
+    /// Initialize a kdb workspace in a directory.
     Init {
         /// Optional directory path (defaults to current directory).
         path: Option<PathBuf>,
@@ -36,7 +41,7 @@ enum Command {
         /// Optional file or directory path to scope check output to.
         path: Option<PathBuf>,
     },
-    /// Print a filtered directory tree for the project.
+    /// Print a filtered directory tree for the workspace.
     Tree {
         /// Maximum display depth (same as `tree -L`).
         #[arg(short = 'L', long = "level", alias = "depth")]
@@ -59,7 +64,7 @@ enum Command {
         /// Emit machine-readable JSON output.
         #[arg(short = 'J', long)]
         json: bool,
-        /// Optional path to render (defaults to project root).
+        /// Optional path to render (defaults to workspace root).
         path: Option<PathBuf>,
     },
     /// Print the outline (headings / symbols) for files and/or directories.
@@ -128,7 +133,7 @@ enum Command {
     },
     /// Generate or update code index headers in supported code files.
     Fmt {
-        /// Optional file or directory path to format (defaults to project root).
+        /// Optional file or directory path to format (defaults to workspace root).
         path: Option<PathBuf>,
         /// Force frontmatter insertion into markdown files that already have frontmatter.
         #[arg(long)]

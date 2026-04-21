@@ -28,9 +28,9 @@ use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
-use crate::project::discover::discover_files;
-use crate::project::ignore::{build_ignore_globset, path_is_ignored};
-use crate::project::paths::normalize_rel_path;
+use crate::workspace::discover::discover_files;
+use crate::workspace::ignore::{build_ignore_globset, path_is_ignored};
+use crate::workspace::paths::normalize_rel_path;
 use crate::resolve::{
     GoWorkspaceCache, ResolvedImport, RustWorkspaceCache, WorkspacePackages,
     build_workspace_import_index,
@@ -50,7 +50,7 @@ pub use markdown::{
 // NOTE: index block managed by kdb fmt — do not update manually
 
 // -----------------------------------------
-// kdb/src/index/mod.rs
+// projects/kdb/src/index/mod.rs
 //
 // mod code                              L17
 // pub mod deps                          L18
@@ -62,7 +62,7 @@ pub use markdown::{
 // pub struct CodeIndex                 L127
 // pub struct SymbolKey                 L142
 // pub struct SymbolRef                 L157
-// pub struct ProjectIndex              L176
+// pub struct WorkspaceIndex            L176
 // pub struct FileEntry                 L185
 // pub struct Heading                   L198
 // pub enum LinkKind                    L214
@@ -80,25 +80,25 @@ pub use markdown::{
 // fn path_is_in_check_scope()          L402
 //   pub fn build()                     L420
 //   pub fn build_for_target()          L434
-//   pub fn build_with_symbol_refs()    L452
-//   pub fn build()                     L467
-//   pub fn build_with_ignores()        L472
-//   pub fn build_for_target()          L484
-//   pub fn build_with_symbol_refs()    L499
-//   pub fn build()                     L514
-//   pub fn build_with_ignores()        L522
-//   pub fn upsert_file()               L566
-//   pub fn reload_file()               L589
-//   pub fn remove_file()               L618
-//   pub fn check()                     L626
-//   fn populate_inbound()              L690
-//   fn resolve_link()                  L743
-// enum ResolveError                    L776
-//   fn message()                       L783
-// fn discover_markdown_files()         L798
-// fn resolve_target_file()             L816
-// pub fn resolve_target_path()         L829
-// pub fn resolve_file_target()         L861
+//   pub fn build_with_symbol_refs()    L451
+//   pub fn build()                     L466
+//   pub fn build_with_ignores()        L471
+//   pub fn build_for_target()          L483
+//   pub fn build_with_symbol_refs()    L498
+//   pub fn build()                     L513
+//   pub fn build_with_ignores()        L521
+//   pub fn upsert_file()               L565
+//   pub fn reload_file()               L588
+//   pub fn remove_file()               L617
+//   pub fn check()                     L625
+//   fn populate_inbound()              L692
+//   fn resolve_link()                  L745
+// enum ResolveError                    L778
+//   fn message()                       L785
+// fn discover_markdown_files()         L800
+// fn resolve_target_file()             L818
+// pub fn resolve_target_path()         L831
+// pub fn resolve_file_target()         L863
 // -----------------------------------------
 
 /// Complete index of a markdown vault.
@@ -121,7 +121,7 @@ pub struct VaultIndex {
 
 /// Index of workspace-level code imports and language caches.
 ///
-/// Built by scanning all supported code files under the project root and
+/// Built by scanning all supported code files under the workspace root and
 /// resolving their imports. Used by `kdb deps` for code dependency tracking.
 #[derive(Debug, Clone, Default)]
 pub struct CodeIndex {
@@ -167,13 +167,13 @@ pub struct SymbolRef {
     pub is_definition: bool,
 }
 
-/// Combined vault and code index for a project.
+/// Combined vault and code index for a workspace.
 ///
 /// Commands that need both markdown and code data (e.g. `kdb deps`) build
 /// this; commands that only need markdown (e.g. `kdb check`) use [`VaultIndex`]
 /// directly.
 #[derive(Debug, Clone)]
-pub struct ProjectIndex {
+pub struct WorkspaceIndex {
     /// Markdown vault index (files, headings, links, inbound maps).
     pub vault: VaultIndex,
     /// Code import index (workspace packages, language caches, resolved imports).
@@ -437,8 +437,7 @@ impl CodeIndex {
         target_file: PathBuf,
     ) -> Result<Self> {
         let import_index = build_workspace_import_index(root, ignore_patterns)?;
-        let symbols =
-            SymbolIndex::build_targeted(root, &import_index.file_imports, target_file)?;
+        let symbols = SymbolIndex::build_targeted(root, &import_index.file_imports, target_file)?;
         Ok(Self {
             workspace_packages: import_index.workspace_packages,
             go_workspace: import_index.go_workspace,
@@ -462,8 +461,8 @@ impl CodeIndex {
     }
 }
 
-impl ProjectIndex {
-    /// Build a combined vault and code index for the project at `root`.
+impl WorkspaceIndex {
+    /// Build a combined vault and code index for the workspace at `root`.
     pub fn build(root: &Path) -> Result<Self> {
         Self::build_with_ignores(root, &[])
     }
@@ -478,7 +477,7 @@ impl ProjectIndex {
         Ok(Self { vault, code })
     }
 
-    /// Build a combined project index with targeted code symbol refs.
+    /// Build a combined workspace index with targeted code symbol refs.
     ///
     /// Only extracts symbols and scans usages for files that import from `target_file`.
     pub fn build_for_target(
@@ -495,7 +494,7 @@ impl ProjectIndex {
         Ok(Self { vault, code })
     }
 
-    /// Build a combined project index with code symbol refs enabled.
+    /// Build a combined workspace index with code symbol refs enabled.
     pub fn build_with_symbol_refs(root: &Path, ignore_patterns: &[String]) -> Result<Self> {
         let canonical = root
             .canonicalize()
@@ -654,10 +653,13 @@ impl VaultIndex {
                         report.broken_embeds.push(BrokenEmbed {
                             source_file: source_file.clone(),
                             line: embed.line + 1, // convert 0-based to 1-based
-                            raw: format!("![[{}]]", match &embed.directive.anchor {
-                                Some(a) => format!("{}#{}", embed.directive.file, a),
-                                None => embed.directive.file.clone(),
-                            }),
+                            raw: format!(
+                                "![[{}]]",
+                                match &embed.directive.anchor {
+                                    Some(a) => format!("{}#{}", embed.directive.file, a),
+                                    None => embed.directive.file.clone(),
+                                }
+                            ),
                             reason: error.to_string(),
                         });
                     }

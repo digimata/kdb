@@ -10,7 +10,7 @@ use tempfile::{TempDir, tempdir};
 use tower_lsp::lsp_types::Url;
 
 // ----------------------------------------------------------------------
-// kdb/tests/lsp.rs
+// projects/kdb/tests/lsp.rs
 //
 // fn write_file()                                                    L46
 // fn bin()                                                           L54
@@ -72,7 +72,7 @@ impl VaultFixture {
         write_file(
             &root_path,
             ".kdb/config.toml",
-            "[project]\nname = \"fixture\"\n",
+            "[workspace]\nname = \"fixture\"\n",
         );
         write_file(
             &root_path,

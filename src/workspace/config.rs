@@ -1,6 +1,6 @@
-//! Project configuration loading.
+//! Workspace configuration loading.
 //!
-//! kdb stores project settings in `.kdb/config.toml`. We currently read
+//! kdb stores workspace settings in `.kdb/config.toml`. We currently read
 //! indexing options from that file so callers can customize discovery.
 
 use anyhow::{Context, Result, bail};
@@ -11,7 +11,7 @@ use std::path::Path;
 use super::root;
 
 // ----------------------------------
-// kdb/src/project/config.rs
+// projects/kdb/src/workspace/config.rs
 //
 // pub fn load_index_ignores()    L24
 // fn parse_index_ignores()       L40

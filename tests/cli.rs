@@ -5,7 +5,7 @@ use std::process::Command;
 use tempfile::tempdir;
 
 // ---------------------------------------------------------------------------------
-// kdb/tests/cli.rs
+// projects/kdb/tests/cli.rs
 //
 // fn write_file()                                                               L87
 // fn bin()                                                                      L95
@@ -97,7 +97,7 @@ fn bin() -> &'static str {
 }
 
 fn write_root_config(root: &Path) {
-    write_file(root, ".kdb/config.toml", "[project]\nname = \"fixture\"\n");
+    write_file(root, ".kdb/config.toml", "[workspace]\nname = \"fixture\"\n");
 }
 
 fn write_symbol_refs_rust_fixture(root: &Path) {
@@ -185,7 +185,7 @@ fn check_respects_index_ignore_patterns_from_config() {
     write_file(
         temp.path(),
         ".kdb/config.toml",
-        "[project]\nname = \"fixture\"\n[index]\nignore = [\"archive/**\"]\n",
+        "[workspace]\nname = \"fixture\"\n[index]\nignore = [\"archive/**\"]\n",
     );
     write_file(temp.path(), "a.md", "# A\n\n[B](b.md)\n");
     write_file(temp.path(), "b.md", "# B\n\n[A](a.md)\n");
@@ -461,7 +461,7 @@ fn tree_prints_filtered_directory_structure() {
     write_file(
         temp.path(),
         ".kdb/config.toml",
-        "[project]\nname = \"fixture\"\n[index]\nignore = [\"archive/**\"]\n",
+        "[workspace]\nname = \"fixture\"\n[index]\nignore = [\"archive/**\"]\n",
     );
     write_file(temp.path(), "src/main.rs", "fn main() {}\n");
     write_file(temp.path(), "notes/todo.md", "# TODO\n");
@@ -2215,7 +2215,7 @@ fn init_creates_kdb_directory_and_default_config() {
     assert!(output.status.success());
     assert!(root.join(".kdb").is_dir());
     let config = fs::read_to_string(root.join(".kdb/config.toml")).expect("read config");
-    assert!(config.contains("[project]"));
+    assert!(config.contains("[workspace]"));
     assert!(config.contains(&format!("name = \"{expected_name}\"")));
 
     let ignore = fs::read_to_string(root.join(".kdb/ignore")).expect("read ignore");

@@ -2,12 +2,12 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::index::deps::Dependency;
-use crate::project::paths::normalize_rel_path;
+use crate::workspace::paths::normalize_rel_path;
 
 use super::utils::resolve_file;
 
 // --------------------------------
-// kdb/src/deps/python.rs
+// projects/kdb/src/deps/python.rs
 //
 // pub(super) fn collect()      L19
 // fn parse_names()             L72

@@ -2,7 +2,7 @@ use kdb::lang::CodeLanguage;
 use kdb::symbols::{Symbol, SymbolKind, extract_symbols};
 
 // --------------------------------------------------------------------------
-// kdb/tests/symbols.rs
+// projects/kdb/tests/symbols.rs
 //
 // fn extract_symbols_rust_tracks_visibility_and_display_kind()           L16
 // fn extract_symbols_typescript_tracks_visibility_and_display_kind()     L78

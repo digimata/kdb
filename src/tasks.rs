@@ -8,6 +8,40 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 
+// -------------------------------------------
+// projects/kdb/src/tasks.rs
+//
+// pub const STATUSES                      L45
+// pub const SEQ_WIDTH                     L48
+// pub fn format_external_id()             L51
+// pub struct Task                         L56
+// pub struct TaskView                     L73
+//   pub fn external_id()                  L83
+// pub struct TaskId                       L90
+//   pub fn parse()                        L97
+// const SELECT_COLS                      L115
+// fn view_from_row()                     L119
+// pub struct ListFilters                 L144
+// pub fn list()                          L153
+// pub fn get()                           L200
+// pub struct AddArgs                     L213
+// pub fn add()                           L229
+// pub struct EditArgs                    L296
+//   fn is_empty()                        L305
+// pub fn edit()                          L316
+// pub fn set_status()                    L360
+// fn status_glyph()                      L384
+// pub fn render_list()                   L395
+// pub fn render_show()                   L418
+// mod tests                              L447
+// fn setup()                             L454
+// fn parse_task_id_uppercases_alias()    L473
+// fn external_id_is_zero_padded()        L483
+// fn add_auto_seq_then_explicit_seq()    L490
+// fn add_with_status()                   L544
+// fn set_status_transitions()            L565
+// -------------------------------------------
+
 pub const STATUSES: &[&str] = &["open", "in_progress", "done", "parked"];
 
 /// Zero-padding width for the `seq` portion of external ids.
@@ -279,11 +313,7 @@ impl EditArgs<'_> {
 
 /// Update mutable fields on a task. `None` leaves the field unchanged;
 /// for `cycle_id` / `parent_id`, `Some(None)` explicitly clears.
-pub fn edit(
-    conn: &Connection,
-    id: &TaskId,
-    args: EditArgs,
-) -> Result<TaskView> {
+pub fn edit(conn: &Connection, id: &TaskId, args: EditArgs) -> Result<TaskView> {
     if args.is_empty() {
         bail!("no fields to update");
     }
@@ -327,11 +357,7 @@ pub fn edit(
 
 /// Set a task's status. `done` and `parked` stamp `closed_at`; other
 /// statuses clear it.
-pub fn set_status(
-    conn: &Connection,
-    id: &TaskId,
-    status: &str,
-) -> Result<TaskView> {
+pub fn set_status(conn: &Connection, id: &TaskId, status: &str) -> Result<TaskView> {
     if !STATUSES.contains(&status) {
         bail!(
             "invalid status '{status}' (expected {})",
@@ -374,10 +400,7 @@ pub fn render_list(tasks: &[TaskView]) -> String {
     let id_w = id_strs.iter().map(|s| s.len()).max().unwrap_or(4).max(4);
 
     let mut out = String::new();
-    out.push_str(&format!(
-        "{:<id_w$}  st    p  title\n",
-        "id",
-    ));
+    out.push_str(&format!("{:<id_w$}  st    p  title\n", "id",));
     for (t, id) in tasks.iter().zip(id_strs.iter()) {
         out.push_str(&format!(
             "{:<id_w$}  {}  {}  {}\n",
@@ -424,7 +447,7 @@ pub fn render_show(t: &TaskView, label_slugs: &[&str]) -> String {
 mod tests {
     use super::*;
     use crate::db;
-    use crate::project::root::ROOT_MARKER;
+    use crate::workspace::root::ROOT_MARKER;
     use crate::projects::{self, AddArgs as ProjAddArgs};
     use tempfile::TempDir;
 

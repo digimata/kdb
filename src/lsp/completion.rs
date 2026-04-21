@@ -22,7 +22,7 @@ use super::backend::{
 };
 
 // ----------------------------------------
-// kdb/src/lsp/completion.rs
+// projects/kdb/src/lsp/completion.rs
 //
 // pub(super) async fn completion()     L39
 // enum CompletionContext               L94

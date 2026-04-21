@@ -14,7 +14,7 @@ use crate::symbols::extract_symbols;
 // NOTE: index block managed by kdb fmt — do not update manually
 
 // ----------------------------------------------------
-// kdb/src/resolve/mod.rs
+// projects/kdb/src/resolve/mod.rs
 //
 // mod go                                           L52
 // mod python                                       L53
@@ -46,8 +46,8 @@ use crate::symbols::extract_symbols;
 // fn rel_path_from_root()                         L516
 // ----------------------------------------------------
 
-pub(super) use crate::project::ignore::{build_ignore_globset, path_is_ignored};
-pub(super) use crate::project::paths::normalize_rel_path;
+pub(super) use crate::workspace::ignore::{build_ignore_globset, path_is_ignored};
+pub(super) use crate::workspace::paths::normalize_rel_path;
 
 mod go;
 mod python;

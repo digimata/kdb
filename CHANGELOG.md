@@ -94,6 +94,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] — 2026-04-20
+
+### Changed
+
+- **Breaking**: rename "project" to "workspace" for the kdb-root concept, freeing the term for the relational `projects` entity. The CLI now says "Initialize a kdb workspace", `kdb tree` describes itself as workspace-scoped, and the default `.kdb/config.toml` written by `kdb init` uses `[workspace]` instead of `[project]`. Existing workspaces must rename their config section header to `[workspace]`.
+- Module `src/project/` → `src/workspace/`; `ProjectContext` → `WorkspaceContext`; `index::ProjectIndex` → `index::WorkspaceIndex` (and `CmdContext::build_project_index` → `build_workspace_index`).
+- Doc strings, README, and CODEMAP updated to use "workspace root" / "kdb workspace" wherever the kdb-root concept appears. Relational `projects` terminology (slug, alias, `--project` flag, `kdb projects` subcommand, `project_id` FKs) is unchanged.
+
 ## [0.26.0] — 2026-04-20
 
 ### Added

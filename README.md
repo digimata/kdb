@@ -49,14 +49,14 @@ Or from source (requires Rust):
 cargo install --path .
 ```
 
-2. Init in your project:
+2. Init in your workspace:
 
 ```
-cd my-project
+cd my-workspace
 kdb init
 ```
 
-This creates a `.kdb/` directory that marks the project root. All commands run relative to this boundary.
+This creates a `.kdb/` directory that marks the workspace root. All commands run relative to this boundary.
 
 3. Add the editor extension (optional — for LSP features):
 

@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 
 use crate::index::{Heading, parse_markdown};
 use crate::lang::CodeLanguage;
-use crate::project::discover::discover_files;
-use crate::project::ignore::build_ignore_globset;
+use crate::workspace::discover::discover_files;
+use crate::workspace::ignore::build_ignore_globset;
 use crate::symbols::{Symbol, extract_symbols, format_symbol_display};
 
 pub mod preamble;
@@ -17,7 +17,7 @@ pub mod preamble;
 use self::preamble::{comment_prefix, markdown_preamble_end, preamble_end_index};
 
 // ---------------------------------------------
-// kdb/src/fmt/mod.rs
+// projects/kdb/src/fmt/mod.rs
 //
 // pub mod preamble                          L15
 // const LEGACY_INDEX_HEADER                 L53
@@ -39,15 +39,15 @@ use self::preamble::{comment_prefix, markdown_preamble_end, preamble_end_index};
 // fn is_separator_only_comment_line()      L443
 // fn render_block()                        L457
 // fn format_markdown_files()               L488
-// enum MarkdownNavResult                   L539
-// fn rewrite_markdown_nav()                L552
-// fn render_nav_frontmatter()              L670
-// fn strip_nav_keys()                      L716
-// fn has_foreign_key()                     L739
-// fn is_legacy_md_nav_line()               L757
-// fn is_markdown_ext()                     L763
-// fn discover_markdown_files_in_scope()    L770
-// fn discover_code_files_in_scope()        L784
+// enum MarkdownNavResult                   L535
+// fn rewrite_markdown_nav()                L548
+// fn render_nav_frontmatter()              L662
+// fn strip_nav_keys()                      L708
+// fn has_foreign_key()                     L731
+// fn is_legacy_md_nav_line()               L749
+// fn is_markdown_ext()                     L755
+// fn discover_markdown_files_in_scope()    L762
+// fn discover_code_files_in_scope()        L776
 // ---------------------------------------------
 
 const LEGACY_INDEX_HEADER: &str = "## Index";
@@ -485,11 +485,7 @@ fn render_block(prefix: &str, header: &str, symbols: &[Symbol]) -> Vec<String> {
 }
 
 /// Format a batch of markdown files, returning a report.
-fn format_markdown_files(
-    root: &Path,
-    files: Vec<PathBuf>,
-    force: bool,
-) -> Result<FormatReport> {
+fn format_markdown_files(root: &Path, files: Vec<PathBuf>, force: bool) -> Result<FormatReport> {
     let mut report = FormatReport {
         scanned_files: files.len(),
         updated_files: 0,
@@ -549,11 +545,7 @@ enum MarkdownNavResult {
 ///
 /// If the file already has frontmatter containing keys other than `path:` and
 /// `outline:`, returns `ForeignFrontmatter` unless `force` is set.
-fn rewrite_markdown_nav(
-    source: &str,
-    rel_path: &Path,
-    force: bool,
-) -> Result<MarkdownNavResult> {
+fn rewrite_markdown_nav(source: &str, rel_path: &Path, force: bool) -> Result<MarkdownNavResult> {
     let newline = if source.contains("\r\n") {
         "\r\n"
     } else {

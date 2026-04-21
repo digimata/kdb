@@ -4,7 +4,7 @@
 //! `iss-0017` to colorize index header rows in supported editors.
 
 // -------------------------------------------
-// kdb/src/lsp/semantic_tokens.rs
+// projects/kdb/src/lsp/semantic_tokens.rs
 //
 // pub(crate) fn is_index_header_line()    L14
 // -------------------------------------------

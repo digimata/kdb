@@ -23,7 +23,7 @@ use super::{
 };
 
 // -----------------------------------
-// kdb/src/lsp/hover.rs
+// projects/kdb/src/lsp/hover.rs
 //
 // const HOVER_CHAR_LIMIT          L40
 // static MARKDOWN_LINK_RE         L41

@@ -13,13 +13,13 @@
 //! - [`lang`] — Shared code language identifiers and file-type detection.
 //! - [`lsp`] — Language Server Protocol implementation.
 //! - [`materialize`] — DB → markdown materialization for per-project TODO files.
-//! - [`project`] — Shared project infrastructure (root, config, discovery, paths, ignore).
 //! - [`projects`] — Projects table access (slug, name, path, status).
 //! - [`render`] — Transclusion resolution for `![[file#heading]]` embeds.
 //! - [`resolve`] — Workspace-aware code import resolution.
 //! - [`symbols`] — Multi-language code symbol extraction.
 //! - [`tasks`] — Tasks table access (per-project seq, statuses, priorities).
-//! - [`tree`] — Filtered tree rendering for project orientation.
+//! - [`tree`] — Filtered tree rendering for workspace orientation.
+//! - [`workspace`] — Shared workspace infrastructure (root, config, discovery, paths, ignore).
 
 pub mod cmd;
 pub mod cycles;
@@ -31,7 +31,6 @@ pub mod labels;
 pub mod lang;
 pub mod lsp;
 pub mod materialize;
-pub mod project;
 pub mod projects;
 pub mod render;
 pub mod resolve;
@@ -40,25 +39,29 @@ pub mod tasks;
 pub mod tasks_import;
 pub mod tree;
 pub mod update;
+pub mod workspace;
 
-// ----------------------
+// ---------------------------
 // projects/kdb/src/lib.rs
 //
-// pub mod cmd        L21
-// pub mod db         L22
-// pub mod deps       L23
-// pub mod fmt        L24
-// pub mod index      L25
-// pub mod lang         L26
-// pub mod lsp          L27
-// pub mod materialize  L28
-// pub mod project      L29
-// pub mod projects     L30
-// pub mod render       L31
-// pub mod resolve      L32
-// pub mod symbols      L33
-// pub mod tasks        L34
-// pub mod tree         L35
-// pub mod update       L36
-// ----------------------
+// pub mod cmd             L24
+// pub mod cycles          L25
+// pub mod db              L26
+// pub mod deps            L27
+// pub mod fmt             L28
+// pub mod index           L29
+// pub mod labels          L30
+// pub mod lang            L31
+// pub mod lsp             L32
+// pub mod materialize     L33
+// pub mod projects        L34
+// pub mod render          L35
+// pub mod resolve         L36
+// pub mod symbols         L37
+// pub mod tasks           L38
+// pub mod tasks_import    L39
+// pub mod tree            L40
+// pub mod update          L41
+// pub mod workspace       L42
+// ---------------------------
 

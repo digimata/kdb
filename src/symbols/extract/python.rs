@@ -5,7 +5,7 @@ use super::{
 };
 
 // -------------------------------------------
-// kdb/src/symbols/extract/python.rs
+// projects/kdb/src/symbols/extract/python.rs
 //
 // pub(in crate::symbols) fn extract()     L19
 // fn function_kind_and_display()          L59

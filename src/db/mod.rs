@@ -1,6 +1,6 @@
 //! SQLite-backed relational layer (projects, cycles, tasks, labels).
 //!
-//! The database lives at `.kdb/index.db` at the project root. Migrations are
+//! The database lives at `.kdb/index.db` at the workspace root. Migrations are
 //! embedded in the binary and applied in order on [`open`]. Schema version is
 //! tracked via SQLite's `user_version` pragma.
 
@@ -8,7 +8,19 @@ use anyhow::{Context, Result};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 
-use crate::project::root::ROOT_MARKER;
+use crate::workspace::root::ROOT_MARKER;
+
+// -------------------------------------------------
+// projects/kdb/src/db/mod.rs
+//
+// pub const DB_FILE                             L26
+// const MIGRATIONS                              L29
+// pub fn db_path()                              L35
+// pub fn open()                                 L40
+// fn migrate()                                  L53
+// mod tests                                     L72
+// fn open_creates_schema_and_is_idempotent()    L77
+// -------------------------------------------------
 
 /// Database filename inside `.kdb/`.
 pub const DB_FILE: &str = "index.db";
@@ -19,16 +31,16 @@ const MIGRATIONS: &[(&str, &str)] = &[(
     include_str!("migrations/0001_relational.sql"),
 )];
 
-/// Return the canonical db path for a project root.
+/// Return the canonical db path for a workspace root.
 pub fn db_path(root: &Path) -> PathBuf {
     root.join(ROOT_MARKER).join(DB_FILE)
 }
 
-/// Open (or create) the project's SQLite database and apply pending migrations.
+/// Open (or create) the workspace's SQLite database and apply pending migrations.
 pub fn open(root: &Path) -> Result<Connection> {
     let path = db_path(root);
-    let conn = Connection::open(&path)
-        .with_context(|| format!("failed to open {}", path.display()))?;
+    let conn =
+        Connection::open(&path).with_context(|| format!("failed to open {}", path.display()))?;
     conn.pragma_update(None, "foreign_keys", "ON")
         .context("failed to enable foreign_keys")?;
     conn.pragma_update(None, "journal_mode", "WAL")

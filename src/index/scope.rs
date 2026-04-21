@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::resolve::ResolvedImport;
 
 // ------------------------------------------
-// kdb/src/index/scope.rs
+// projects/kdb/src/index/scope.rs
 //
 // pub(super) struct ModuleScope          L27
 //   pub fn from_imports()                L44

@@ -8,6 +8,28 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 
+// ---------------------------------
+// projects/kdb/src/cycles.rs
+//
+// pub const STATUSES            L33
+// pub struct Cycle              L36
+//   fn from_row()               L48
+// const SELECT_COLS             L62
+// pub fn list()                 L65
+// pub fn get_by_key()           L74
+// pub struct AddArgs            L82
+// pub fn add()                  L92
+// pub struct EditArgs          L117
+//   fn is_empty()              L126
+// pub fn edit()                L135
+// pub fn render_list()         L168
+// pub fn render_show()         L198
+// mod tests                    L215
+// fn setup()                   L221
+// fn add_list_edit()           L229
+// fn duplicate_key_errors()    L276
+// ---------------------------------
+
 pub const STATUSES: &[&str] = &["planned", "active", "done", "abandoned"];
 
 #[derive(Debug, Clone, Serialize)]
@@ -37,8 +59,7 @@ impl Cycle {
     }
 }
 
-const SELECT_COLS: &str =
-    "id, key, start_date, end_date, description, status, path, created_at";
+const SELECT_COLS: &str = "id, key, start_date, end_date, description, status, path, created_at";
 
 /// List cycles, ordered by start_date desc.
 pub fn list(conn: &Connection) -> Result<Vec<Cycle>> {
@@ -71,7 +92,10 @@ pub struct AddArgs<'a> {
 pub fn add(conn: &Connection, args: AddArgs) -> Result<Cycle> {
     let status = args.status.unwrap_or("planned");
     if !STATUSES.contains(&status) {
-        bail!("invalid status '{status}' (expected {})", STATUSES.join(", "));
+        bail!(
+            "invalid status '{status}' (expected {})",
+            STATUSES.join(", ")
+        );
     }
     conn.execute(
         "INSERT INTO cycles (key, start_date, end_date, description, status, path) \
@@ -86,8 +110,7 @@ pub fn add(conn: &Connection, args: AddArgs) -> Result<Cycle> {
         ],
     )
     .with_context(|| format!("failed to insert cycle {}", args.key))?;
-    get_by_key(conn, args.key)?
-        .with_context(|| format!("cycle {} missing after insert", args.key))
+    get_by_key(conn, args.key)?.with_context(|| format!("cycle {} missing after insert", args.key))
 }
 
 #[derive(Default)]
@@ -129,11 +152,17 @@ pub fn edit(conn: &Connection, key: &str, args: EditArgs) -> Result<Cycle> {
             status      = COALESCE(?, status), \
             path        = COALESCE(?, path) \
          WHERE key = ?",
-        params![args.start_date, args.end_date, args.description, args.status, args.path, key],
+        params![
+            args.start_date,
+            args.end_date,
+            args.description,
+            args.status,
+            args.path,
+            key
+        ],
     )
     .with_context(|| format!("failed to update cycle {key}"))?;
-    get_by_key(conn, key)?
-        .with_context(|| format!("cycle {key} missing after update"))
+    get_by_key(conn, key)?.with_context(|| format!("cycle {key} missing after update"))
 }
 
 pub fn render_list(cycles: &[Cycle]) -> String {
@@ -186,7 +215,7 @@ pub fn render_show(c: &Cycle) -> String {
 mod tests {
     use super::*;
     use crate::db;
-    use crate::project::root::ROOT_MARKER;
+    use crate::workspace::root::ROOT_MARKER;
     use tempfile::TempDir;
 
     fn setup() -> (TempDir, Connection) {

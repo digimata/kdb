@@ -1,10 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::project::paths::normalize_rel_path;
+use crate::workspace::paths::normalize_rel_path;
 
 // --------------------------------------------
-// kdb/src/deps/utils.rs
+// projects/kdb/src/deps/utils.rs
 //
 // pub(super) fn resolve_with_exts()        L14
 // pub(super) fn resolve_file()             L40

@@ -6,13 +6,13 @@ use anyhow::{Context, Result, bail};
 
 use crate::index::{VaultIndex, parse_markdown, section_byte_bounds, section_line_bounds};
 use crate::lang::CodeLanguage;
-use crate::project::{self, ProjectContext, config};
+use crate::workspace::{self, WorkspaceContext, config};
 
 use super::display::{self, SymbolBodyRow, SymbolRow};
 use super::{Symbol, extract_symbols};
 
 // ----------------------------------------
-// kdb/src/symbols/query.rs
+// projects/kdb/src/symbols/query.rs
 //
 // pub fn collect_rows()                L34
 // pub fn collect_body_rows()           L84
@@ -299,19 +299,19 @@ fn normalize_selector_name(value: &str) -> String {
 /// all files with a recognized code language or markdown extension. Results
 /// are sorted by relative path and deduplicated.
 pub fn expand_paths(
-    project: &ProjectContext,
+    workspace: &WorkspaceContext,
     paths: &[PathBuf],
 ) -> Result<Vec<(PathBuf, PathBuf)>> {
     let mut seen = BTreeSet::new();
     let mut result = Vec::new();
 
     for path in paths {
-        let abs = project::root::make_absolute(path)?;
+        let abs = crate::workspace::root::make_absolute(path)?;
         if abs.is_file() {
             let abs = abs
                 .canonicalize()
                 .with_context(|| format!("failed to canonicalize {}", path.display()))?;
-            let rel = rel_from_root(&project.root, &abs)?;
+            let rel = rel_from_root(&workspace.root, &abs)?;
             if seen.insert(rel.clone()) {
                 result.push((abs, rel));
             }
@@ -319,14 +319,14 @@ pub fn expand_paths(
             let dir_abs = abs
                 .canonicalize()
                 .with_context(|| format!("failed to canonicalize {}", path.display()))?;
-            let discovered = project::discover::discover_files(
-                &project.root,
+            let discovered = crate::workspace::discover::discover_files(
+                &workspace.root,
                 &dir_abs,
-                &project.ignore_set,
+                &workspace.ignore_set,
             )?;
             for rel in discovered {
                 if is_symbol_file(&rel) && seen.insert(rel.clone()) {
-                    let file_abs = project.root.join(&rel);
+                    let file_abs = workspace.root.join(&rel);
                     result.push((file_abs, rel));
                 }
             }
@@ -354,7 +354,7 @@ fn rel_from_root(root: &Path, abs: &Path) -> Result<PathBuf> {
             )
         })
         .and_then(|rel| {
-            project::paths::normalize_rel_path(rel).with_context(|| {
+            workspace::paths::normalize_rel_path(rel).with_context(|| {
                 format!(
                     "path {} resolves outside kdb root {}",
                     canonical.display(),
