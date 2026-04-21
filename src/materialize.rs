@@ -237,7 +237,7 @@ fn render_index(
     out.push_str(&format!(
         "- `kdb tasks list -P {slug}` — full list\n\
          - `kdb tasks add \"title\" -P {slug}` — add a task\n\
-         - `kdb tasks show <id>` — view a task\n",
+         - `kdb tasks view <id>` — view a task\n",
         slug = project.slug,
     ));
 
@@ -377,9 +377,9 @@ fn clean_stale_task_files(dir: &Path, expected: &HashSet<String>) -> Result<()> 
 mod tests {
     use super::*;
     use crate::db;
-    use crate::workspace::root::ROOT_MARKER;
     use crate::projects::{self as projects_mod, AddArgs as ProjAddArgs};
     use crate::tasks::{self as tasks_mod, AddArgs as TaskAddArgs};
+    use crate::workspace::root::ROOT_MARKER;
     use tempfile::TempDir;
 
     fn setup() -> (TempDir, Connection) {

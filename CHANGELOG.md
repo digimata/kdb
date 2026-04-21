@@ -100,6 +100,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] — 2026-04-21
+
+### Added
+
+- `kdb tasks delete <id>` (alias: `kdb tasks d <id>`) as a soft-delete workflow that parks the task and re-materializes project task views.
+- Task child rendering for `kdb tasks view <id>`, plus `children` in `--json` output (`id`, `status`, `priority`, `title`, `order`) sorted by the lexical task order key.
+- DB migration `0002_tasks_order` adding tasks.`order` with backfill (`printf('%012d', seq)`) and an index for project/parent/order traversal.
+
+### Changed
+
+- Canonical task inspection command is now `kdb tasks view <id>`; `kdb tasks show <id>` remains as a compatibility alias.
+
 ## [0.28.0] — 2026-04-20
 
 ### Added

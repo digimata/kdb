@@ -26,10 +26,16 @@ use crate::workspace::root::ROOT_MARKER;
 pub const DB_FILE: &str = "index.db";
 
 /// Ordered list of SQL migrations. Append new entries; never rewrite.
-const MIGRATIONS: &[(&str, &str)] = &[(
-    "0001_relational",
-    include_str!("migrations/0001_relational.sql"),
-)];
+const MIGRATIONS: &[(&str, &str)] = &[
+    (
+        "0001_relational",
+        include_str!("migrations/0001_relational.sql"),
+    ),
+    (
+        "0002_tasks_order",
+        include_str!("migrations/0002_tasks_order.sql"),
+    ),
+];
 
 /// Return the canonical db path for a workspace root.
 pub fn db_path(root: &Path) -> PathBuf {

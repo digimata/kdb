@@ -290,12 +290,16 @@ enum TasksCmd {
         #[arg(long)]
         parent: Option<String>,
     },
-    /// Show a task.
-    Show {
+    /// View a task.
+    #[command(alias = "show")]
+    View {
         id: String,
         #[arg(long)]
         json: bool,
     },
+    /// Soft-delete a task (parks it).
+    #[command(alias = "d")]
+    Delete { id: String },
     /// Mark a task as done.
     Done { id: String },
     /// Mark a task as parked.
@@ -515,7 +519,8 @@ async fn main() {
                 cycle,
                 parent,
             } => kdb::cmd::tasks_edit(id, title, body, priority, cycle, parent),
-            TasksCmd::Show { id, json } => kdb::cmd::tasks_show(id, json),
+            TasksCmd::View { id, json } => kdb::cmd::tasks_view(id, json),
+            TasksCmd::Delete { id } => kdb::cmd::tasks_delete(id),
             TasksCmd::Done { id } => kdb::cmd::tasks_set_status(id, "done"),
             TasksCmd::Park { id } => kdb::cmd::tasks_set_status(id, "parked"),
             TasksCmd::Reopen { id } => kdb::cmd::tasks_set_status(id, "open"),

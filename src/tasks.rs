@@ -47,9 +47,17 @@ pub const STATUSES: &[&str] = &["open", "in_progress", "done", "parked"];
 /// Zero-padding width for the `seq` portion of external ids.
 pub const SEQ_WIDTH: usize = 4;
 
+/// Zero-padding width for lexicographically sortable task order keys.
+pub const ORDER_KEY_WIDTH: usize = 12;
+
 /// Format an external task id: `{ALIAS}-{seq:04d}`.
 pub fn format_external_id(alias: &str, seq: i64) -> String {
     format!("{alias}-{seq:0width$}", width = SEQ_WIDTH)
+}
+
+/// Default order key for newly created tasks.
+pub fn default_order_key(seq: i64) -> String {
+    format!("{seq:0width$}", width = ORDER_KEY_WIDTH)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -61,6 +69,7 @@ pub struct Task {
     pub body: Option<String>,
     pub status: String,
     pub priority: i64,
+    pub order: String,
     pub cycle_id: Option<i64>,
     pub parent_id: Option<i64>,
     pub created_at: String,
@@ -113,7 +122,7 @@ impl TaskId {
 }
 
 const SELECT_COLS: &str = "t.id, t.project_id, t.seq, t.title, t.body, \
-    t.status, t.priority, t.cycle_id, t.parent_id, \
+    t.status, t.priority, COALESCE(t.\"order\", printf('%012d', t.seq)), t.cycle_id, t.parent_id, \
     t.created_at, t.updated_at, t.closed_at, p.slug, p.alias, c.key";
 
 fn view_from_row(row: &rusqlite::Row) -> rusqlite::Result<TaskView> {
@@ -125,17 +134,18 @@ fn view_from_row(row: &rusqlite::Row) -> rusqlite::Result<TaskView> {
         body: row.get(4)?,
         status: row.get(5)?,
         priority: row.get(6)?,
-        cycle_id: row.get(7)?,
-        parent_id: row.get(8)?,
-        created_at: row.get(9)?,
-        updated_at: row.get(10)?,
-        closed_at: row.get(11)?,
+        order: row.get(7)?,
+        cycle_id: row.get(8)?,
+        parent_id: row.get(9)?,
+        created_at: row.get(10)?,
+        updated_at: row.get(11)?,
+        closed_at: row.get(12)?,
     };
     Ok(TaskView {
         task,
-        project_slug: row.get(12)?,
-        project_alias: row.get(13)?,
-        cycle_key: row.get(14)?,
+        project_slug: row.get(13)?,
+        project_alias: row.get(14)?,
+        cycle_key: row.get(15)?,
     })
 }
 
@@ -210,6 +220,43 @@ pub fn get(conn: &Connection, id: &TaskId) -> Result<Option<TaskView>> {
         .context("failed to query task")
 }
 
+/// Compact child-task payload for task view output.
+#[derive(Debug, Clone, Serialize)]
+pub struct ChildTask {
+    pub id: String,
+    pub status: String,
+    pub priority: i64,
+    pub title: String,
+    pub order: String,
+}
+
+/// List direct child tasks for a parent, ordered by lexical `order` key.
+pub fn children(conn: &Connection, parent_task_id: i64) -> Result<Vec<ChildTask>> {
+    let mut stmt = conn.prepare(
+        "SELECT p.alias, t.seq, t.status, t.priority, t.title, \
+                COALESCE(t.\"order\", printf('%012d', t.seq)) AS task_order \
+         FROM tasks t \
+         JOIN projects p ON p.id = t.project_id \
+         WHERE t.parent_id = ? \
+         ORDER BY task_order ASC, t.seq ASC",
+    )?;
+
+    let rows = stmt.query_map(params![parent_task_id], |row| {
+        let alias: String = row.get(0)?;
+        let seq: i64 = row.get(1)?;
+        Ok(ChildTask {
+            id: format_external_id(&alias, seq),
+            status: row.get(2)?,
+            priority: row.get(3)?,
+            title: row.get(4)?,
+            order: row.get(5)?,
+        })
+    })?;
+
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .context("failed to query child tasks")
+}
+
 pub struct AddArgs<'a> {
     pub project_id: i64,
     pub title: &'a str,
@@ -257,13 +304,14 @@ pub fn add(conn: &mut Connection, args: AddArgs) -> Result<TaskView> {
     };
 
     let closed = matches!(status, "done" | "parked");
+    let order_key = default_order_key(seq);
     tx.execute(
         "INSERT INTO tasks \
-         (project_id, seq, title, body, status, priority, cycle_id, parent_id, closed_at) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, \
+         (project_id, seq, title, body, status, priority, \"order\", cycle_id, parent_id, closed_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \
                  CASE WHEN ? = 1 \
-                      THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') \
-                      ELSE NULL END)",
+                       THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') \
+                       ELSE NULL END)",
         params![
             args.project_id,
             seq,
@@ -271,6 +319,7 @@ pub fn add(conn: &mut Connection, args: AddArgs) -> Result<TaskView> {
             args.body,
             status,
             priority,
+            order_key,
             args.cycle_id,
             args.parent_id,
             closed as i64,
@@ -415,12 +464,13 @@ pub fn render_list(tasks: &[TaskView]) -> String {
 
 /// Render a single task as a human-readable block. `label_slugs` are
 /// joined with `, ` and shown in the metadata section when non-empty.
-pub fn render_show(t: &TaskView, label_slugs: &[&str]) -> String {
+pub fn render_show(t: &TaskView, label_slugs: &[&str], children: &[ChildTask]) -> String {
     let mut out = String::new();
     out.push_str(&format!("id:         {}\n", t.external_id()));
     out.push_str(&format!("title:      {}\n", t.task.title));
     out.push_str(&format!("status:     {}\n", t.task.status));
     out.push_str(&format!("priority:   {}\n", t.task.priority));
+    out.push_str(&format!("order:      {}\n", t.task.order));
     out.push_str(&format!("project:    {}\n", t.project_slug));
     if let Some(c) = &t.cycle_key {
         out.push_str(&format!("cycle:      {c}\n"));
@@ -440,6 +490,19 @@ pub fn render_show(t: &TaskView, label_slugs: &[&str]) -> String {
             out.push('\n');
         }
     }
+    if !children.is_empty() {
+        out.push_str("\nchildren:\n");
+        for child in children {
+            out.push_str(&format!(
+                "- {}  {}  p{}  ord={}  {}\n",
+                child.id,
+                status_glyph(&child.status),
+                child.priority,
+                child.order,
+                child.title,
+            ));
+        }
+    }
     out
 }
 
@@ -447,8 +510,8 @@ pub fn render_show(t: &TaskView, label_slugs: &[&str]) -> String {
 mod tests {
     use super::*;
     use crate::db;
-    use crate::workspace::root::ROOT_MARKER;
     use crate::projects::{self, AddArgs as ProjAddArgs};
+    use crate::workspace::root::ROOT_MARKER;
     use tempfile::TempDir;
 
     fn setup() -> (TempDir, Connection, i64) {
@@ -587,5 +650,109 @@ mod tests {
         let reopened = set_status(&conn, &id, "open").unwrap();
         assert_eq!(reopened.task.status, "open");
         assert!(reopened.task.closed_at.is_none());
+    }
+
+    #[test]
+    fn children_are_ordered_by_order_key() {
+        let (_tmp, mut conn, pid) = setup();
+        let parent = add(
+            &mut conn,
+            AddArgs {
+                project_id: pid,
+                title: "parent",
+                body: None,
+                priority: None,
+                cycle_id: None,
+                parent_id: None,
+                seq: None,
+                status: None,
+            },
+        )
+        .unwrap();
+        let child_a = add(
+            &mut conn,
+            AddArgs {
+                project_id: pid,
+                title: "child a",
+                body: None,
+                priority: Some(2),
+                cycle_id: None,
+                parent_id: Some(parent.task.id),
+                seq: None,
+                status: None,
+            },
+        )
+        .unwrap();
+        let child_b = add(
+            &mut conn,
+            AddArgs {
+                project_id: pid,
+                title: "child b",
+                body: None,
+                priority: Some(1),
+                cycle_id: None,
+                parent_id: Some(parent.task.id),
+                seq: None,
+                status: None,
+            },
+        )
+        .unwrap();
+
+        conn.execute(
+            "UPDATE tasks SET \"order\" = ? WHERE id = ?",
+            params!["b", child_a.task.id],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE tasks SET \"order\" = ? WHERE id = ?",
+            params!["a", child_b.task.id],
+        )
+        .unwrap();
+
+        let kids = children(&conn, parent.task.id).unwrap();
+        assert_eq!(kids.len(), 2);
+        assert_eq!(kids[0].id, child_b.external_id());
+        assert_eq!(kids[0].order, "a");
+        assert_eq!(kids[1].id, child_a.external_id());
+        assert_eq!(kids[1].order, "b");
+    }
+
+    #[test]
+    fn render_show_includes_children_section() {
+        let (_tmp, mut conn, pid) = setup();
+        let parent = add(
+            &mut conn,
+            AddArgs {
+                project_id: pid,
+                title: "parent",
+                body: Some("details"),
+                priority: Some(2),
+                cycle_id: None,
+                parent_id: None,
+                seq: None,
+                status: None,
+            },
+        )
+        .unwrap();
+        let _child = add(
+            &mut conn,
+            AddArgs {
+                project_id: pid,
+                title: "child",
+                body: None,
+                priority: Some(1),
+                cycle_id: None,
+                parent_id: Some(parent.task.id),
+                seq: None,
+                status: None,
+            },
+        )
+        .unwrap();
+
+        let kids = children(&conn, parent.task.id).unwrap();
+        let rendered = render_show(&parent, &[], &kids);
+        assert!(rendered.contains("children:"));
+        assert!(rendered.contains(&kids[0].id));
+        assert!(rendered.contains("ord="));
     }
 }

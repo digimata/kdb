@@ -56,8 +56,8 @@ use rusqlite::Connection;
 // pub fn tasks_list()                  L699
 // pub fn tasks_add()                   L740
 // pub fn tasks_edit()                  L774
-// pub fn tasks_show()                  L806
-// struct TaskShowOutput                L816
+// pub fn tasks_view()                  L806
+// struct TaskViewOutput                L817
 // pub fn cycles_list()                 L834
 // pub fn cycles_add()                  L848
 // pub fn cycles_edit()                 L876
@@ -802,31 +802,45 @@ pub fn tasks_edit(
     Ok(())
 }
 
-/// Show a single task.
-pub fn tasks_show(id: String, as_json: bool) -> Result<()> {
+/// View a single task.
+pub fn tasks_view(id: String, as_json: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
     let conn = db::open(&ctx.workspace.root)?;
     let parsed = tasks::TaskId::parse(&id)?;
     let view = tasks::get(&conn, &parsed)?.with_context(|| format!("task not found: {id}"))?;
     let task_labels = labels::for_task(&conn, view.task.id)?;
+    let children = tasks::children(&conn, view.task.id)?;
     let slugs: Vec<&str> = task_labels.iter().map(|l| l.slug.as_str()).collect();
 
     if as_json {
         #[derive(serde::Serialize)]
-        struct TaskShowOutput<'a> {
+        struct TaskViewOutput<'a> {
             #[serde(flatten)]
             task: &'a tasks::TaskView,
             labels: &'a [labels::Label],
+            children: &'a [tasks::ChildTask],
         }
-        let output = serde_json::to_string_pretty(&TaskShowOutput {
+        let output = serde_json::to_string_pretty(&TaskViewOutput {
             task: &view,
             labels: &task_labels,
+            children: &children,
         })
         .context("failed to serialize task as JSON")?;
         println!("{output}");
     } else {
-        print!("{}", tasks::render_show(&view, &slugs));
+        print!("{}", tasks::render_show(&view, &slugs, &children));
     }
+    Ok(())
+}
+
+/// Soft-delete a task by parking it.
+pub fn tasks_delete(id: String) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let parsed = tasks::TaskId::parse(&id)?;
+    let view = tasks::set_status(&conn, &parsed, "parked")?;
+    materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
+    println!("soft-deleted {} -> parked", view.external_id());
     Ok(())
 }
 

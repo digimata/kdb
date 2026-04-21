@@ -1,3 +1,4 @@
+use rusqlite::Connection;
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
@@ -96,8 +97,20 @@ fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_kdb")
 }
 
+fn run(root: &Path, args: &[&str]) -> std::process::Output {
+    Command::new(bin())
+        .current_dir(root)
+        .args(args)
+        .output()
+        .expect("run kdb command")
+}
+
 fn write_root_config(root: &Path) {
-    write_file(root, ".kdb/config.toml", "[workspace]\nname = \"fixture\"\n");
+    write_file(
+        root,
+        ".kdb/config.toml",
+        "[workspace]\nname = \"fixture\"\n",
+    );
 }
 
 fn write_symbol_refs_rust_fixture(root: &Path) {
@@ -2219,8 +2232,14 @@ fn init_creates_kdb_directory_and_default_config() {
     assert!(config.contains(&format!("name = \"{expected_name}\"")));
 
     let ignore = fs::read_to_string(root.join(".kdb/ignore")).expect("read ignore");
-    assert!(ignore.contains("target"), ".kdb/ignore should contain default patterns");
-    assert!(ignore.contains("node_modules"), ".kdb/ignore should contain node_modules");
+    assert!(
+        ignore.contains("target"),
+        ".kdb/ignore should contain default patterns"
+    );
+    assert!(
+        ignore.contains("node_modules"),
+        ".kdb/ignore should contain node_modules"
+    );
 }
 
 #[test]
@@ -2237,4 +2256,149 @@ fn init_errors_if_kdb_directory_already_exists() {
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains(".kdb already exists"));
+}
+
+#[test]
+fn tasks_view_supports_show_alias_and_orders_children_by_order_key() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path();
+
+    let init = Command::new(bin())
+        .arg("init")
+        .arg(root)
+        .output()
+        .expect("run kdb init");
+    assert!(init.status.success());
+
+    fs::create_dir_all(root.join("projects/kdb")).expect("create project dir");
+
+    let add_project = run(
+        root,
+        &[
+            "projects",
+            "add",
+            "kdb",
+            "--alias",
+            "KDB",
+            "--path",
+            "projects/kdb",
+        ],
+    );
+    assert!(add_project.status.success());
+
+    let add_parent = run(root, &["tasks", "add", "Parent", "-P", "kdb"]);
+    assert!(add_parent.status.success());
+    let add_child_a = run(
+        root,
+        &[
+            "tasks", "add", "Child A", "-P", "kdb", "--parent", "KDB-0001",
+        ],
+    );
+    assert!(add_child_a.status.success());
+    let add_child_b = run(
+        root,
+        &[
+            "tasks", "add", "Child B", "-P", "kdb", "--parent", "KDB-0001",
+        ],
+    );
+    assert!(add_child_b.status.success());
+
+    let conn = Connection::open(root.join(".kdb/index.db")).expect("open sqlite db");
+    conn.execute("UPDATE tasks SET \"order\" = 'b' WHERE seq = 2", [])
+        .expect("set child a order");
+    conn.execute("UPDATE tasks SET \"order\" = 'a' WHERE seq = 3", [])
+        .expect("set child b order");
+
+    let view_output = run(root, &["tasks", "view", "KDB-0001"]);
+    assert!(view_output.status.success());
+    let view_stdout = String::from_utf8_lossy(&view_output.stdout);
+    assert!(view_stdout.contains("children:"));
+    let child_b_at = view_stdout
+        .find("KDB-0003")
+        .expect("child b in view output");
+    let child_a_at = view_stdout
+        .find("KDB-0002")
+        .expect("child a in view output");
+    assert!(
+        child_b_at < child_a_at,
+        "expected child with lower lexical order key first"
+    );
+
+    let show_output = run(root, &["tasks", "show", "KDB-0001"]);
+    assert!(show_output.status.success());
+    let show_stdout = String::from_utf8_lossy(&show_output.stdout);
+    assert!(show_stdout.contains("children:"));
+
+    let json_output = run(root, &["tasks", "view", "KDB-0001", "--json"]);
+    assert!(json_output.status.success());
+    let payload: Value =
+        serde_json::from_slice(&json_output.stdout).expect("parse tasks view json output");
+    let children = payload
+        .get("children")
+        .and_then(|value| value.as_array())
+        .expect("children array");
+    assert_eq!(children.len(), 2);
+    assert_eq!(children[0].get("id").unwrap(), "KDB-0003");
+    assert_eq!(children[0].get("order").unwrap(), "a");
+    assert_eq!(children[1].get("id").unwrap(), "KDB-0002");
+    assert_eq!(children[1].get("order").unwrap(), "b");
+}
+
+#[test]
+fn tasks_delete_and_d_alias_soft_delete_to_parked() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path();
+
+    let init = Command::new(bin())
+        .arg("init")
+        .arg(root)
+        .output()
+        .expect("run kdb init");
+    assert!(init.status.success());
+
+    fs::create_dir_all(root.join("projects/kdb")).expect("create project dir");
+
+    let add_project = run(
+        root,
+        &[
+            "projects",
+            "add",
+            "kdb",
+            "--alias",
+            "KDB",
+            "--path",
+            "projects/kdb",
+        ],
+    );
+    assert!(add_project.status.success());
+
+    let add_one = run(root, &["tasks", "add", "Delete me", "-P", "kdb"]);
+    assert!(add_one.status.success());
+    let delete_one = run(root, &["tasks", "delete", "KDB-0001"]);
+    assert!(delete_one.status.success());
+
+    let first_json = run(root, &["tasks", "view", "KDB-0001", "--json"]);
+    assert!(first_json.status.success());
+    let first_payload: Value =
+        serde_json::from_slice(&first_json.stdout).expect("parse deleted task json");
+    assert_eq!(
+        first_payload.get("status").and_then(|value| value.as_str()),
+        Some("parked")
+    );
+
+    let add_two = run(root, &["tasks", "add", "Delete me too", "-P", "kdb"]);
+    assert!(add_two.status.success());
+    let delete_two = run(root, &["tasks", "d", "KDB-0002"]);
+    assert!(delete_two.status.success());
+
+    let second_json = run(root, &["tasks", "view", "KDB-0002", "--json"]);
+    assert!(second_json.status.success());
+    let second_payload: Value =
+        serde_json::from_slice(&second_json.stdout).expect("parse alias-deleted task json");
+    assert_eq!(
+        second_payload
+            .get("status")
+            .and_then(|value| value.as_str()),
+        Some("parked")
+    );
 }

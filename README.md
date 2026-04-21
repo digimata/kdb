@@ -83,9 +83,10 @@ kdb fmt [path]          # generate/update code index headers
 kdb lsp                 # start the language server (stdio)
 kdb projects {list|add|edit|show}
                         # register and manage projects (slug, 2–6 char alias)
-kdb tasks {list|add|edit|show|done|park|reopen|label}
-                        # manage tasks (per-project seq ids, priorities, statuses)
-                        # tasks label {add|rm} <id> <label>... — attach/detach labels
+kdb tasks {list|add|edit|view|delete|done|park|reopen|label}
+                         # manage tasks (per-project seq ids, priorities, statuses)
+                         # `show` remains as an alias for `view`; `d` for `delete`
+                         # tasks label {add|rm} <id> <label>... — attach/detach labels
 kdb cycles {list|add|edit|show}
                         # manage time-boxed cycles (C-NN, start/end, status)
 kdb labels {list|add|edit|show}
