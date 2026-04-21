@@ -1,5 +1,5 @@
 ---
-path: kdb/docs/languages/typescript.md
+path: projects/kdb/docs/languages/typescript.md
 outline: |
   • TypeScript / JavaScript — Language Support        L11
     ◦ Import patterns                                 L13

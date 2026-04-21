@@ -1,5 +1,5 @@
 // ---------------
-// kdb/build.rs
+// projects/kdb/build.rs
 //
 // fn main()    L7
 // ---------------

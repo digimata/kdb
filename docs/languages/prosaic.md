@@ -1,3 +1,12 @@
+---
+path: projects/kdb/docs/languages/prosaic.md
+outline: |
+  • Prosaic            L10
+    ◦ Token Types      L14
+    ◦ Usage            L27
+    ◦ Grammar          L42
+---
+
 # Prosaic
 
 Prosaic is a pseudocode language for writing operational procedures and SOPs. It uses indentation-based nesting and a small set of highlighted token types.

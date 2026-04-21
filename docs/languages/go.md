@@ -1,5 +1,5 @@
 ---
-path: kdb/docs/languages/go.md
+path: projects/kdb/docs/languages/go.md
 outline: |
   • Go — Language Support                L12
     ◦ Import patterns                    L14

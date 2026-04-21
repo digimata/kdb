@@ -1,5 +1,5 @@
 // ----------------------------------
-// qmd/apps/landing/src/app/latest/route.ts
+// projects/kdb/apps/landing/src/app/latest/route.ts
 //
 // const GITHUB_API                L8
 // export async function GET()    L11

@@ -1,11 +1,11 @@
 use zed_extension_api as zed;
 
 // -------------------------------------
-// kdb/extensions/zed/src/lib.rs
+// projects/kdb/extensions/zed/src/lib.rs
 //
-// struct KdbZedExtension              L11
-//   fn new()                          L14
-//   fn language_server_command()      L18
+// struct KdbZedExtension            L11
+//   fn new()                        L14
+//   fn language_server_command()    L18
 // -------------------------------------
 
 struct KdbZedExtension;

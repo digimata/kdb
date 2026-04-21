@@ -1,6 +1,9 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
+// projects/kdb/grammars/tree-sitter-prosaic/grammar.js
+//
+
 module.exports = grammar({
   name: "prosaic",
 

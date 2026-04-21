@@ -1,5 +1,5 @@
 ---
-path: kdb/docs/vault-root.md
+path: projects/kdb/docs/vault-root.md
 outline: |
   • Vault Root (.kdb/)               L11
     ◦ Why require a vault root?      L24
@@ -10,7 +10,7 @@ outline: |
 
 # Vault Root (`.kdb/`)
 
-Every kdb command requires a `.kdb/` directory somewhere in the ancestor path of the target file. This directory is created by [`kdb init`](kdb://kdb/README.md#quickstart) and marks the **vault root** — the boundary of the project that kdb indexes and operates on.
+Every kdb command requires a `.kdb/` directory somewhere in the ancestor path of the target file. This directory is created by [`kdb init`](kdb://projects/kdb/README.md#quickstart) and marks the **vault root** — the boundary of the project that kdb indexes and operates on.
 
 ```
 my-project/          <-- vault root

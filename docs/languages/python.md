@@ -1,5 +1,5 @@
 ---
-path: kdb/docs/languages/python.md
+path: projects/kdb/docs/languages/python.md
 outline: |
   • Python — Language Support            L11
     ◦ Import patterns                    L13

@@ -1,5 +1,5 @@
 ---
-path: kdb/docs/specs/refs.md
+path: projects/kdb/docs/specs/refs.md
 outline: |
   • Spec: kdb refs                       L28
     ◦ CLI                                L34
