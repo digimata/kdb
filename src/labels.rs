@@ -253,6 +253,7 @@ mod tests {
                 parent_id: None,
                 seq: None,
                 status: None,
+                order: None,
             },
         )
         .unwrap();

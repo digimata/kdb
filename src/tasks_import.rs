@@ -123,6 +123,7 @@ pub fn import_dir(
                 parent_id: None,
                 seq: Some(parsed.seq),
                 status: Some(&parsed.status),
+                order: None,
             },
         );
         match result {

@@ -8,39 +8,64 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 
-// -------------------------------------------
+// -------------------------------------------------------------
 // projects/kdb/src/tasks.rs
 //
-// pub const STATUSES                      L45
-// pub const SEQ_WIDTH                     L48
-// pub fn format_external_id()             L51
-// pub struct Task                         L56
-// pub struct TaskView                     L73
-//   pub fn external_id()                  L83
-// pub struct TaskId                       L90
-//   pub fn parse()                        L97
-// const SELECT_COLS                      L115
-// fn view_from_row()                     L119
-// pub struct ListFilters                 L144
-// pub fn list()                          L153
-// pub fn get()                           L200
-// pub struct AddArgs                     L213
-// pub fn add()                           L229
-// pub struct EditArgs                    L296
-//   fn is_empty()                        L305
-// pub fn edit()                          L316
-// pub fn set_status()                    L360
-// fn status_glyph()                      L384
-// pub fn render_list()                   L395
-// pub fn render_show()                   L418
-// mod tests                              L447
-// fn setup()                             L454
-// fn parse_task_id_uppercases_alias()    L473
-// fn external_id_is_zero_padded()        L483
-// fn add_auto_seq_then_explicit_seq()    L490
-// fn add_with_status()                   L544
-// fn set_status_transitions()            L565
-// -------------------------------------------
+// pub const STATUSES                                        L70
+// pub const SEQ_WIDTH                                       L73
+// pub const ORDER_KEY_WIDTH                                 L76
+// pub fn format_external_id()                               L79
+// pub fn default_order_key()                                L84
+// const ALPHABET                                            L91
+// fn rank()                                                 L93
+// pub fn between()                                         L104
+// fn key_before()                                          L116
+// fn key_after()                                           L129
+// fn key_between_two()                                     L144
+// pub struct Task                                          L183
+// pub struct TaskView                                      L201
+//   pub fn external_id()                                   L211
+// pub struct TaskId                                        L218
+//   pub fn parse()                                         L225
+// const SELECT_COLS                                        L243
+// fn view_from_row()                                       L247
+// pub struct ListFilters                                   L273
+// pub fn list()                                            L282
+// pub fn get()                                             L329
+// pub struct ChildTask                                     L344
+// pub fn children()                                        L353
+// pub struct AddArgs                                       L379
+// pub fn add()                                             L397
+// pub struct EditArgs                                      L469
+//   fn is_empty()                                          L478
+// pub fn edit()                                            L489
+// pub enum Side                                            L533
+// pub enum MoveTarget                                      L540
+// pub fn order_key_adjacent()                              L549
+// pub fn move_task()                                       L577
+// fn ensure_same_context()                                 L640
+// enum Direction                                           L659
+// fn neighbor_order()                                      L668
+// pub fn set_status()                                      L709
+// fn status_glyph()                                        L733
+// pub fn render_list()                                     L744
+// pub fn render_show()                                     L767
+// mod tests                                                L810
+// fn setup()                                               L817
+// fn parse_task_id_uppercases_alias()                      L836
+// fn external_id_is_zero_padded()                          L846
+// fn add_auto_seq_then_explicit_seq()                      L853
+// fn add_with_status()                                     L910
+// fn set_status_transitions()                              L932
+// fn children_are_ordered_by_order_key()                   L961
+// fn render_show_includes_children_section()              L1029
+// fn add_task()                                           L1069
+// fn between_sits_strictly_between_various_pairs()        L1088
+// fn move_task_before_and_after_reorders()                L1119
+// fn move_task_top_and_bottom()                           L1167
+// fn move_task_rejects_different_parent()                 L1204
+// fn order_key_adjacent_after_sits_between_neighbors()    L1221
+// -------------------------------------------------------------
 
 pub const STATUSES: &[&str] = &["open", "in_progress", "done", "parked"];
 
@@ -55,9 +80,103 @@ pub fn format_external_id(alias: &str, seq: i64) -> String {
     format!("{alias}-{seq:0width$}", width = SEQ_WIDTH)
 }
 
-/// Default order key for newly created tasks.
+/// Default order key for newly created tasks (used when no explicit position is given).
 pub fn default_order_key(seq: i64) -> String {
     format!("{seq:0width$}", width = ORDER_KEY_WIDTH)
+}
+
+/// Alphabet for lexicographic order keys. Byte-order sorted (`'0'..'9'` < `'a'..'z'`).
+/// The migration backfill (`printf('%012d', seq)`) is a strict subset, so generated
+/// keys interleave with legacy rows under plain string comparison.
+const ALPHABET: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+
+fn rank(b: u8) -> usize {
+    match b {
+        b'0'..=b'9' => (b - b'0') as usize,
+        b'a'..=b'z' => 10 + (b - b'a') as usize,
+        _ => unreachable!("order keys use alphabet 0-9a-z (got byte {b:#x})"),
+    }
+}
+
+/// Generate an order key that sorts strictly between `prev` and `next` under byte
+/// comparison. `None` means unbounded on that side. Panics if inputs are inconsistent
+/// (`prev >= next`) or if the requested position is below an all-`0` key.
+pub fn between(prev: Option<&str>, next: Option<&str>) -> String {
+    match (prev, next) {
+        (None, None) => String::from(ALPHABET[ALPHABET.len() / 2] as char),
+        (None, Some(n)) => key_before(n),
+        (Some(p), None) => key_after(p),
+        (Some(p), Some(n)) => {
+            debug_assert!(p < n, "between: prev must be < next ({p:?} vs {n:?})");
+            key_between_two(p, n)
+        }
+    }
+}
+
+fn key_before(next: &str) -> String {
+    let mut result = Vec::new();
+    for &byte in next.as_bytes() {
+        let r = rank(byte);
+        if r > 0 {
+            result.push(ALPHABET[r / 2]);
+            return String::from_utf8(result).unwrap();
+        }
+        result.push(byte);
+    }
+    panic!("cannot produce key before all-min key: {next:?}");
+}
+
+fn key_after(prev: &str) -> String {
+    let mut result = Vec::new();
+    for &byte in prev.as_bytes() {
+        let r = rank(byte);
+        if r + 1 < ALPHABET.len() {
+            let high = ALPHABET.len() - 1;
+            result.push(ALPHABET[(r + high + 1) / 2]);
+            return String::from_utf8(result).unwrap();
+        }
+        result.push(byte);
+    }
+    result.push(ALPHABET[ALPHABET.len() / 2]);
+    String::from_utf8(result).unwrap()
+}
+
+fn key_between_two(prev: &str, next: &str) -> String {
+    let a = prev.as_bytes();
+    let b = next.as_bytes();
+    let mut result: Vec<u8> = Vec::new();
+    let mut i = 0;
+    while i < a.len() && i < b.len() && a[i] == b[i] {
+        result.push(a[i]);
+        i += 1;
+    }
+    let ar = a.get(i).copied().map(rank);
+    let br = b.get(i).copied().map(rank);
+    match (ar, br) {
+        (Some(ar), Some(br)) => {
+            debug_assert!(ar < br);
+            if br - ar >= 2 {
+                result.push(ALPHABET[(ar + br) / 2]);
+                return String::from_utf8(result).unwrap();
+            }
+            result.push(ALPHABET[ar]);
+            let rest = key_after(std::str::from_utf8(&a[i + 1..]).unwrap());
+            result.extend_from_slice(rest.as_bytes());
+            String::from_utf8(result).unwrap()
+        }
+        (None, Some(br)) => {
+            if br > 0 {
+                result.push(ALPHABET[br / 2]);
+                return String::from_utf8(result).unwrap();
+            }
+            result.push(ALPHABET[0]);
+            let rest = key_before(std::str::from_utf8(&b[i + 1..]).unwrap());
+            result.extend_from_slice(rest.as_bytes());
+            String::from_utf8(result).unwrap()
+        }
+        (Some(_), None) => unreachable!("key_between_two: next exhausted while prev < next"),
+        (None, None) => unreachable!("key_between_two: prev == next"),
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -192,7 +311,7 @@ pub fn list(conn: &Connection, f: ListFilters) -> Result<Vec<TaskView>> {
         args.push(Box::new(pri));
     }
 
-    sql.push_str(" ORDER BY t.priority ASC, t.updated_at DESC");
+    sql.push_str(" ORDER BY COALESCE(t.\"order\", printf('%012d', t.seq)) ASC, t.seq ASC");
 
     if let Some(limit) = f.limit {
         sql.push_str(" LIMIT ?");
@@ -269,6 +388,8 @@ pub struct AddArgs<'a> {
     pub seq: Option<i64>,
     /// Explicit status (defaults to `open`).
     pub status: Option<&'a str>,
+    /// Explicit order key. When `None`, falls back to [`default_order_key`].
+    pub order: Option<&'a str>,
 }
 
 /// Insert a new task, auto-assigning the per-project `seq` in a
@@ -304,7 +425,10 @@ pub fn add(conn: &mut Connection, args: AddArgs) -> Result<TaskView> {
     };
 
     let closed = matches!(status, "done" | "parked");
-    let order_key = default_order_key(seq);
+    let order_key = args
+        .order
+        .map(str::to_string)
+        .unwrap_or_else(|| default_order_key(seq));
     tx.execute(
         "INSERT INTO tasks \
          (project_id, seq, title, body, status, priority, \"order\", cycle_id, parent_id, closed_at) \
@@ -402,6 +526,182 @@ pub fn edit(conn: &Connection, id: &TaskId, args: EditArgs) -> Result<TaskView> 
         )?;
     }
     get(conn, id)?.context("task missing after update")
+}
+
+/// Side of a sibling task when inserting/moving by position.
+#[derive(Debug, Copy, Clone)]
+pub enum Side {
+    Before,
+    After,
+}
+
+/// Relative position for [`move_task`].
+#[derive(Debug, Clone)]
+pub enum MoveTarget<'a> {
+    Before(&'a TaskId),
+    After(&'a TaskId),
+    Top,
+    Bottom,
+}
+
+/// Compute an order key for a new task inserted adjacent to `sibling` on the given side,
+/// within `sibling`'s `(project_id, parent_id)` context.
+pub fn order_key_adjacent(
+    conn: &Connection,
+    sibling: &TaskView,
+    side: Side,
+) -> Result<String> {
+    let dir = match side {
+        Side::Before => Direction::Prev,
+        Side::After => Direction::Next,
+    };
+    let neighbor = neighbor_order(
+        conn,
+        sibling.task.project_id,
+        sibling.task.parent_id,
+        Some(&sibling.task.order),
+        dir,
+        // No task to exclude when inserting a new row.
+        -1,
+    )?;
+    let pivot = sibling.task.order.as_str();
+    let (prev, next) = match side {
+        Side::Before => (neighbor.as_deref(), Some(pivot)),
+        Side::After => (Some(pivot), neighbor.as_deref()),
+    };
+    Ok(between(prev, next))
+}
+
+/// Move a task to a new position within its `(project_id, parent_id)` context.
+/// `Before`/`After` require the sibling to be in the same context; otherwise errors.
+pub fn move_task(conn: &Connection, id: &TaskId, target: MoveTarget) -> Result<TaskView> {
+    let task = get(conn, id)?
+        .with_context(|| format!("task not found: {}", format_external_id(&id.alias, id.seq)))?;
+    let project_id = task.task.project_id;
+    let parent_id = task.task.parent_id;
+
+    let new_order = match target {
+        MoveTarget::Top => {
+            let first = neighbor_order(conn, project_id, parent_id, None, Direction::First, task.task.id)?;
+            between(None, first.as_deref())
+        }
+        MoveTarget::Bottom => {
+            let last = neighbor_order(conn, project_id, parent_id, None, Direction::Last, task.task.id)?;
+            between(last.as_deref(), None)
+        }
+        MoveTarget::Before(sib_id) => {
+            let sib = get(conn, sib_id)?.with_context(|| {
+                format!("sibling not found: {}", format_external_id(&sib_id.alias, sib_id.seq))
+            })?;
+            ensure_same_context(&task, &sib)?;
+            if sib.task.id == task.task.id {
+                return Ok(task);
+            }
+            let prev = neighbor_order(
+                conn,
+                project_id,
+                parent_id,
+                Some(&sib.task.order),
+                Direction::Prev,
+                task.task.id,
+            )?;
+            between(prev.as_deref(), Some(&sib.task.order))
+        }
+        MoveTarget::After(sib_id) => {
+            let sib = get(conn, sib_id)?.with_context(|| {
+                format!("sibling not found: {}", format_external_id(&sib_id.alias, sib_id.seq))
+            })?;
+            ensure_same_context(&task, &sib)?;
+            if sib.task.id == task.task.id {
+                return Ok(task);
+            }
+            let next = neighbor_order(
+                conn,
+                project_id,
+                parent_id,
+                Some(&sib.task.order),
+                Direction::Next,
+                task.task.id,
+            )?;
+            between(Some(&sib.task.order), next.as_deref())
+        }
+    };
+
+    conn.execute(
+        "UPDATE tasks SET \"order\" = ?, \
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') \
+         WHERE id = ?",
+        params![new_order, task.task.id],
+    )
+    .context("failed to update task order")?;
+    get(conn, id)?.context("task missing after move")
+}
+
+fn ensure_same_context(task: &TaskView, sib: &TaskView) -> Result<()> {
+    if task.task.project_id != sib.task.project_id {
+        bail!(
+            "cannot move {}: target {} is in a different project",
+            task.external_id(),
+            sib.external_id()
+        );
+    }
+    if task.task.parent_id != sib.task.parent_id {
+        bail!(
+            "cannot move {}: target {} has a different parent",
+            task.external_id(),
+            sib.external_id()
+        );
+    }
+    Ok(())
+}
+
+#[derive(Copy, Clone)]
+enum Direction {
+    First,
+    Last,
+    Prev,
+    Next,
+}
+
+/// Look up a neighboring task's order key within a `(project_id, parent_id)` context.
+/// `exclude_id` is always filtered out so moving a task past its own current slot works.
+fn neighbor_order(
+    conn: &Connection,
+    project_id: i64,
+    parent_id: Option<i64>,
+    pivot: Option<&str>,
+    dir: Direction,
+    exclude_id: i64,
+) -> Result<Option<String>> {
+    let parent_pred = match parent_id {
+        Some(_) => "parent_id = ?",
+        None => "parent_id IS NULL",
+    };
+    let (cmp, order) = match dir {
+        Direction::First => ("", "ASC"),
+        Direction::Last => ("", "DESC"),
+        Direction::Prev => ("AND \"order\" < ?", "DESC"),
+        Direction::Next => ("AND \"order\" > ?", "ASC"),
+    };
+    let sql = format!(
+        "SELECT \"order\" FROM tasks \
+         WHERE project_id = ? AND {parent_pred} AND id != ? {cmp} \
+         ORDER BY \"order\" {order} LIMIT 1"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    params_vec.push(Box::new(project_id));
+    if let Some(pid) = parent_id {
+        params_vec.push(Box::new(pid));
+    }
+    params_vec.push(Box::new(exclude_id));
+    if let Some(p) = pivot {
+        params_vec.push(Box::new(p.to_string()));
+    }
+    let params_iter = rusqlite::params_from_iter(params_vec.iter().map(|b| b.as_ref()));
+    stmt.query_row(params_iter, |row| row.get::<_, String>(0))
+        .optional()
+        .context("failed to read neighbor order")
 }
 
 /// Set a task's status. `done` and `parked` stamp `closed_at`; other
@@ -563,6 +863,7 @@ mod tests {
                 parent_id: None,
                 seq: None,
                 status: None,
+                order: None,
             },
         )
         .unwrap();
@@ -580,6 +881,7 @@ mod tests {
                 parent_id: None,
                 seq: Some(120),
                 status: None,
+                order: None,
             },
         )
         .unwrap();
@@ -597,6 +899,7 @@ mod tests {
                 parent_id: None,
                 seq: None,
                 status: None,
+                order: None,
             },
         )
         .unwrap();
@@ -617,6 +920,7 @@ mod tests {
                 parent_id: None,
                 seq: None,
                 status: Some("done"),
+                order: None,
             },
         )
         .unwrap();
@@ -638,6 +942,7 @@ mod tests {
                 parent_id: None,
                 seq: None,
                 status: None,
+                order: None,
             },
         )
         .unwrap();
@@ -666,6 +971,7 @@ mod tests {
                 parent_id: None,
                 seq: None,
                 status: None,
+                order: None,
             },
         )
         .unwrap();
@@ -680,6 +986,7 @@ mod tests {
                 parent_id: Some(parent.task.id),
                 seq: None,
                 status: None,
+                order: None,
             },
         )
         .unwrap();
@@ -694,6 +1001,7 @@ mod tests {
                 parent_id: Some(parent.task.id),
                 seq: None,
                 status: None,
+                order: None,
             },
         )
         .unwrap();
@@ -731,6 +1039,7 @@ mod tests {
                 parent_id: None,
                 seq: None,
                 status: None,
+                order: None,
             },
         )
         .unwrap();
@@ -745,6 +1054,7 @@ mod tests {
                 parent_id: Some(parent.task.id),
                 seq: None,
                 status: None,
+                order: None,
             },
         )
         .unwrap();
@@ -754,5 +1064,170 @@ mod tests {
         assert!(rendered.contains("children:"));
         assert!(rendered.contains(&kids[0].id));
         assert!(rendered.contains("ord="));
+    }
+
+    fn add_task(conn: &mut Connection, pid: i64, title: &str, parent: Option<i64>) -> TaskView {
+        add(
+            conn,
+            AddArgs {
+                project_id: pid,
+                title,
+                body: None,
+                priority: None,
+                cycle_id: None,
+                parent_id: parent,
+                seq: None,
+                status: None,
+                order: None,
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn between_sits_strictly_between_various_pairs() {
+        let cases: &[(Option<&str>, Option<&str>)] = &[
+            (None, None),
+            (Some("000000000001"), Some("000000000002")),
+            (Some("a"), Some("b")),
+            (Some("a"), Some("c")),
+            (Some("a"), Some("az")),
+            (None, Some("m")),
+            (Some("m"), None),
+            (Some("abc"), Some("abd")),
+            (Some("0"), Some("z")),
+            (Some("zzz"), None),
+        ];
+        for &(prev, next) in cases {
+            let mid = between(prev, next);
+            if let Some(p) = prev {
+                assert!(
+                    p < mid.as_str(),
+                    "between({prev:?}, {next:?}) = {mid:?} is not > {p:?}",
+                );
+            }
+            if let Some(n) = next {
+                assert!(
+                    mid.as_str() < n,
+                    "between({prev:?}, {next:?}) = {mid:?} is not < {n:?}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn move_task_before_and_after_reorders() {
+        let (_tmp, mut conn, pid) = setup();
+        let a = add_task(&mut conn, pid, "a", None);
+        let b = add_task(&mut conn, pid, "b", None);
+        let c = add_task(&mut conn, pid, "c", None);
+
+        let a_id = TaskId::parse(&a.external_id()).unwrap();
+        let b_id = TaskId::parse(&b.external_id()).unwrap();
+        let c_id = TaskId::parse(&c.external_id()).unwrap();
+
+        // Move c before a → order: c, a, b
+        let _ = move_task(&conn, &c_id, MoveTarget::Before(&a_id)).unwrap();
+        let listed = list(
+            &conn,
+            ListFilters {
+                statuses: None,
+                project_slug: None,
+                cycle_key: None,
+                priority: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            listed.iter().map(|t| t.task.title.as_str()).collect::<Vec<_>>(),
+            vec!["c", "a", "b"],
+        );
+
+        // Move a after b → order: c, b, a
+        let _ = move_task(&conn, &a_id, MoveTarget::After(&b_id)).unwrap();
+        let listed = list(
+            &conn,
+            ListFilters {
+                statuses: None,
+                project_slug: None,
+                cycle_key: None,
+                priority: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            listed.iter().map(|t| t.task.title.as_str()).collect::<Vec<_>>(),
+            vec!["c", "b", "a"],
+        );
+    }
+
+    #[test]
+    fn move_task_top_and_bottom() {
+        let (_tmp, mut conn, pid) = setup();
+        let a = add_task(&mut conn, pid, "a", None);
+        let _b = add_task(&mut conn, pid, "b", None);
+        let _c = add_task(&mut conn, pid, "c", None);
+        let a_id = TaskId::parse(&a.external_id()).unwrap();
+
+        let _ = move_task(&conn, &a_id, MoveTarget::Bottom).unwrap();
+        let listed = list(
+            &conn,
+            ListFilters {
+                statuses: None,
+                project_slug: None,
+                cycle_key: None,
+                priority: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(listed.last().unwrap().task.title, "a");
+
+        let _ = move_task(&conn, &a_id, MoveTarget::Top).unwrap();
+        let listed = list(
+            &conn,
+            ListFilters {
+                statuses: None,
+                project_slug: None,
+                cycle_key: None,
+                priority: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(listed.first().unwrap().task.title, "a");
+    }
+
+    #[test]
+    fn move_task_rejects_different_parent() {
+        let (_tmp, mut conn, pid) = setup();
+        let parent = add_task(&mut conn, pid, "parent", None);
+        let child = add_task(&mut conn, pid, "child", Some(parent.task.id));
+        let root = add_task(&mut conn, pid, "root", None);
+
+        let child_id = TaskId::parse(&child.external_id()).unwrap();
+        let root_id = TaskId::parse(&root.external_id()).unwrap();
+
+        let err = move_task(&conn, &child_id, MoveTarget::Before(&root_id)).unwrap_err();
+        assert!(
+            err.to_string().contains("different parent"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn order_key_adjacent_after_sits_between_neighbors() {
+        let (_tmp, mut conn, pid) = setup();
+        let a = add_task(&mut conn, pid, "a", None);
+        let b = add_task(&mut conn, pid, "b", None);
+
+        let key_after_a = order_key_adjacent(&conn, &a, Side::After).unwrap();
+        assert!(key_after_a > a.task.order, "{key_after_a} > {}", a.task.order);
+        assert!(key_after_a < b.task.order, "{key_after_a} < {}", b.task.order);
+
+        let key_before_a = order_key_adjacent(&conn, &a, Side::Before).unwrap();
+        assert!(key_before_a < a.task.order, "{key_before_a} < {}", a.task.order);
     }
 }

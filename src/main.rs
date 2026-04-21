@@ -272,6 +272,30 @@ enum TasksCmd {
         /// Parent task id.
         #[arg(long)]
         parent: Option<String>,
+        /// Insert immediately before this task (inherits its parent unless --parent given).
+        #[arg(long, conflicts_with = "after")]
+        before: Option<String>,
+        /// Insert immediately after this task (inherits its parent unless --parent given).
+        #[arg(long, conflicts_with = "before")]
+        after: Option<String>,
+    },
+    /// Move a task to a new position within its sibling list.
+    #[command(alias = "mv")]
+    Move {
+        /// Task id (e.g. KDB-4).
+        id: String,
+        /// Place immediately before this task.
+        #[arg(long, conflicts_with_all = ["after", "top", "bottom"])]
+        before: Option<String>,
+        /// Place immediately after this task.
+        #[arg(long, conflicts_with_all = ["before", "top", "bottom"])]
+        after: Option<String>,
+        /// Move to the top of the sibling list.
+        #[arg(long, conflicts_with_all = ["before", "after", "bottom"])]
+        top: bool,
+        /// Move to the bottom of the sibling list.
+        #[arg(long, conflicts_with_all = ["before", "after", "top"])]
+        bottom: bool,
     },
     /// Edit an existing task.
     Edit {
@@ -510,7 +534,16 @@ async fn main() {
                 priority,
                 cycle,
                 parent,
-            } => kdb::cmd::tasks_add(title, project, body, priority, cycle, parent),
+                before,
+                after,
+            } => kdb::cmd::tasks_add(title, project, body, priority, cycle, parent, before, after),
+            TasksCmd::Move {
+                id,
+                before,
+                after,
+                top,
+                bottom,
+            } => kdb::cmd::tasks_move(id, before, after, top, bottom),
             TasksCmd::Edit {
                 id,
                 title,

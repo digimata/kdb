@@ -744,13 +744,31 @@ pub fn tasks_add(
     priority: Option<i64>,
     cycle: Option<String>,
     parent: Option<String>,
+    before: Option<String>,
+    after: Option<String>,
 ) -> Result<()> {
+    if before.is_some() && after.is_some() {
+        bail!("--before and --after are mutually exclusive");
+    }
     let ctx = CmdContext::from_path(None)?;
     let mut conn = db::open(&ctx.workspace.root)?;
     let proj = resolve_project(&conn, &ctx.workspace.root, project.as_deref())?;
 
     let cycle_id = resolve_cycle(&conn, cycle.as_deref())?.flatten();
-    let parent_id = resolve_parent(&conn, parent.as_deref())?.flatten();
+    let parent_id_explicit = resolve_parent(&conn, parent.as_deref())?;
+
+    let position = resolve_add_position(&conn, proj.id, before.as_deref(), after.as_deref())?;
+    // Inherit parent from the sibling we're anchoring to when --parent not given explicitly.
+    let parent_id = match (parent_id_explicit, &position) {
+        (Some(explicit), _) => explicit,
+        (None, Some((sibling, _))) => sibling.task.parent_id,
+        (None, None) => None,
+    };
+
+    let order_key = position
+        .as_ref()
+        .map(|(sibling, side)| tasks::order_key_adjacent(&conn, sibling, *side))
+        .transpose()?;
 
     let view = tasks::add(
         &mut conn,
@@ -763,11 +781,37 @@ pub fn tasks_add(
             parent_id,
             seq: None,
             status: None,
+            order: order_key.as_deref(),
         },
     )?;
     materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
     println!("added task {}", view.external_id());
     Ok(())
+}
+
+fn resolve_add_position(
+    conn: &rusqlite::Connection,
+    project_id: i64,
+    before: Option<&str>,
+    after: Option<&str>,
+) -> Result<Option<(tasks::TaskView, tasks::Side)>> {
+    let (raw, side) = match (before, after) {
+        (Some(b), None) => (b, tasks::Side::Before),
+        (None, Some(a)) => (a, tasks::Side::After),
+        (None, None) => return Ok(None),
+        (Some(_), Some(_)) => unreachable!("caller validates mutual exclusion"),
+    };
+    let parsed = tasks::TaskId::parse(raw)?;
+    let view = tasks::get(conn, &parsed)?
+        .with_context(|| format!("anchor task not found: {raw}"))?;
+    if view.task.project_id != project_id {
+        bail!(
+            "anchor task {} is in project {}, not the target project",
+            view.external_id(),
+            view.project_slug
+        );
+    }
+    Ok(Some((view, side)))
 }
 
 /// Edit an existing task.
@@ -830,6 +874,49 @@ pub fn tasks_view(id: String, as_json: bool) -> Result<()> {
     } else {
         print!("{}", tasks::render_show(&view, &slugs, &children));
     }
+    Ok(())
+}
+
+/// Move a task to a new relative position within its sibling context.
+pub fn tasks_move(
+    id: String,
+    before: Option<String>,
+    after: Option<String>,
+    top: bool,
+    bottom: bool,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let parsed = tasks::TaskId::parse(&id)?;
+
+    let chosen = [
+        before.is_some(),
+        after.is_some(),
+        top,
+        bottom,
+    ]
+    .iter()
+    .filter(|b| **b)
+    .count();
+    if chosen != 1 {
+        bail!("exactly one of --before, --after, --top, --bottom must be given");
+    }
+
+    let before_id = before.as_deref().map(tasks::TaskId::parse).transpose()?;
+    let after_id = after.as_deref().map(tasks::TaskId::parse).transpose()?;
+    let target = if let Some(b) = before_id.as_ref() {
+        tasks::MoveTarget::Before(b)
+    } else if let Some(a) = after_id.as_ref() {
+        tasks::MoveTarget::After(a)
+    } else if top {
+        tasks::MoveTarget::Top
+    } else {
+        tasks::MoveTarget::Bottom
+    };
+
+    let view = tasks::move_task(&conn, &parsed, target)?;
+    materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
+    println!("moved {} (order={})", view.external_id(), view.task.order);
     Ok(())
 }
 

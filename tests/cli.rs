@@ -2402,3 +2402,118 @@ fn tasks_delete_and_d_alias_soft_delete_to_parked() {
         Some("parked")
     );
 }
+
+fn titles_in_list(list_stdout: &str) -> Vec<&str> {
+    list_stdout
+        .lines()
+        .skip(1)
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|l| l.splitn(4, "  ").nth(3))
+        .map(str::trim)
+        .collect()
+}
+
+fn setup_kdb_project(root: &std::path::Path) {
+    let init = Command::new(bin())
+        .arg("init")
+        .arg(root)
+        .output()
+        .expect("run kdb init");
+    assert!(init.status.success());
+    fs::create_dir_all(root.join("projects/kdb")).expect("create project dir");
+    let add_project = run(
+        root,
+        &[
+            "projects",
+            "add",
+            "kdb",
+            "--alias",
+            "KDB",
+            "--path",
+            "projects/kdb",
+        ],
+    );
+    assert!(add_project.status.success());
+}
+
+#[test]
+fn tasks_move_before_reorders_project_list() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path();
+    setup_kdb_project(root);
+
+    for title in ["a", "b", "c"] {
+        let out = run(root, &["tasks", "add", title, "-P", "kdb"]);
+        assert!(out.status.success());
+    }
+
+    // Move KDB-0003 (c) before KDB-0001 (a) → c, a, b
+    let mv = run(root, &["tasks", "move", "KDB-0003", "--before", "KDB-0001"]);
+    assert!(mv.status.success(), "{}", String::from_utf8_lossy(&mv.stderr));
+    let listed = run(root, &["tasks", "list", "-P", "kdb"]);
+    let out = String::from_utf8_lossy(&listed.stdout).into_owned();
+    assert_eq!(titles_in_list(&out), vec!["c", "a", "b"]);
+}
+
+#[test]
+fn tasks_move_top_and_bottom_moves_to_ends() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path();
+    setup_kdb_project(root);
+
+    for title in ["a", "b", "c"] {
+        assert!(run(root, &["tasks", "add", title, "-P", "kdb"]).status.success());
+    }
+
+    assert!(run(root, &["tasks", "move", "KDB-0001", "--bottom"]).status.success());
+    let listed = run(root, &["tasks", "list", "-P", "kdb"]);
+    let out = String::from_utf8_lossy(&listed.stdout).into_owned();
+    assert_eq!(titles_in_list(&out), vec!["b", "c", "a"]);
+
+    assert!(run(root, &["tasks", "move", "KDB-0001", "--top"]).status.success());
+    let listed = run(root, &["tasks", "list", "-P", "kdb"]);
+    let out = String::from_utf8_lossy(&listed.stdout).into_owned();
+    assert_eq!(titles_in_list(&out), vec!["a", "b", "c"]);
+}
+
+#[test]
+fn tasks_add_after_inserts_between_neighbors() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path();
+    setup_kdb_project(root);
+
+    assert!(run(root, &["tasks", "add", "a", "-P", "kdb"]).status.success());
+    assert!(run(root, &["tasks", "add", "b", "-P", "kdb"]).status.success());
+
+    let insert = run(root, &["tasks", "add", "mid", "-P", "kdb", "--after", "KDB-0001"]);
+    assert!(insert.status.success(), "{}", String::from_utf8_lossy(&insert.stderr));
+    let listed = run(root, &["tasks", "list", "-P", "kdb"]);
+    let out = String::from_utf8_lossy(&listed.stdout).into_owned();
+    assert_eq!(titles_in_list(&out), vec!["a", "mid", "b"]);
+}
+
+#[test]
+fn tasks_move_rejects_cross_parent_target() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path();
+    setup_kdb_project(root);
+
+    assert!(run(root, &["tasks", "add", "parent", "-P", "kdb"]).status.success());
+    let child = run(
+        root,
+        &[
+            "tasks", "add", "child", "-P", "kdb", "--parent", "KDB-0001",
+        ],
+    );
+    assert!(child.status.success());
+    assert!(run(root, &["tasks", "add", "root", "-P", "kdb"]).status.success());
+
+    // Child (KDB-0002) has parent=KDB-0001; root task (KDB-0003) has no parent.
+    let mv = run(root, &["tasks", "move", "KDB-0002", "--before", "KDB-0003"]);
+    assert!(!mv.status.success());
+    let stderr = String::from_utf8_lossy(&mv.stderr);
+    assert!(
+        stderr.contains("different parent"),
+        "unexpected stderr: {stderr}"
+    );
+}
