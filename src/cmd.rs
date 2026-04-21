@@ -29,45 +29,46 @@ use rusqlite::Connection;
 // -----------------------------------------
 // projects/kdb/src/cmd.rs
 //
-// pub struct CmdContext                 L74
-//   pub fn from_path()                  L85
-//   pub fn build_index()                L95
-//   pub fn build_workspace_index()     L100
-//   pub fn rel_path()                  L108
-// pub fn init()                        L135
-// pub fn check()                       L192
-// pub fn tree()                        L209
-// pub fn symbols()                     L257
-// pub fn refs()                        L318
-// pub fn deps()                        L389
-// pub fn graph()                       L424
-// pub fn render()                      L439
-// pub fn format()                      L489
-// pub fn update()                      L530
-// pub fn projects_list()               L536
-// pub fn projects_add()                L552
-// pub fn projects_edit()               L579
-// pub fn projects_show()               L605
-// fn resolve_project()                 L624
-// fn resolve_cycle()                   L642
-// fn resolve_parent()                  L656
-// fn parse_statuses()                  L669
-// pub fn tasks_list()                  L690
-// pub fn tasks_add()                   L731
-// pub fn tasks_edit()                  L765
-// pub fn tasks_show()                  L797
-// struct TaskShowOutput                L807
-// pub fn cycles_list()                 L825
-// pub fn cycles_add()                  L839
-// pub fn cycles_edit()                 L867
-// pub fn cycles_show()                 L892
-// pub fn labels_list()                 L908
-// pub fn labels_add()                  L922
-// pub fn labels_edit()                 L937
-// pub fn labels_show()                 L952
-// pub fn tasks_label_add()             L969
-// pub fn tasks_label_rm()              L988
-// pub fn tasks_set_status()           L1007
+// pub struct CmdContext                 L75
+//   pub fn from_path()                  L86
+//   pub fn build_index()                L96
+//   pub fn build_workspace_index()     L101
+//   pub fn rel_path()                  L109
+// pub fn init()                        L136
+// pub fn root()                        L191
+// pub fn check()                       L201
+// pub fn tree()                        L218
+// pub fn symbols()                     L266
+// pub fn refs()                        L327
+// pub fn deps()                        L398
+// pub fn graph()                       L433
+// pub fn render()                      L448
+// pub fn format()                      L498
+// pub fn update()                      L539
+// pub fn projects_list()               L545
+// pub fn projects_add()                L561
+// pub fn projects_edit()               L588
+// pub fn projects_show()               L614
+// fn resolve_project()                 L633
+// fn resolve_cycle()                   L651
+// fn resolve_parent()                  L665
+// fn parse_statuses()                  L678
+// pub fn tasks_list()                  L699
+// pub fn tasks_add()                   L740
+// pub fn tasks_edit()                  L774
+// pub fn tasks_show()                  L806
+// struct TaskShowOutput                L816
+// pub fn cycles_list()                 L834
+// pub fn cycles_add()                  L848
+// pub fn cycles_edit()                 L876
+// pub fn cycles_show()                 L901
+// pub fn labels_list()                 L917
+// pub fn labels_add()                  L931
+// pub fn labels_edit()                 L946
+// pub fn labels_show()                 L961
+// pub fn tasks_label_add()             L978
+// pub fn tasks_label_rm()              L997
+// pub fn tasks_set_status()           L1016
 // -----------------------------------------
 
 /// CLI command context: resolved start path + workspace state.
@@ -182,6 +183,14 @@ pub fn init(path: Option<PathBuf>) -> Result<()> {
 
     println!("initialized kdb workspace at {}", root.display());
 
+    Ok(())
+}
+
+/// Print the absolute path of the workspace root discovered from the current
+/// working directory. Errors if no `.kdb/` marker is found in any ancestor.
+pub fn root() -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    println!("{}", ctx.workspace.root.display());
     Ok(())
 }
 

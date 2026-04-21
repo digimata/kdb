@@ -6,11 +6,11 @@ outline: |
       ▪ Supported languages       L30
     ◦ Quickstart                  L38
     ◦ Commands                    L67
-      ▪ Markdown links            L82
-      ▪ Transclusion              L91
-      ▪ LSP                      L102
-    ◦ Development                L120
-    ◦ License                    L124
+      ▪ Markdown links            L95
+      ▪ Transclusion             L104
+      ▪ LSP                      L115
+    ◦ Development                L133
+    ◦ License                    L137
 ---
 
 # kdb
@@ -67,6 +67,7 @@ This creates a `.kdb/` directory that marks the workspace root. All commands run
 ## Commands
 
 ```
+kdb root                # print absolute path of the workspace root
 kdb outline <path>      # list the outline of a file (headings, functions, types, etc.)
 kdb refs <target>       # find inbound references to a file or heading
 kdb refs <file> -s <s>  # find who imports a code symbol

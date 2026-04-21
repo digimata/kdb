@@ -1,91 +1,97 @@
 ---
 path: projects/kdb/CHANGELOG.md
 outline: |
-  • Changelog                              L91
-    ◦ [0.25.0] — 2026-03-03                L97
-      ▪ Added                              L99
-    ◦ [0.24.0] — 2026-03-03               L105
-      ▪ Added                             L107
-    ◦ [0.23.0] — 2026-03-02               L113
-      ▪ Added                             L115
-      ▪ Fixed                             L119
-    ◦ [0.22.1] — 2026-03-02               L124
-      ▪ Fixed                             L126
-    ◦ [0.22.0] — 2026-03-02               L130
-      ▪ Added                             L132
-    ◦ [0.21.0] — 2026-03-01               L136
-      ▪ Changed                           L138
-      ▪ Added                             L144
-    ◦ [0.20.1] — 2026-03-01               L148
-      ▪ Added                             L150
-    ◦ [0.20.0] — 2026-03-01               L154
-      ▪ Added                             L156
-    ◦ [0.19.0] — 2026-02-26               L161
-      ▪ Changed                           L163
-    ◦ [0.18.0] — 2026-02-26               L167
-      ▪ Added                             L169
-    ◦ [0.17.0] — 2026-02-26               L174
-      ▪ Changed                           L176
-      ▪ Added                             L180
-    ◦ [landing-0.2.0] — 2026-02-26        L184
-      ▪ Added                             L186
-      ▪ Changed                           L192
-    ◦ [0.16.0] — 2026-02-26               L197
-      ▪ Removed                           L199
-    ◦ [0.15.0] — 2026-02-26               L206
-      ▪ Changed                           L208
-      ▪ Performance                       L212
-      ▪ Fixed                             L218
-    ◦ [0.14.0] — 2026-02-26               L222
-      ▪ Added                             L224
-    ◦ [0.13.0] — 2026-02-26               L228
-      ▪ Added                             L230
-    ◦ [0.12.1] — 2026-02-26               L235
-      ▪ Fixed                             L237
-    ◦ [0.12.0] — 2026-02-26               L244
-      ▪ Added                             L246
-    ◦ [0.11.0] — 2026-02-26               L253
+  • Changelog                              L97
+    ◦ [0.28.0] — 2026-04-20               L103
+      ▪ Added                             L105
+    ◦ [0.27.0] — 2026-04-20               L109
+      ▪ Changed                           L111
+    ◦ [0.26.0] — 2026-04-20               L117
+      ▪ Added                             L119
+    ◦ [0.25.0] — 2026-03-03               L128
+      ▪ Added                             L130
+    ◦ [0.24.0] — 2026-03-03               L136
+      ▪ Added                             L138
+    ◦ [0.23.0] — 2026-03-02               L144
+      ▪ Added                             L146
+      ▪ Fixed                             L150
+    ◦ [0.22.1] — 2026-03-02               L155
+      ▪ Fixed                             L157
+    ◦ [0.22.0] — 2026-03-02               L161
+      ▪ Added                             L163
+    ◦ [0.21.0] — 2026-03-01               L167
+      ▪ Changed                           L169
+      ▪ Added                             L175
+    ◦ [0.20.1] — 2026-03-01               L179
+      ▪ Added                             L181
+    ◦ [0.20.0] — 2026-03-01               L185
+      ▪ Added                             L187
+    ◦ [0.19.0] — 2026-02-26               L192
+      ▪ Changed                           L194
+    ◦ [0.18.0] — 2026-02-26               L198
+      ▪ Added                             L200
+    ◦ [0.17.0] — 2026-02-26               L205
+      ▪ Changed                           L207
+      ▪ Added                             L211
+    ◦ [landing-0.2.0] — 2026-02-26        L215
+      ▪ Added                             L217
+      ▪ Changed                           L223
+    ◦ [0.16.0] — 2026-02-26               L228
+      ▪ Removed                           L230
+    ◦ [0.15.0] — 2026-02-26               L237
+      ▪ Changed                           L239
+      ▪ Performance                       L243
+      ▪ Fixed                             L249
+    ◦ [0.14.0] — 2026-02-26               L253
       ▪ Added                             L255
-    ◦ [0.10.2] — 2026-02-26               L263
-      ▪ Changed                           L265
-      ▪ Performance                       L271
-    ◦ [0.10.1] — 2026-02-25               L284
-      ▪ Changed                           L286
-    ◦ [0.10.0] — 2026-02-25               L291
-      ▪ Changed                           L293
-      ▪ Added                             L298
-    ◦ [0.9.0] — 2026-02-25                L303
-      ▪ Added                             L305
-    ◦ [0.8.6] — 2026-02-25                L311
-      ▪ Added                             L313
-    ◦ [0.8.5] — 2026-02-25                L317
-      ▪ Fixed                             L319
-    ◦ [0.8.4] — 2026-02-25                L325
-      ▪ Fixed                             L327
-    ◦ [0.8.3] — 2026-02-25                L332
-      ▪ Fixed                             L334
-    ◦ [0.8.2] — 2026-02-25                L338
-      ▪ Fixed                             L340
-      ▪ Changed                           L344
-    ◦ [0.8.1] — 2026-02-25                L348
+    ◦ [0.13.0] — 2026-02-26               L259
+      ▪ Added                             L261
+    ◦ [0.12.1] — 2026-02-26               L266
+      ▪ Fixed                             L268
+    ◦ [0.12.0] — 2026-02-26               L275
+      ▪ Added                             L277
+    ◦ [0.11.0] — 2026-02-26               L284
+      ▪ Added                             L286
+    ◦ [0.10.2] — 2026-02-26               L294
+      ▪ Changed                           L296
+      ▪ Performance                       L302
+    ◦ [0.10.1] — 2026-02-25               L315
+      ▪ Changed                           L317
+    ◦ [0.10.0] — 2026-02-25               L322
+      ▪ Changed                           L324
+      ▪ Added                             L329
+    ◦ [0.9.0] — 2026-02-25                L334
+      ▪ Added                             L336
+    ◦ [0.8.6] — 2026-02-25                L342
+      ▪ Added                             L344
+    ◦ [0.8.5] — 2026-02-25                L348
       ▪ Fixed                             L350
-    ◦ [Unreleased]                        L354
-      ▪ Changed                           L356
-    ◦ [0.8.0] — 2026-02-25                L370
-      ▪ Added                             L372
-      ▪ Changed                           L377
-    ◦ [0.7.1] — 2026-02-25                L381
-      ▪ Added                             L383
+    ◦ [0.8.4] — 2026-02-25                L356
+      ▪ Fixed                             L358
+    ◦ [0.8.3] — 2026-02-25                L363
+      ▪ Fixed                             L365
+    ◦ [0.8.2] — 2026-02-25                L369
+      ▪ Fixed                             L371
+      ▪ Changed                           L375
+    ◦ [0.8.1] — 2026-02-25                L379
+      ▪ Fixed                             L381
+    ◦ [Unreleased]                        L385
       ▪ Changed                           L387
-      ▪ Docs                              L392
-    ◦ [0.7.0] — 2026-02-24                L396
-      ▪ Other                             L398
-    ◦ [0.6.1] — 2026-02-24                L404
-      ▪ Other                             L406
-    ◦ [0.6.0] — 2026-02-24                L411
-      ▪ Other                             L413
-    ◦ [0.1.0] — 2026-02-18                L433
-      ▪ Other                             L435
+    ◦ [0.8.0] — 2026-02-25                L401
+      ▪ Added                             L403
+      ▪ Changed                           L408
+    ◦ [0.7.1] — 2026-02-25                L412
+      ▪ Added                             L414
+      ▪ Changed                           L418
+      ▪ Docs                              L423
+    ◦ [0.7.0] — 2026-02-24                L427
+      ▪ Other                             L429
+    ◦ [0.6.1] — 2026-02-24                L435
+      ▪ Other                             L437
+    ◦ [0.6.0] — 2026-02-24                L442
+      ▪ Other                             L444
+    ◦ [0.1.0] — 2026-02-18                L464
+      ▪ Other                             L466
 ---
 
 # Changelog
@@ -93,6 +99,12 @@ outline: |
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.28.0] — 2026-04-20
+
+### Added
+
+- `kdb root` prints the absolute path of the workspace root discovered from the current directory (walks up for `.kdb/`). Exits non-zero with a stderr error when no workspace is found, mirroring `git rev-parse --show-toplevel`.
 
 ## [0.27.0] — 2026-04-20
 

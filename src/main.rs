@@ -6,12 +6,12 @@ use std::path::PathBuf;
 //
 // struct Cli            L24
 // enum Command          L30
-// enum ProjectsCmd     L176
-// enum TasksCmd        L231
-// enum TaskLabelCmd    L311
-// enum CyclesCmd       L329
-// enum LabelsCmd       L378
-// async fn main()      L413
+// enum ProjectsCmd     L178
+// enum TasksCmd        L233
+// enum TaskLabelCmd    L313
+// enum CyclesCmd       L331
+// enum LabelsCmd       L380
+// async fn main()      L415
 // -------------------------
 
 #[derive(Debug, Parser)]
@@ -33,6 +33,8 @@ enum Command {
         /// Optional directory path (defaults to current directory).
         path: Option<PathBuf>,
     },
+    /// Print the absolute path of the workspace root.
+    Root,
     /// Report broken links and orphan files.
     Check {
         /// Print each orphan file path.
@@ -415,6 +417,7 @@ async fn main() {
 
     let result = match cli.command {
         Command::Init { path } => kdb::cmd::init(path),
+        Command::Root => kdb::cmd::root(),
         Command::Check { path, orphans } => match kdb::cmd::check(path, orphans) {
             Ok(has_issues) => {
                 if has_issues {
