@@ -65,17 +65,19 @@ impl Project {
 }
 
 const SELECT_COLS: &str =
-    "id, slug, alias, name, path, status, description, created_at, updated_at";
+    "p.id, p.slug, p.alias, p.name, p.path, p.status, p.description, p.created_at, p.updated_at";
 
-/// List projects, ordered by slug. Archived projects are excluded unless
-/// `include_archived` is set.
+/// List projects, ordered by slug. Projects whose status is marked
+/// `is_archived` in `project_statuses` are excluded unless `include_archived`
+/// is set.
 pub fn list(conn: &Connection, include_archived: bool) -> Result<Vec<Project>> {
     let sql = if include_archived {
-        format!("SELECT {SELECT_COLS} FROM projects ORDER BY slug")
+        format!("SELECT {SELECT_COLS} FROM projects p ORDER BY p.slug")
     } else {
         format!(
-            "SELECT {SELECT_COLS} FROM projects \
-             WHERE status != 'archived' ORDER BY slug"
+            "SELECT {SELECT_COLS} FROM projects p \
+             JOIN project_statuses ps ON ps.slug = p.status \
+             WHERE ps.is_archived = 0 ORDER BY p.slug"
         )
     };
     let mut stmt = conn.prepare(&sql)?;
@@ -86,7 +88,7 @@ pub fn list(conn: &Connection, include_archived: bool) -> Result<Vec<Project>> {
 
 /// Fetch a project by slug. Returns `None` if no match.
 pub fn get_by_slug(conn: &Connection, slug: &str) -> Result<Option<Project>> {
-    let sql = format!("SELECT {SELECT_COLS} FROM projects WHERE slug = ?");
+    let sql = format!("SELECT {SELECT_COLS} FROM projects p WHERE p.slug = ?");
     let mut stmt = conn.prepare(&sql)?;
     stmt.query_row([slug], Project::from_row)
         .optional()
@@ -95,7 +97,7 @@ pub fn get_by_slug(conn: &Connection, slug: &str) -> Result<Option<Project>> {
 
 /// Fetch a project by alias (case-insensitive). Returns `None` if no match.
 pub fn get_by_alias(conn: &Connection, alias: &str) -> Result<Option<Project>> {
-    let sql = format!("SELECT {SELECT_COLS} FROM projects WHERE alias = ?");
+    let sql = format!("SELECT {SELECT_COLS} FROM projects p WHERE p.alias = ?");
     let mut stmt = conn.prepare(&sql)?;
     stmt.query_row([alias.to_ascii_uppercase()], Project::from_row)
         .optional()

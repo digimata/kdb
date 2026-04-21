@@ -1,8 +1,9 @@
 //! Tasks table access and display.
 //!
 //! A task has a per-project `seq` counter; its external id is
-//! `{PROJECT_ALIAS}-{seq:04d}` (e.g. `HRM-0120`). Statuses are
-//! `open` | `in_progress` | `done` | `parked`.
+//! `{PROJECT_ALIAS}-{seq:04d}` (e.g. `HRM-0120`). Statuses are user-
+//! customizable via the `task_statuses` table; the default seeded set
+//! is `backlog` | `cycle` | `in_progress` | `parked` | `done`.
 
 use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -11,9 +12,10 @@ use serde::Serialize;
 // -------------------------------------------------------------
 // projects/kdb/src/tasks.rs
 //
-// pub const STATUSES                                        L70
-// pub const SEQ_WIDTH                                       L73
-// pub const ORDER_KEY_WIDTH                                 L76
+// pub const DEFAULT_STATUSES                                L72
+// pub fn is_closed_status()                                 L76
+// pub const SEQ_WIDTH                                       L87
+// pub const ORDER_KEY_WIDTH                                 L90
 // pub fn format_external_id()                               L79
 // pub fn default_order_key()                                L84
 // const ALPHABET                                            L91
@@ -67,7 +69,22 @@ use serde::Serialize;
 // fn order_key_adjacent_after_sits_between_neighbors()    L1221
 // -------------------------------------------------------------
 
-pub const STATUSES: &[&str] = &["open", "in_progress", "done", "parked"];
+/// Default seeded statuses. Users can add, rename, or remove these via
+/// `kdb statuses` — treat this list as a fallback for display only.
+pub const DEFAULT_STATUSES: &[&str] = &["backlog", "cycle", "in_progress", "parked", "done"];
+
+/// Look up whether a status slug is marked `is_closed` in `task_statuses`.
+/// Returns an error if the slug doesn't exist.
+pub fn is_closed_status(conn: &Connection, slug: &str) -> Result<bool> {
+    let flag: i64 = conn
+        .query_row(
+            "SELECT is_closed FROM task_statuses WHERE slug = ?",
+            [slug],
+            |row| row.get(0),
+        )
+        .with_context(|| format!("unknown task status '{slug}'"))?;
+    Ok(flag != 0)
+}
 
 /// Zero-padding width for the `seq` portion of external ids.
 pub const SEQ_WIDTH: usize = 4;
@@ -399,13 +416,8 @@ pub fn add(conn: &mut Connection, args: AddArgs) -> Result<TaskView> {
     if !(1..=5).contains(&priority) {
         bail!("priority must be between 1 and 5");
     }
-    let status = args.status.unwrap_or("open");
-    if !STATUSES.contains(&status) {
-        bail!(
-            "invalid status '{status}' (expected {})",
-            STATUSES.join(", ")
-        );
-    }
+    let status = args.status.unwrap_or("backlog");
+    let closed = is_closed_status(conn, status)?;
 
     let tx = conn.transaction()?;
     let seq: i64 = match args.seq {
@@ -424,7 +436,6 @@ pub fn add(conn: &mut Connection, args: AddArgs) -> Result<TaskView> {
             .context("failed to compute next seq")?,
     };
 
-    let closed = matches!(status, "done" | "parked");
     let order_key = args
         .order
         .map(str::to_string)
@@ -707,16 +718,10 @@ fn neighbor_order(
 /// Set a task's status. `done` and `parked` stamp `closed_at`; other
 /// statuses clear it.
 pub fn set_status(conn: &Connection, id: &TaskId, status: &str) -> Result<TaskView> {
-    if !STATUSES.contains(&status) {
-        bail!(
-            "invalid status '{status}' (expected {})",
-            STATUSES.join(", ")
-        );
-    }
+    let closed = is_closed_status(conn, status)?;
     let existing = get(conn, id)?
         .with_context(|| format!("task not found: {}", format_external_id(&id.alias, id.seq)))?;
 
-    let closed = matches!(status, "done" | "parked");
     conn.execute(
         "UPDATE tasks SET \
             status     = ?, \
@@ -732,7 +737,8 @@ pub fn set_status(conn: &Connection, id: &TaskId, status: &str) -> Result<TaskVi
 
 fn status_glyph(status: &str) -> &'static str {
     match status {
-        "open" => "[ ]",
+        "backlog" => "[ ]",
+        "cycle" => "[>]",
         "in_progress" => "[~]",
         "done" => "[x]",
         "parked" => "[=]",
@@ -952,8 +958,8 @@ mod tests {
         assert_eq!(done.task.status, "done");
         assert!(done.task.closed_at.is_some());
 
-        let reopened = set_status(&conn, &id, "open").unwrap();
-        assert_eq!(reopened.task.status, "open");
+        let reopened = set_status(&conn, &id, "backlog").unwrap();
+        assert_eq!(reopened.task.status, "backlog");
         assert!(reopened.task.closed_at.is_none());
     }
 

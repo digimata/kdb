@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
 // -------------------------
@@ -172,6 +172,11 @@ enum Command {
         #[command(subcommand)]
         action: LabelsCmd,
     },
+    /// Manage customizable task & project statuses.
+    Statuses {
+        #[command(subcommand)]
+        action: StatusesCmd,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -214,7 +219,8 @@ enum ProjectsCmd {
         name: Option<String>,
         #[arg(short = 'p', long)]
         path: Option<String>,
-        #[arg(long, value_parser = ["active", "paused", "archived"])]
+        /// Status slug (must exist in project_statuses).
+        #[arg(long)]
         status: Option<String>,
         #[arg(short = 'd', long)]
         description: Option<String>,
@@ -234,8 +240,9 @@ enum TasksCmd {
     /// List tasks.
     #[command(alias = "ls")]
     List {
-        /// Comma-separated statuses (open,in_progress,done,parked) or "all".
-        #[arg(short = 's', long, default_value = "open,in_progress")]
+        /// Comma-separated status slugs (default seeded set: backlog,cycle,
+        /// in_progress,parked,done) or "all".
+        #[arg(short = 's', long, default_value = "backlog,cycle,in_progress")]
         status: String,
         /// Filter by project slug (defaults to the active project).
         #[arg(short = 'P', long)]
@@ -313,6 +320,9 @@ enum TasksCmd {
         /// Set parent task id (use empty string to clear).
         #[arg(long)]
         parent: Option<String>,
+        /// Set status slug (must exist in task_statuses).
+        #[arg(short = 's', long)]
+        status: Option<String>,
     },
     /// View a task.
     #[command(alias = "show")]
@@ -439,6 +449,96 @@ enum LabelsCmd {
     },
 }
 
+/// Shared `--tasks | --projects` scope selector for `kdb statuses`.
+#[derive(Debug, Args)]
+#[group(required = true, multiple = false)]
+struct StatusKindArg {
+    /// Operate on task statuses.
+    #[arg(long)]
+    tasks: bool,
+    /// Operate on project statuses.
+    #[arg(long)]
+    projects: bool,
+}
+
+fn resolve_kind(arg: &StatusKindArg) -> kdb::statuses::Kind {
+    if arg.tasks {
+        kdb::statuses::Kind::Task
+    } else {
+        kdb::statuses::Kind::Project
+    }
+}
+
+#[derive(Debug, Subcommand)]
+enum StatusesCmd {
+    /// List statuses for the chosen kind.
+    #[command(alias = "ls")]
+    List {
+        #[command(flatten)]
+        kind: StatusKindArg,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Add a new status.
+    Add {
+        /// New status slug.
+        slug: String,
+        #[command(flatten)]
+        kind: StatusKindArg,
+        /// Display name (defaults to slug).
+        #[arg(short = 'n', long)]
+        name: Option<String>,
+        /// Free-form description shown in `statuses show`.
+        #[arg(short = 'd', long)]
+        description: Option<String>,
+        /// Optional hex color (e.g. #ff0000).
+        #[arg(short = 'c', long)]
+        color: Option<String>,
+        /// Mark as closed (stamps closed_at; only valid with --tasks).
+        #[arg(long)]
+        closed: bool,
+        /// Mark as archived (hidden from default project list; only valid with --projects).
+        #[arg(long)]
+        archived: bool,
+    },
+    /// Edit an existing status.
+    Edit {
+        slug: String,
+        #[command(flatten)]
+        kind: StatusKindArg,
+        #[arg(short = 'n', long)]
+        name: Option<String>,
+        #[arg(short = 'd', long)]
+        description: Option<String>,
+        #[arg(short = 'c', long)]
+        color: Option<String>,
+        /// Toggle the closed flag (only valid with --tasks).
+        #[arg(long, conflicts_with = "no_closed")]
+        closed: bool,
+        #[arg(long, conflicts_with = "closed")]
+        no_closed: bool,
+        /// Toggle the archived flag (only valid with --projects).
+        #[arg(long, conflicts_with = "no_archived")]
+        archived: bool,
+        #[arg(long, conflicts_with = "archived")]
+        no_archived: bool,
+    },
+    /// Remove a status (fails if in use).
+    Rm {
+        slug: String,
+        #[command(flatten)]
+        kind: StatusKindArg,
+    },
+    /// Show a single status.
+    Show {
+        slug: String,
+        #[command(flatten)]
+        kind: StatusKindArg,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -512,7 +612,7 @@ async fn main() {
             ProjectsCmd::Show { slug, json } => kdb::cmd::projects_show(slug, json),
         },
         Command::Tasks { action } => match action.unwrap_or(TasksCmd::List {
-            status: "open,in_progress".to_string(),
+            status: "backlog,cycle,in_progress".to_string(),
             project: None,
             cycle: None,
             priority: None,
@@ -551,12 +651,13 @@ async fn main() {
                 priority,
                 cycle,
                 parent,
-            } => kdb::cmd::tasks_edit(id, title, body, priority, cycle, parent),
+                status,
+            } => kdb::cmd::tasks_edit(id, title, body, priority, cycle, parent, status),
             TasksCmd::View { id, json } => kdb::cmd::tasks_view(id, json),
             TasksCmd::Delete { id } => kdb::cmd::tasks_delete(id),
             TasksCmd::Done { id } => kdb::cmd::tasks_set_status(id, "done"),
             TasksCmd::Park { id } => kdb::cmd::tasks_set_status(id, "parked"),
-            TasksCmd::Reopen { id } => kdb::cmd::tasks_set_status(id, "open"),
+            TasksCmd::Reopen { id } => kdb::cmd::tasks_set_status(id, "backlog"),
             TasksCmd::Label { action } => match action {
                 TaskLabelCmd::Add { id, labels } => kdb::cmd::tasks_label_add(id, labels),
                 TaskLabelCmd::Rm { id, labels } => kdb::cmd::tasks_label_rm(id, labels),
@@ -587,6 +688,53 @@ async fn main() {
             LabelsCmd::Add { slug, name, color } => kdb::cmd::labels_add(slug, name, color),
             LabelsCmd::Edit { slug, name, color } => kdb::cmd::labels_edit(slug, name, color),
             LabelsCmd::Show { slug, json } => kdb::cmd::labels_show(slug, json),
+        },
+        Command::Statuses { action } => match action {
+            StatusesCmd::List { kind, json } => {
+                kdb::cmd::statuses_list(resolve_kind(&kind), json)
+            }
+            StatusesCmd::Add {
+                slug,
+                kind,
+                name,
+                description,
+                color,
+                closed,
+                archived,
+            } => kdb::cmd::statuses_add(
+                slug,
+                resolve_kind(&kind),
+                name,
+                description,
+                color,
+                closed,
+                archived,
+            ),
+            StatusesCmd::Edit {
+                slug,
+                kind,
+                name,
+                description,
+                color,
+                closed,
+                no_closed,
+                archived,
+                no_archived,
+            } => kdb::cmd::statuses_edit(
+                slug,
+                resolve_kind(&kind),
+                name,
+                description,
+                color,
+                closed,
+                no_closed,
+                archived,
+                no_archived,
+            ),
+            StatusesCmd::Rm { slug, kind } => kdb::cmd::statuses_rm(slug, resolve_kind(&kind)),
+            StatusesCmd::Show { slug, kind, json } => {
+                kdb::cmd::statuses_show(slug, resolve_kind(&kind), json)
+            }
         },
     };
 

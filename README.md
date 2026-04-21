@@ -91,6 +91,11 @@ kdb cycles {list|add|edit|show}
                         # manage time-boxed cycles (C-NN, start/end, status)
 kdb labels {list|add|edit|show}
                         # manage free-form task tags (slug, name, optional color)
+kdb statuses {list|add|edit|rm|show} --tasks|--projects
+                        # manage customizable task & project statuses
+                        # --tasks: --closed marks a status as closed (stamps closed_at)
+                        # --projects: --archived hides the status from `projects list`
+                        # slug/name/color are colorized in list output when stdout is a TTY
 ```
 
 ### Markdown links

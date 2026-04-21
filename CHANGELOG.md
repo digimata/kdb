@@ -106,6 +106,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0] — 2026-04-21
+
+### Added
+
+- `kdb statuses {list,add,edit,rm,show} --tasks|--projects` for managing customizable task and project statuses (slug, name, optional description, optional `#RRGGBB` color, behavior flag). Default seeded statuses ship with descriptions explaining what each one means.
+- `kdb tasks edit --status <slug>` to change a task's status to any registered slug.
+- DB migration `0003_customizable_statuses` introducing `task_statuses` and `project_statuses` lookup tables; `tasks.status` / `projects.status` are now FK references instead of `CHECK` constraints.
+- Truecolor ANSI colorization of label slugs (and status slugs in `kdb statuses list`) when stdout is a TTY.
+
+### Changed
+
+- Default seeded task statuses are now `backlog, cycle, in_progress, parked, done` (was `open, in_progress, done, parked`). Closed-state stamping (`closed_at`) is driven by the per-status `is_closed` flag instead of a hardcoded match.
+- Default project list filter (`projects list`) now hides any status whose `is_archived` flag is set, instead of comparing to the literal slug `archived`.
+- `kdb tasks reopen` now writes the `backlog` slug instead of `open`. `kdb tasks delete/done/park` continue to write `parked`/`done` literally.
+- `kdb render --project/--all` materializes a new `## Cycle` section between `## In progress` and `## Backlog`; the former `## Open` section is renamed to `## Backlog`.
+
+### Migration notes
+
+- Live databases retain rows with `status='open'` after the schema rebuild; rename them with `UPDATE tasks SET status='backlog' WHERE status='open';` (or `kdb tasks edit <id> --status backlog`).
+
 ## [0.30.0] — 2026-04-20
 
 ### Added

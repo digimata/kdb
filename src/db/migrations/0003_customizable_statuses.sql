@@ -1,0 +1,94 @@
+-- Customizable project & task statuses.
+-- Replaces the hardcoded CHECK constraints with FK references to new lookup tables.
+-- See .issues/iss-XXXX-customizable-statuses.md.
+
+PRAGMA foreign_keys = OFF;
+
+CREATE TABLE project_statuses (
+  slug         TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  color        TEXT,
+  is_archived  INTEGER NOT NULL DEFAULT 0 CHECK (is_archived IN (0, 1)),
+  sort_order   INTEGER NOT NULL DEFAULT 0
+);
+
+INSERT INTO project_statuses (slug, name, description, color, is_archived, sort_order) VALUES
+  ('active',   'Active',   'Currently being worked on.',                              NULL, 0, 0),
+  ('paused',   'Paused',   'Temporarily on hold; work may resume.',                   NULL, 0, 1),
+  ('archived', 'Archived', 'No longer active; retained for history and reference.',   NULL, 1, 2);
+
+CREATE TABLE task_statuses (
+  slug        TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  description TEXT,
+  color       TEXT,
+  is_closed   INTEGER NOT NULL DEFAULT 0 CHECK (is_closed IN (0, 1)),
+  sort_order  INTEGER NOT NULL DEFAULT 0
+);
+
+INSERT INTO task_statuses (slug, name, description, color, is_closed, sort_order) VALUES
+  ('backlog',     'Backlog',     'Future work; not scheduled into a cycle yet.',                 NULL, 0, 0),
+  ('cycle',       'Cycle',       'Scheduled into the current cycle but not started yet.',        NULL, 0, 1),
+  ('in_progress', 'In Progress', 'Actively being worked on right now.',                          NULL, 0, 2),
+  ('parked',      'Parked',      'Paused or deferred; revisit later.',                           NULL, 1, 3),
+  ('done',        'Done',        'Completed; outcome shipped or accepted.',                      NULL, 1, 4);
+
+-- Rebuild projects with an FK on status instead of a CHECK constraint.
+CREATE TABLE projects_new (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug        TEXT NOT NULL UNIQUE,
+  alias       TEXT NOT NULL UNIQUE
+              CHECK (alias = UPPER(alias)
+                     AND LENGTH(alias) BETWEEN 2 AND 6
+                     AND alias GLOB '[A-Z][A-Z0-9]*'),
+  name        TEXT NOT NULL,
+  path        TEXT NOT NULL UNIQUE,
+  status      TEXT NOT NULL DEFAULT 'active'
+              REFERENCES project_statuses(slug) ON UPDATE CASCADE,
+  description TEXT,
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+INSERT INTO projects_new (id, slug, alias, name, path, status, description, created_at, updated_at)
+  SELECT id, slug, alias, name, path, status, description, created_at, updated_at
+    FROM projects;
+
+DROP TABLE projects;
+ALTER TABLE projects_new RENAME TO projects;
+
+-- Rebuild tasks with an FK on status instead of a CHECK constraint.
+CREATE TABLE tasks_new (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id  INTEGER NOT NULL REFERENCES projects(id),
+  seq         INTEGER NOT NULL,
+  title       TEXT NOT NULL,
+  body        TEXT,
+  status      TEXT NOT NULL DEFAULT 'backlog'
+              REFERENCES task_statuses(slug) ON UPDATE CASCADE,
+  priority    INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 1 AND 5),
+  "order"     TEXT,
+  cycle_id    INTEGER REFERENCES cycles(id),
+  parent_id   INTEGER REFERENCES tasks(id),
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  closed_at   TEXT,
+  UNIQUE (project_id, seq)
+);
+
+INSERT INTO tasks_new (id, project_id, seq, title, body, status, priority, "order",
+                       cycle_id, parent_id, created_at, updated_at, closed_at)
+  SELECT id, project_id, seq, title, body, status, priority, "order",
+         cycle_id, parent_id, created_at, updated_at, closed_at
+    FROM tasks;
+
+DROP TABLE tasks;
+ALTER TABLE tasks_new RENAME TO tasks;
+
+CREATE INDEX idx_tasks_status_pri
+  ON tasks(project_id, status, priority, updated_at);
+CREATE INDEX idx_tasks_project_parent_order
+  ON tasks(project_id, parent_id, "order");
+
+PRAGMA foreign_keys = ON;

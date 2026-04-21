@@ -18,6 +18,7 @@ use crate::lang::CodeLanguage;
 use crate::materialize;
 use crate::projects;
 use crate::render;
+use crate::statuses;
 use crate::symbols;
 use crate::tasks;
 use crate::tree;
@@ -675,7 +676,7 @@ fn resolve_parent(conn: &Connection, id: Option<&str>) -> Result<Option<Option<i
     }
 }
 
-fn parse_statuses(s: &str) -> Result<Option<Vec<String>>> {
+fn parse_statuses(conn: &Connection, s: &str) -> Result<Option<Vec<String>>> {
     if s == "all" {
         return Ok(None);
     }
@@ -684,11 +685,15 @@ fn parse_statuses(s: &str) -> Result<Option<Vec<String>>> {
         .map(|p| p.trim().to_string())
         .filter(|p| !p.is_empty())
         .collect();
+    let known: Vec<String> = statuses::list(conn, statuses::Kind::Task)?
+        .into_iter()
+        .map(|s| s.slug)
+        .collect();
     for p in &parts {
-        if !tasks::STATUSES.contains(&p.as_str()) {
+        if !known.iter().any(|k| k == p) {
             bail!(
                 "invalid status '{p}' (expected {} or 'all')",
-                tasks::STATUSES.join(", ")
+                known.join(", ")
             );
         }
     }
@@ -707,7 +712,7 @@ pub fn tasks_list(
     let ctx = CmdContext::from_path(None)?;
     let conn = db::open(&ctx.workspace.root)?;
 
-    let statuses_owned = parse_statuses(&status)?;
+    let statuses_owned = parse_statuses(&conn, &status)?;
     let statuses_refs: Option<Vec<&str>> = statuses_owned
         .as_ref()
         .map(|v| v.iter().map(|s| s.as_str()).collect());
@@ -822,6 +827,7 @@ pub fn tasks_edit(
     priority: Option<i64>,
     cycle: Option<String>,
     parent: Option<String>,
+    status: Option<String>,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
     let conn = db::open(&ctx.workspace.root)?;
@@ -830,17 +836,35 @@ pub fn tasks_edit(
     let cycle_update = resolve_cycle(&conn, cycle.as_deref())?;
     let parent_update = resolve_parent(&conn, parent.as_deref())?;
 
-    let view = tasks::edit(
-        &conn,
-        &parsed,
-        tasks::EditArgs {
-            title: title.as_deref(),
-            body: body.as_deref(),
-            priority,
-            cycle_id: cycle_update,
-            parent_id: parent_update,
-        },
-    )?;
+    let has_core_update = title.is_some()
+        || body.is_some()
+        || priority.is_some()
+        || cycle_update.is_some()
+        || parent_update.is_some();
+    if !has_core_update && status.is_none() {
+        bail!("no fields to update");
+    }
+
+    let view = if has_core_update {
+        tasks::edit(
+            &conn,
+            &parsed,
+            tasks::EditArgs {
+                title: title.as_deref(),
+                body: body.as_deref(),
+                priority,
+                cycle_id: cycle_update,
+                parent_id: parent_update,
+            },
+        )?
+    } else {
+        tasks::get(&conn, &parsed)?
+            .with_context(|| format!("task not found: {id}"))?
+    };
+    let view = match status.as_deref() {
+        Some(s) => tasks::set_status(&conn, &parsed, s)?,
+        None => view,
+    };
     materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
     println!("updated task {}", view.external_id());
     Ok(())
@@ -1110,6 +1134,162 @@ pub fn tasks_label_rm(id: String, label_slugs: Vec<String>) -> Result<()> {
     }
     materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
     println!("detached {removed} label(s) from {}", view.external_id());
+    Ok(())
+}
+
+/// List statuses for `kind`.
+pub fn statuses_list(kind: statuses::Kind, as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let rows = statuses::list(&conn, kind)?;
+    if as_json {
+        let output = serde_json::to_string_pretty(&rows)
+            .context("failed to serialize statuses as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", statuses::render_list(&rows, kind));
+    }
+    Ok(())
+}
+
+/// Add a new status. `closed` applies only when `kind == Task`; `archived`
+/// only when `kind == Project`; passing the wrong one errors.
+#[allow(clippy::too_many_arguments)]
+pub fn statuses_add(
+    slug: String,
+    kind: statuses::Kind,
+    name: Option<String>,
+    description: Option<String>,
+    color: Option<String>,
+    closed: bool,
+    archived: bool,
+) -> Result<()> {
+    let flag = resolve_add_flag(kind, closed, archived)?;
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let created = statuses::add(
+        &conn,
+        kind,
+        statuses::AddArgs {
+            slug: &slug,
+            name: name.as_deref(),
+            description: description.as_deref(),
+            color: color.as_deref(),
+            flag,
+            sort_order: None,
+        },
+    )?;
+    println!("added status {}", created.slug);
+    Ok(())
+}
+
+fn resolve_add_flag(kind: statuses::Kind, closed: bool, archived: bool) -> Result<bool> {
+    match kind {
+        statuses::Kind::Task => {
+            if archived {
+                bail!("--archived applies only to project statuses (use --closed with --tasks)");
+            }
+            Ok(closed)
+        }
+        statuses::Kind::Project => {
+            if closed {
+                bail!("--closed applies only to task statuses (use --archived with --projects)");
+            }
+            Ok(archived)
+        }
+    }
+}
+
+/// Edit an existing status. `closed`/`no_closed` apply only to task statuses;
+/// `archived`/`no_archived` only to project statuses.
+#[allow(clippy::too_many_arguments)]
+pub fn statuses_edit(
+    slug: String,
+    kind: statuses::Kind,
+    name: Option<String>,
+    description: Option<String>,
+    color: Option<String>,
+    closed: bool,
+    no_closed: bool,
+    archived: bool,
+    no_archived: bool,
+) -> Result<()> {
+    let flag = resolve_edit_flag(kind, closed, no_closed, archived, no_archived)?;
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let updated = statuses::edit(
+        &conn,
+        kind,
+        &slug,
+        statuses::EditArgs {
+            name: name.as_deref(),
+            description: description.as_deref(),
+            color: color.as_deref(),
+            flag,
+            sort_order: None,
+        },
+    )?;
+    println!("updated status {}", updated.slug);
+    Ok(())
+}
+
+fn resolve_edit_flag(
+    kind: statuses::Kind,
+    closed: bool,
+    no_closed: bool,
+    archived: bool,
+    no_archived: bool,
+) -> Result<Option<bool>> {
+    match kind {
+        statuses::Kind::Task => {
+            if archived || no_archived {
+                bail!("--archived/--no-archived apply only to project statuses");
+            }
+            if closed {
+                Ok(Some(true))
+            } else if no_closed {
+                Ok(Some(false))
+            } else {
+                Ok(None)
+            }
+        }
+        statuses::Kind::Project => {
+            if closed || no_closed {
+                bail!("--closed/--no-closed apply only to task statuses");
+            }
+            if archived {
+                Ok(Some(true))
+            } else if no_archived {
+                Ok(Some(false))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+}
+
+/// Remove a status. Fails if any row still references it.
+pub fn statuses_rm(slug: String, kind: statuses::Kind) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    statuses::remove(&conn, kind, &slug)?;
+    println!("removed status {slug}");
+    Ok(())
+}
+
+/// Show a single status.
+pub fn statuses_show(slug: String, kind: statuses::Kind, as_json: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let status = statuses::get(&conn, kind, &slug)?
+        .with_context(|| format!("{} not found: {slug}", kind.table()))?;
+    if as_json {
+        let output = serde_json::to_string_pretty(&status)
+            .context("failed to serialize status as JSON")?;
+        println!("{output}");
+    } else {
+        print!("{}", statuses::render_show(&status, kind));
+    }
     Ok(())
 }
 

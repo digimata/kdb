@@ -7,6 +7,8 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 
+use crate::color;
+
 // ----------------------------------------
 // projects/kdb/src/labels.rs
 //
@@ -192,9 +194,9 @@ pub fn render_list(labels: &[Label]) -> String {
         "slug", "name",
     ));
     for l in labels {
+        let slug_cell = color::pad_colored(&l.slug, l.color.as_deref(), slug_w);
         out.push_str(&format!(
-            "{:<slug_w$}  {:<name_w$}  {}\n",
-            l.slug,
+            "{slug_cell}  {:<name_w$}  {}\n",
             l.name,
             l.color.as_deref().unwrap_or(""),
         ));
@@ -204,7 +206,8 @@ pub fn render_list(labels: &[Label]) -> String {
 
 pub fn render_show(l: &Label) -> String {
     let mut out = String::new();
-    out.push_str(&format!("slug:  {}\n", l.slug));
+    let colored_slug = color::colorize_for_stdout(&l.slug, l.color.as_deref());
+    out.push_str(&format!("slug:  {colored_slug}\n"));
     out.push_str(&format!("name:  {}\n", l.name));
     if let Some(c) = &l.color {
         out.push_str(&format!("color: {c}\n"));

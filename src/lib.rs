@@ -22,6 +22,7 @@
 //! - [`workspace`] — Shared workspace infrastructure (root, config, discovery, paths, ignore).
 
 pub mod cmd;
+pub mod color;
 pub mod cycles;
 pub mod db;
 pub mod deps;
@@ -34,6 +35,7 @@ pub mod materialize;
 pub mod projects;
 pub mod render;
 pub mod resolve;
+pub mod statuses;
 pub mod symbols;
 pub mod tasks;
 pub mod tasks_import;
@@ -45,23 +47,25 @@ pub mod workspace;
 // projects/kdb/src/lib.rs
 //
 // pub mod cmd             L24
-// pub mod cycles          L25
-// pub mod db              L26
-// pub mod deps            L27
-// pub mod fmt             L28
-// pub mod index           L29
-// pub mod labels          L30
-// pub mod lang            L31
-// pub mod lsp             L32
-// pub mod materialize     L33
-// pub mod projects        L34
-// pub mod render          L35
-// pub mod resolve         L36
-// pub mod symbols         L37
-// pub mod tasks           L38
-// pub mod tasks_import    L39
-// pub mod tree            L40
-// pub mod update          L41
-// pub mod workspace       L42
+// pub mod color           L25
+// pub mod cycles          L26
+// pub mod db              L27
+// pub mod deps            L28
+// pub mod fmt             L29
+// pub mod index           L30
+// pub mod labels          L31
+// pub mod lang            L32
+// pub mod lsp             L33
+// pub mod materialize     L34
+// pub mod projects        L35
+// pub mod render          L36
+// pub mod resolve         L37
+// pub mod statuses        L38
+// pub mod symbols         L39
+// pub mod tasks           L40
+// pub mod tasks_import    L41
+// pub mod tree            L42
+// pub mod update          L43
+// pub mod workspace       L44
 // ---------------------------
 

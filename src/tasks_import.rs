@@ -253,8 +253,9 @@ fn map_status(s: &str) -> &'static str {
     match s.to_ascii_lowercase().as_str() {
         "in_progress" | "in-progress" | "active" => "in_progress",
         "done" | "completed" | "closed" => "done",
-        "backlog" | "parked" | "deferred" => "parked",
-        _ => "open",
+        "cycle" | "scheduled" => "cycle",
+        "parked" | "deferred" => "parked",
+        _ => "backlog",
     }
 }
 
@@ -298,7 +299,7 @@ mod tests {
         let parsed = parse_task_file(src).unwrap();
         assert_eq!(parsed.seq, 100);
         assert_eq!(parsed.title, "Do the thing");
-        assert_eq!(parsed.status, "open");
+        assert_eq!(parsed.status, "backlog");
         assert_eq!(parsed.priority, 1);
         assert!(parsed.body.starts_with("body text"));
     }
@@ -313,10 +314,11 @@ mod tests {
 
     #[test]
     fn maps_statuses() {
-        assert_eq!(map_status("planned"), "open");
+        assert_eq!(map_status("planned"), "backlog");
         assert_eq!(map_status("in_progress"), "in_progress");
-        assert_eq!(map_status("backlog"), "parked");
+        assert_eq!(map_status("backlog"), "backlog");
+        assert_eq!(map_status("cycle"), "cycle");
         assert_eq!(map_status("done"), "done");
-        assert_eq!(map_status("proposed"), "open");
+        assert_eq!(map_status("proposed"), "backlog");
     }
 }
