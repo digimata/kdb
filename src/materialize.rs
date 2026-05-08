@@ -96,12 +96,14 @@ fn materialize(
     fs::create_dir_all(&out_dir)
         .with_context(|| format!("failed to create {}", out_dir.display()))?;
 
-    // Full task list: used for index counts and the per-status splits.
+    // Top-level tasks only — subtasks surface inside their parent
+    // task's file via `## Subtasks`, never in the index.
     let all = tasks::list(
         conn,
         ListFilters {
             statuses: None,
             project_slug: Some(&project.slug),
+            top_level_only: true,
             ..Default::default()
         },
     )?;
@@ -132,9 +134,10 @@ fn materialize(
     // separate files (they'd just clutter the directory).
     let mut expected: HashSet<String> = HashSet::new();
     for t in in_progress.iter().chain(cycle.iter()).chain(backlog_top.iter()) {
-        let name = task_file_name(t.task.seq);
+        let name = task_file_name(top_seq(t));
         let task_path = out_dir.join(&name);
-        fs::write(&task_path, render_task_file(project, t))
+        let subtree = tasks::descendants(conn, t.task.id)?;
+        fs::write(&task_path, render_task_file(project, t, &subtree))
             .with_context(|| format!("failed to write {}", task_path.display()))?;
         expected.insert(name);
     }
@@ -273,7 +276,7 @@ fn push_table(out: &mut String, tasks: &[TaskView], link: bool) {
     for t in tasks {
         let id = t.external_id();
         let task_cell = if link {
-            format!("[{id}]({})", task_file_name(t.task.seq))
+            format!("[{id}]({})", task_file_name(top_seq(t)))
         } else {
             format!("`{id}`")
         };
@@ -285,6 +288,15 @@ fn push_table(out: &mut String, tasks: &[TaskView], link: bool) {
         ));
     }
     out.push('\n');
+}
+
+/// Top-level seq accessor — panics if called on a child task.
+/// Materialize never iterates children directly; this enforces
+/// the invariant locally.
+fn top_seq(t: &TaskView) -> i64 {
+    t.task
+        .seq
+        .expect("materialize only handles top-level tasks (parent_id IS NULL)")
 }
 
 /// On-disk name for a task's materialized file: `T-{seq:04d}.md`.
@@ -300,11 +312,12 @@ fn escape_md_cell(s: &str) -> String {
     s.replace('|', "\\|").replace('\n', " ")
 }
 
-/// Render a single-task file: frontmatter + body, matching the old
-/// hand-written `T-NNNN.md` shape.
-fn render_task_file(project: &Project, t: &TaskView) -> String {
+/// Render a single-task file: frontmatter + body + optional subtasks
+/// table. Subtasks are listed as a flat depth-first table using the
+/// dotted external ids (`KDB-0030.1`, `KDB-0030.1.2`).
+fn render_task_file(project: &Project, t: &TaskView, subtree: &[TaskView]) -> String {
     let id = t.external_id();
-    let file_name = task_file_name(t.task.seq);
+    let file_name = task_file_name(top_seq(t));
     let mut out = String::new();
     out.push_str("---\n");
     out.push_str(&format!("id: {id}\n"));
@@ -337,6 +350,11 @@ fn render_task_file(project: &Project, t: &TaskView) -> String {
                 out.push('\n');
             }
         }
+    }
+
+    if !subtree.is_empty() {
+        out.push_str(&format!("\n## Subtasks ({})\n\n", subtree.len()));
+        push_table(&mut out, subtree, /* link */ false);
     }
     out
 }
@@ -538,5 +556,92 @@ mod tests {
         let out = materialize_project(&conn, tmp.path(), "kdb", None).unwrap();
         let body = std::fs::read_to_string(&out).unwrap();
         assert!(body.contains("Backlog (top 2 of 5)"));
+    }
+
+    #[test]
+    fn subtasks_render_in_parent_file_not_index() {
+        let (tmp, mut conn) = setup();
+        projects_mod::add(
+            &conn,
+            ProjAddArgs {
+                slug: "kdb",
+                alias: "KDB",
+                name: None,
+                path: "projects/kdb",
+                description: None,
+            },
+        )
+        .unwrap();
+        let p = projects_mod::get_by_slug(&conn, "kdb").unwrap().unwrap();
+        let parent = tasks_mod::add(
+            &mut conn,
+            TaskAddArgs {
+                project_id: p.id,
+                title: "Parent",
+                body: Some("parent body"),
+                priority: None,
+                cycle_id: None,
+                parent_id: None,
+                seq: None,
+                status: None,
+                order: None,
+            },
+        )
+        .unwrap();
+        let child = tasks_mod::add(
+            &mut conn,
+            TaskAddArgs {
+                project_id: p.id,
+                title: "Child A",
+                body: None,
+                priority: None,
+                cycle_id: None,
+                parent_id: Some(parent.task.id),
+                seq: None,
+                status: None,
+                order: None,
+            },
+        )
+        .unwrap();
+        tasks_mod::add(
+            &mut conn,
+            TaskAddArgs {
+                project_id: p.id,
+                title: "Grandchild",
+                body: None,
+                priority: None,
+                cycle_id: None,
+                parent_id: Some(child.task.id),
+                seq: None,
+                status: None,
+                order: None,
+            },
+        )
+        .unwrap();
+
+        let out = materialize_project(&conn, tmp.path(), "kdb", None).unwrap();
+        let index_body = std::fs::read_to_string(&out).unwrap();
+        // Index sees only the parent.
+        assert!(index_body.contains("KDB-0001"));
+        assert!(index_body.contains("Parent"));
+        assert!(!index_body.contains("Child A"));
+        assert!(!index_body.contains("Grandchild"));
+        assert!(index_body.contains("## Backlog (1)"));
+
+        // Children only appear in the parent's task file as a Subtasks table.
+        let parent_file = tmp
+            .path()
+            .join("projects/kdb/.tasks/T-0001.md")
+            .canonicalize()
+            .unwrap();
+        let parent_body = std::fs::read_to_string(&parent_file).unwrap();
+        assert!(parent_body.contains("## Subtasks (2)"));
+        assert!(parent_body.contains("KDB-0001.1"));
+        assert!(parent_body.contains("KDB-0001.1.1"));
+        assert!(parent_body.contains("Child A"));
+        assert!(parent_body.contains("Grandchild"));
+
+        // Subtasks must NOT have their own materialized files.
+        assert!(!tmp.path().join("projects/kdb/.tasks/T-0002.md").exists());
     }
 }

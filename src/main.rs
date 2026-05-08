@@ -256,6 +256,10 @@ enum TasksCmd {
         /// Limit to N rows.
         #[arg(short = 'n', long)]
         limit: Option<i64>,
+        /// Include subtasks (rows with a parent). Off by default —
+        /// subtasks surface inside their parent task's view instead.
+        #[arg(long)]
+        include_children: bool,
         /// Emit structured JSON output.
         #[arg(long)]
         json: bool,
@@ -617,6 +621,7 @@ async fn main() {
             cycle: None,
             priority: None,
             limit: None,
+            include_children: false,
             json: false,
         }) {
             TasksCmd::List {
@@ -625,8 +630,9 @@ async fn main() {
                 cycle,
                 priority,
                 limit,
+                include_children,
                 json,
-            } => kdb::cmd::tasks_list(status, project, cycle, priority, limit, json),
+            } => kdb::cmd::tasks_list(status, project, cycle, priority, limit, include_children, json),
             TasksCmd::Add {
                 title,
                 project,

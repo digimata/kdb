@@ -707,6 +707,7 @@ pub fn tasks_list(
     cycle: Option<String>,
     priority: Option<i64>,
     limit: Option<i64>,
+    include_children: bool,
     as_json: bool,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
@@ -728,6 +729,7 @@ pub fn tasks_list(
         cycle_key: cycle.as_deref(),
         priority,
         limit,
+        top_level_only: !include_children,
     };
     let rows = tasks::list(&conn, filters)?;
 
@@ -830,7 +832,7 @@ pub fn tasks_edit(
     status: Option<String>,
 ) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.workspace.root)?;
+    let mut conn = db::open(&ctx.workspace.root)?;
     let parsed = tasks::TaskId::parse(&id)?;
 
     let cycle_update = resolve_cycle(&conn, cycle.as_deref())?;
@@ -847,7 +849,7 @@ pub fn tasks_edit(
 
     let view = if has_core_update {
         tasks::edit(
-            &conn,
+            &mut conn,
             &parsed,
             tasks::EditArgs {
                 title: title.as_deref(),

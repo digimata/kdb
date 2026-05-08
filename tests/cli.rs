@@ -2304,9 +2304,9 @@ fn tasks_view_supports_show_alias_and_orders_children_by_order_key() {
     assert!(add_child_b.status.success());
 
     let conn = Connection::open(root.join(".kdb/index.db")).expect("open sqlite db");
-    conn.execute("UPDATE tasks SET \"order\" = 'b' WHERE seq = 2", [])
+    conn.execute("UPDATE tasks SET \"order\" = 'b' WHERE child_seq = 1", [])
         .expect("set child a order");
-    conn.execute("UPDATE tasks SET \"order\" = 'a' WHERE seq = 3", [])
+    conn.execute("UPDATE tasks SET \"order\" = 'a' WHERE child_seq = 2", [])
         .expect("set child b order");
 
     let view_output = run(root, &["tasks", "view", "KDB-0001"]);
@@ -2314,10 +2314,10 @@ fn tasks_view_supports_show_alias_and_orders_children_by_order_key() {
     let view_stdout = String::from_utf8_lossy(&view_output.stdout);
     assert!(view_stdout.contains("children:"));
     let child_b_at = view_stdout
-        .find("KDB-0003")
+        .find("KDB-0001.2")
         .expect("child b in view output");
     let child_a_at = view_stdout
-        .find("KDB-0002")
+        .find("KDB-0001.1")
         .expect("child a in view output");
     assert!(
         child_b_at < child_a_at,
@@ -2338,9 +2338,9 @@ fn tasks_view_supports_show_alias_and_orders_children_by_order_key() {
         .and_then(|value| value.as_array())
         .expect("children array");
     assert_eq!(children.len(), 2);
-    assert_eq!(children[0].get("id").unwrap(), "KDB-0003");
+    assert_eq!(children[0].get("id").unwrap(), "KDB-0001.2");
     assert_eq!(children[0].get("order").unwrap(), "a");
-    assert_eq!(children[1].get("id").unwrap(), "KDB-0002");
+    assert_eq!(children[1].get("id").unwrap(), "KDB-0001.1");
     assert_eq!(children[1].get("order").unwrap(), "b");
 }
 
@@ -2493,6 +2493,30 @@ fn tasks_add_after_inserts_between_neighbors() {
 }
 
 #[test]
+fn tasks_list_hides_children_by_default_and_include_children_shows_them() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path();
+    setup_kdb_project(root);
+
+    assert!(run(root, &["tasks", "add", "Parent", "-P", "kdb"]).status.success());
+    assert!(run(root, &["tasks", "add", "Child A", "-P", "kdb", "--parent", "KDB-0001"]).status.success());
+
+    let default_list = run(root, &["tasks", "list", "-P", "kdb"]);
+    assert!(default_list.status.success());
+    let default_stdout = String::from_utf8_lossy(&default_list.stdout);
+    assert!(default_stdout.contains("KDB-0001"));
+    assert!(default_stdout.contains("Parent"));
+    assert!(!default_stdout.contains("Child A"));
+    assert!(!default_stdout.contains("KDB-0001.1"));
+
+    let with_children = run(root, &["tasks", "list", "-P", "kdb", "--include-children"]);
+    assert!(with_children.status.success());
+    let stdout = String::from_utf8_lossy(&with_children.stdout);
+    assert!(stdout.contains("KDB-0001.1"));
+    assert!(stdout.contains("Child A"));
+}
+
+#[test]
 fn tasks_move_rejects_cross_parent_target() {
     let temp = tempdir().expect("tempdir");
     let root = temp.path();
@@ -2508,8 +2532,8 @@ fn tasks_move_rejects_cross_parent_target() {
     assert!(child.status.success());
     assert!(run(root, &["tasks", "add", "root", "-P", "kdb"]).status.success());
 
-    // Child (KDB-0002) has parent=KDB-0001; root task (KDB-0003) has no parent.
-    let mv = run(root, &["tasks", "move", "KDB-0002", "--before", "KDB-0003"]);
+    // Child (KDB-0001.1) has parent=KDB-0001; second top-level is KDB-0002.
+    let mv = run(root, &["tasks", "move", "KDB-0001.1", "--before", "KDB-0002"]);
     assert!(!mv.status.success());
     let stderr = String::from_utf8_lossy(&mv.stderr);
     assert!(

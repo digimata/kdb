@@ -1,7 +1,10 @@
 //! Tasks table access and display.
 //!
-//! A task has a per-project `seq` counter; its external id is
-//! `{PROJECT_ALIAS}-{seq:04d}` (e.g. `HRM-0120`). Statuses are user-
+//! Top-level tasks have a per-project `seq` counter and render as
+//! `{PROJECT_ALIAS}-{seq:04d}` (e.g. `KDB-0030`). Subtasks (rows with
+//! `parent_id IS NOT NULL`) do not consume `seq`; they have a
+//! sibling-local `child_seq` and render with a dotted suffix walking
+//! the parent chain (`KDB-0030.1`, `KDB-0030.1.2`). Statuses are user-
 //! customizable via the `task_statuses` table; the default seeded set
 //! is `backlog` | `cycle` | `in_progress` | `parked` | `done`.
 
@@ -92,15 +95,32 @@ pub const SEQ_WIDTH: usize = 4;
 /// Zero-padding width for lexicographically sortable task order keys.
 pub const ORDER_KEY_WIDTH: usize = 12;
 
-/// Format an external task id: `{ALIAS}-{seq:04d}`.
-pub fn format_external_id(alias: &str, seq: i64) -> String {
-    format!("{alias}-{seq:0width$}", width = SEQ_WIDTH)
+/// Format an external task id: `{ALIAS}-{dotted}`. `dotted` is the
+/// parent-chain rendering — `"0030"` for top-level, `"0030.1.2"` for
+/// nested children. Computed by the SQL recursive CTE in [`CHAIN_CTE`].
+pub fn format_external_id(alias: &str, dotted: &str) -> String {
+    format!("{alias}-{dotted}")
+}
+
+/// Render a top-level seq as the dotted suffix (`"0030"`).
+pub fn dotted_top(seq: i64) -> String {
+    format!("{seq:0width$}", width = SEQ_WIDTH)
 }
 
 /// Default order key for newly created tasks (used when no explicit position is given).
 pub fn default_order_key(seq: i64) -> String {
     format!("{seq:0width$}", width = ORDER_KEY_WIDTH)
 }
+
+/// Recursive CTE that, for every task, computes `(root_seq, suffix)`
+/// — the top-level ancestor's `seq` and the dotted suffix descending
+/// to the row (`""` for top-level, `".1.2"` for a grandchild, etc.).
+/// Prepend to any SELECT against `tasks`.
+pub const CHAIN_CTE: &str = "WITH RECURSIVE crumbs(id, root_seq, suffix) AS (\
+    SELECT id, seq, '' FROM tasks WHERE parent_id IS NULL \
+    UNION ALL \
+    SELECT t.id, c.root_seq, c.suffix || '.' || t.child_seq \
+      FROM tasks t JOIN crumbs c ON c.id = t.parent_id) ";
 
 /// Alphabet for lexicographic order keys. Byte-order sorted (`'0'..'9'` < `'a'..'z'`).
 /// The migration backfill (`printf('%012d', seq)`) is a strict subset, so generated
@@ -200,7 +220,12 @@ fn key_between_two(prev: &str, next: &str) -> String {
 pub struct Task {
     pub id: i64,
     pub project_id: i64,
-    pub seq: i64,
+    /// Top-level `seq` within the project. `None` for children
+    /// (subtasks); they use [`Task::child_seq`] instead.
+    pub seq: Option<i64>,
+    /// 1-based position among siblings sharing the same `parent_id`.
+    /// `None` for top-level tasks.
+    pub child_seq: Option<i64>,
     pub title: String,
     pub body: Option<String>,
     pub status: String,
@@ -213,7 +238,8 @@ pub struct Task {
     pub closed_at: Option<String>,
 }
 
-/// Task row joined with its project slug/alias and optional cycle key.
+/// Task row joined with its project slug/alias, optional cycle key,
+/// and the dotted id suffix computed from the parent chain.
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskView {
     #[serde(flatten)]
@@ -221,67 +247,114 @@ pub struct TaskView {
     pub project_slug: String,
     pub project_alias: String,
     pub cycle_key: Option<String>,
+    /// Dotted id suffix — `"0030"` for top-level, `"0030.1.2"` for a
+    /// grandchild. Combined with `project_alias` to form the
+    /// external id.
+    pub dotted: String,
 }
 
 impl TaskView {
-    /// External task id: `{PROJECT_ALIAS}-{seq:04d}`.
+    /// External task id: `{PROJECT_ALIAS}-{dotted}` (e.g. `KDB-0030`,
+    /// `KDB-0030.1.2`).
     pub fn external_id(&self) -> String {
-        format_external_id(&self.project_alias, self.task.seq)
+        format_external_id(&self.project_alias, &self.dotted)
     }
 }
 
-/// Parsed external task id. `alias` is always uppercased.
+/// Parsed external task id. `alias` is always uppercased. For
+/// top-level tasks `child_path` is empty; for nested tasks it holds
+/// the chain of `child_seq` values from the top-level ancestor's
+/// first child onward (e.g. `KDB-0030.1.2` → `seq=30`,
+/// `child_path=[1, 2]`).
 #[derive(Debug, Clone)]
 pub struct TaskId {
     pub alias: String,
     pub seq: i64,
+    pub child_path: Vec<i64>,
 }
 
 impl TaskId {
-    /// Parse `ALIAS-seq` (splits on the last `-`). Alias is uppercased.
+    /// Parse `ALIAS-seq[.child[.child]...]`. Alias is uppercased.
     pub fn parse(s: &str) -> Result<Self> {
         let idx = s
             .rfind('-')
             .with_context(|| format!("invalid task id '{s}': expected ALIAS-seq"))?;
-        let (prefix, seq_part) = s.split_at(idx);
+        let (prefix, rest) = s.split_at(idx);
         if prefix.is_empty() {
             bail!("invalid task id '{s}': empty alias");
         }
-        let seq: i64 = seq_part[1..]
+        let mut parts = rest[1..].split('.');
+        let seq_part = parts
+            .next()
+            .with_context(|| format!("invalid task id '{s}': missing seq"))?;
+        let seq: i64 = seq_part
             .parse()
             .with_context(|| format!("invalid task id '{s}': seq not an integer"))?;
+        let mut child_path = Vec::new();
+        for p in parts {
+            if p.is_empty() {
+                bail!("invalid task id '{s}': empty child component");
+            }
+            let n: i64 = p
+                .parse()
+                .with_context(|| format!("invalid task id '{s}': child '{p}' not an integer"))?;
+            if n < 1 {
+                bail!("invalid task id '{s}': child component must be >= 1");
+            }
+            child_path.push(n);
+        }
         Ok(Self {
             alias: prefix.to_ascii_uppercase(),
             seq,
+            child_path,
         })
+    }
+
+    /// Render back to the canonical external id form.
+    pub fn render(&self) -> String {
+        let mut s = format!("{}-{:0width$}", self.alias, self.seq, width = SEQ_WIDTH);
+        for n in &self.child_path {
+            s.push('.');
+            s.push_str(&n.to_string());
+        }
+        s
     }
 }
 
-const SELECT_COLS: &str = "t.id, t.project_id, t.seq, t.title, t.body, \
-    t.status, t.priority, COALESCE(t.\"order\", printf('%012d', t.seq)), t.cycle_id, t.parent_id, \
-    t.created_at, t.updated_at, t.closed_at, p.slug, p.alias, c.key";
+const SELECT_COLS: &str = "t.id, t.project_id, t.seq, t.child_seq, t.title, t.body, \
+    t.status, t.priority, \
+    COALESCE(t.\"order\", printf('%012d', COALESCE(t.seq, t.child_seq))), \
+    t.cycle_id, t.parent_id, t.created_at, t.updated_at, t.closed_at, \
+    p.slug, p.alias, c.key, printf('%04d', cr.root_seq) || cr.suffix";
+
+const SELECT_JOINS: &str = "FROM tasks t \
+     JOIN projects p ON p.id = t.project_id \
+     LEFT JOIN cycles c ON c.id = t.cycle_id \
+     JOIN crumbs cr ON cr.id = t.id";
 
 fn view_from_row(row: &rusqlite::Row) -> rusqlite::Result<TaskView> {
     let task = Task {
         id: row.get(0)?,
         project_id: row.get(1)?,
         seq: row.get(2)?,
-        title: row.get(3)?,
-        body: row.get(4)?,
-        status: row.get(5)?,
-        priority: row.get(6)?,
-        order: row.get(7)?,
-        cycle_id: row.get(8)?,
-        parent_id: row.get(9)?,
-        created_at: row.get(10)?,
-        updated_at: row.get(11)?,
-        closed_at: row.get(12)?,
+        child_seq: row.get(3)?,
+        title: row.get(4)?,
+        body: row.get(5)?,
+        status: row.get(6)?,
+        priority: row.get(7)?,
+        order: row.get(8)?,
+        cycle_id: row.get(9)?,
+        parent_id: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
+        closed_at: row.get(13)?,
     };
     Ok(TaskView {
         task,
-        project_slug: row.get(13)?,
-        project_alias: row.get(14)?,
-        cycle_key: row.get(15)?,
+        project_slug: row.get(14)?,
+        project_alias: row.get(15)?,
+        cycle_key: row.get(16)?,
+        dotted: row.get(17)?,
     })
 }
 
@@ -293,15 +366,16 @@ pub struct ListFilters<'a> {
     pub cycle_key: Option<&'a str>,
     pub priority: Option<i64>,
     pub limit: Option<i64>,
+    /// When `true`, exclude rows with `parent_id IS NOT NULL`.
+    /// Subtasks live inside their parent task's view; default lists
+    /// don't surface them.
+    pub top_level_only: bool,
 }
 
 /// List tasks matching the filters, ordered by priority then updated_at desc.
 pub fn list(conn: &Connection, f: ListFilters) -> Result<Vec<TaskView>> {
     let mut sql = format!(
-        "SELECT {SELECT_COLS} FROM tasks t \
-         JOIN projects p ON p.id = t.project_id \
-         LEFT JOIN cycles c ON c.id = t.cycle_id \
-         WHERE 1=1"
+        "{CHAIN_CTE} SELECT {SELECT_COLS} {SELECT_JOINS} WHERE 1=1"
     );
     let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
@@ -327,8 +401,11 @@ pub fn list(conn: &Connection, f: ListFilters) -> Result<Vec<TaskView>> {
         sql.push_str(" AND t.priority = ?");
         args.push(Box::new(pri));
     }
+    if f.top_level_only {
+        sql.push_str(" AND t.parent_id IS NULL");
+    }
 
-    sql.push_str(" ORDER BY COALESCE(t.\"order\", printf('%012d', t.seq)) ASC, t.seq ASC");
+    sql.push_str(" ORDER BY COALESCE(t.\"order\", printf('%012d', COALESCE(t.seq, t.child_seq))) ASC, t.seq ASC");
 
     if let Some(limit) = f.limit {
         sql.push_str(" LIMIT ?");
@@ -342,18 +419,48 @@ pub fn list(conn: &Connection, f: ListFilters) -> Result<Vec<TaskView>> {
         .context("failed to read tasks")
 }
 
-/// Resolve a parsed external id (alias + seq) to a joined task row.
+/// Resolve a parsed external id to a joined task row. Walks the
+/// parent chain for nested ids (`KDB-0030.1.2`).
 pub fn get(conn: &Connection, id: &TaskId) -> Result<Option<TaskView>> {
+    let mut row_id: i64 = match conn
+        .query_row(
+            "SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id \
+             WHERE p.alias = ? AND t.seq = ?",
+            params![id.alias, id.seq],
+            |row| row.get(0),
+        )
+        .optional()
+        .context("failed to look up top-level task")?
+    {
+        Some(rid) => rid,
+        None => return Ok(None),
+    };
+    for n in &id.child_path {
+        row_id = match conn
+            .query_row(
+                "SELECT id FROM tasks WHERE parent_id = ? AND child_seq = ?",
+                params![row_id, n],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()
+            .context("failed to look up child task")?
+        {
+            Some(rid) => rid,
+            None => return Ok(None),
+        };
+    }
+    get_by_row_id(conn, row_id)
+}
+
+/// Look up a task by its primary key with full join + dotted id.
+pub fn get_by_row_id(conn: &Connection, row_id: i64) -> Result<Option<TaskView>> {
     let sql = format!(
-        "SELECT {SELECT_COLS} FROM tasks t \
-         JOIN projects p ON p.id = t.project_id \
-         LEFT JOIN cycles c ON c.id = t.cycle_id \
-         WHERE p.alias = ? AND t.seq = ?"
+        "{CHAIN_CTE} SELECT {SELECT_COLS} {SELECT_JOINS} WHERE t.id = ?"
     );
     let mut stmt = conn.prepare(&sql)?;
-    stmt.query_row(params![id.alias, id.seq], view_from_row)
+    stmt.query_row(params![row_id], view_from_row)
         .optional()
-        .context("failed to query task")
+        .context("failed to query task by row id")
 }
 
 /// Compact child-task payload for task view output.
@@ -366,22 +473,53 @@ pub struct ChildTask {
     pub order: String,
 }
 
+/// Walk the entire subtree rooted at `root_task_id` (any depth) and
+/// return joined task views in depth-first sibling order. The root
+/// itself is not included. Children are ordered by their `child_seq`,
+/// padded so siblings 1, 2, 10 sort correctly.
+pub fn descendants(conn: &Connection, root_task_id: i64) -> Result<Vec<TaskView>> {
+    let sql = format!(
+        "WITH RECURSIVE \
+         crumbs(id, root_seq, suffix) AS (\
+           SELECT id, seq, '' FROM tasks WHERE parent_id IS NULL \
+           UNION ALL \
+           SELECT t.id, c.root_seq, c.suffix || '.' || t.child_seq \
+             FROM tasks t JOIN crumbs c ON c.id = t.parent_id), \
+         walk(id, sortkey) AS (\
+           SELECT id, printf('%012d', child_seq) FROM tasks WHERE parent_id = ?1 \
+           UNION ALL \
+           SELECT t.id, w.sortkey || '.' || printf('%012d', t.child_seq) \
+             FROM tasks t JOIN walk w ON t.parent_id = w.id) \
+         SELECT {SELECT_COLS} {SELECT_JOINS} \
+         JOIN walk w ON w.id = t.id \
+         ORDER BY w.sortkey ASC"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(params![root_task_id], view_from_row)?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .context("failed to read descendants")
+}
+
 /// List direct child tasks for a parent, ordered by lexical `order` key.
 pub fn children(conn: &Connection, parent_task_id: i64) -> Result<Vec<ChildTask>> {
-    let mut stmt = conn.prepare(
-        "SELECT p.alias, t.seq, t.status, t.priority, t.title, \
-                COALESCE(t.\"order\", printf('%012d', t.seq)) AS task_order \
+    let sql = format!(
+        "{CHAIN_CTE} \
+         SELECT p.alias, printf('%04d', cr.root_seq) || cr.suffix AS dotted, \
+                t.status, t.priority, t.title, \
+                COALESCE(t.\"order\", printf('%012d', t.child_seq)) AS task_order \
          FROM tasks t \
          JOIN projects p ON p.id = t.project_id \
+         JOIN crumbs cr ON cr.id = t.id \
          WHERE t.parent_id = ? \
-         ORDER BY task_order ASC, t.seq ASC",
-    )?;
+         ORDER BY task_order ASC, t.child_seq ASC"
+    );
+    let mut stmt = conn.prepare(&sql)?;
 
     let rows = stmt.query_map(params![parent_task_id], |row| {
         let alias: String = row.get(0)?;
-        let seq: i64 = row.get(1)?;
+        let dotted: String = row.get(1)?;
         Ok(ChildTask {
-            id: format_external_id(&alias, seq),
+            id: format_external_id(&alias, &dotted),
             status: row.get(2)?,
             priority: row.get(3)?,
             title: row.get(4)?,
@@ -409,8 +547,10 @@ pub struct AddArgs<'a> {
     pub order: Option<&'a str>,
 }
 
-/// Insert a new task, auto-assigning the per-project `seq` in a
-/// transaction (unless [`AddArgs::seq`] is `Some`).
+/// Insert a new task. Top-level tasks (no `parent_id`) auto-assign
+/// `seq` as `MAX(seq) + 1` within the project; children auto-assign
+/// `child_seq` as `MAX(child_seq) + 1` among siblings of the same
+/// parent. Both happen inside a single transaction.
 pub fn add(conn: &mut Connection, args: AddArgs) -> Result<TaskView> {
     let priority = args.priority.unwrap_or(3);
     if !(1..=5).contains(&priority) {
@@ -420,36 +560,57 @@ pub fn add(conn: &mut Connection, args: AddArgs) -> Result<TaskView> {
     let closed = is_closed_status(conn, status)?;
 
     let tx = conn.transaction()?;
-    let seq: i64 = match args.seq {
-        Some(s) => {
-            if s < 1 {
-                bail!("seq must be >= 1");
-            }
-            s
+
+    let (seq, child_seq, order_seed): (Option<i64>, Option<i64>, i64) = match args.parent_id {
+        None => {
+            let s: i64 = match args.seq {
+                Some(s) => {
+                    if s < 1 {
+                        bail!("seq must be >= 1");
+                    }
+                    s
+                }
+                None => tx
+                    .query_row(
+                        "SELECT COALESCE(MAX(seq), 0) + 1 FROM tasks \
+                         WHERE project_id = ? AND parent_id IS NULL",
+                        [args.project_id],
+                        |row| row.get(0),
+                    )
+                    .context("failed to compute next seq")?,
+            };
+            (Some(s), None, s)
         }
-        None => tx
-            .query_row(
-                "SELECT COALESCE(MAX(seq), 0) + 1 FROM tasks WHERE project_id = ?",
-                [args.project_id],
-                |row| row.get(0),
-            )
-            .context("failed to compute next seq")?,
+        Some(pid) => {
+            if args.seq.is_some() {
+                bail!("cannot set explicit seq on a child task");
+            }
+            let cs: i64 = tx
+                .query_row(
+                    "SELECT COALESCE(MAX(child_seq), 0) + 1 FROM tasks WHERE parent_id = ?",
+                    [pid],
+                    |row| row.get(0),
+                )
+                .context("failed to compute next child_seq")?;
+            (None, Some(cs), cs)
+        }
     };
 
     let order_key = args
         .order
         .map(str::to_string)
-        .unwrap_or_else(|| default_order_key(seq));
+        .unwrap_or_else(|| default_order_key(order_seed));
     tx.execute(
         "INSERT INTO tasks \
-         (project_id, seq, title, body, status, priority, \"order\", cycle_id, parent_id, closed_at) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \
+         (project_id, seq, child_seq, title, body, status, priority, \"order\", cycle_id, parent_id, closed_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \
                  CASE WHEN ? = 1 \
                        THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') \
                        ELSE NULL END)",
         params![
             args.project_id,
             seq,
+            child_seq,
             args.title,
             args.body,
             status,
@@ -460,20 +621,12 @@ pub fn add(conn: &mut Connection, args: AddArgs) -> Result<TaskView> {
             closed as i64,
         ],
     )
-    .with_context(|| format!("failed to insert task (seq={seq})"))?;
+    .context("failed to insert task")?;
 
-    let alias: String = tx
-        .query_row(
-            "SELECT alias FROM projects WHERE id = ?",
-            [args.project_id],
-            |row| row.get(0),
-        )
-        .context("failed to read project alias")?;
-
+    let row_id = tx.last_insert_rowid();
     tx.commit()?;
 
-    let id = TaskId { alias, seq };
-    get(conn, &id)?.context("task missing after insert")
+    get_by_row_id(conn, row_id)?.context("task missing after insert")
 }
 
 #[derive(Default)]
@@ -497,24 +650,79 @@ impl EditArgs<'_> {
 
 /// Update mutable fields on a task. `None` leaves the field unchanged;
 /// for `cycle_id` / `parent_id`, `Some(None)` explicitly clears.
-pub fn edit(conn: &Connection, id: &TaskId, args: EditArgs) -> Result<TaskView> {
+///
+/// `parent_id` transitions are non-trivial: top-level → child clears
+/// `seq` and allocates a fresh `child_seq` under the new parent;
+/// child → top-level clears `child_seq` and allocates `MAX(seq)+1`
+/// among project top-level rows; child → different child reallocates
+/// `child_seq`. The original `seq` is *not* preserved on demotion —
+/// `KDB-0030` becoming a subtask permanently loses that id. The
+/// `order` key is reset to a fresh default whenever the sibling
+/// context changes.
+pub fn edit(conn: &mut Connection, id: &TaskId, args: EditArgs) -> Result<TaskView> {
     if args.is_empty() {
         bail!("no fields to update");
     }
     let existing = get(conn, id)?
-        .with_context(|| format!("task not found: {}", format_external_id(&id.alias, id.seq)))?;
+        .with_context(|| format!("task not found: {}", id.render()))?;
     if let Some(pri) = args.priority {
         if !(1..=5).contains(&pri) {
             bail!("priority must be between 1 and 5");
         }
     }
 
-    conn.execute(
+    let row_id = existing.task.id;
+    let project_id = existing.task.project_id;
+    let tx = conn.transaction()?;
+
+    // Handle parent transitions first so seq/child_seq/order are
+    // consistent before the rest of the fields land.
+    if let Some(new_parent) = args.parent_id {
+        let old_parent = existing.task.parent_id;
+        if new_parent != old_parent {
+            if let Some(pid) = new_parent {
+                if pid == row_id {
+                    bail!("cannot make a task its own parent");
+                }
+                let cs: i64 = tx
+                    .query_row(
+                        "SELECT COALESCE(MAX(child_seq), 0) + 1 FROM tasks WHERE parent_id = ?",
+                        [pid],
+                        |r| r.get(0),
+                    )
+                    .context("failed to compute next child_seq")?;
+                tx.execute(
+                    "UPDATE tasks SET parent_id = ?, seq = NULL, child_seq = ?, \"order\" = ?, \
+                        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') \
+                     WHERE id = ?",
+                    params![pid, cs, default_order_key(cs), row_id],
+                )
+                .context("failed to set parent on task")?;
+            } else {
+                let s: i64 = tx
+                    .query_row(
+                        "SELECT COALESCE(MAX(seq), 0) + 1 FROM tasks \
+                         WHERE project_id = ? AND parent_id IS NULL",
+                        [project_id],
+                        |r| r.get(0),
+                    )
+                    .context("failed to compute next seq")?;
+                tx.execute(
+                    "UPDATE tasks SET parent_id = NULL, seq = ?, child_seq = NULL, \"order\" = ?, \
+                        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') \
+                     WHERE id = ?",
+                    params![s, default_order_key(s), row_id],
+                )
+                .context("failed to clear parent on task")?;
+            }
+        }
+    }
+
+    tx.execute(
         "UPDATE tasks SET \
             title      = COALESCE(?, title), \
             priority   = COALESCE(?, priority), \
             cycle_id   = CASE WHEN ? = 1 THEN ? ELSE cycle_id END, \
-            parent_id  = CASE WHEN ? = 1 THEN ? ELSE parent_id END, \
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') \
          WHERE id = ?",
         params![
@@ -522,21 +730,20 @@ pub fn edit(conn: &Connection, id: &TaskId, args: EditArgs) -> Result<TaskView> 
             args.priority,
             args.cycle_id.is_some() as i64,
             args.cycle_id.and_then(|x| x),
-            args.parent_id.is_some() as i64,
-            args.parent_id.and_then(|x| x),
-            existing.task.id,
+            row_id,
         ],
     )
     .context("failed to update task")?;
     if let Some(body) = args.body {
-        conn.execute(
+        tx.execute(
             "UPDATE tasks SET body = ?, \
              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') \
              WHERE id = ?",
-            params![body, existing.task.id],
+            params![body, row_id],
         )?;
     }
-    get(conn, id)?.context("task missing after update")
+    tx.commit()?;
+    get_by_row_id(conn, row_id)?.context("task missing after update")
 }
 
 /// Side of a sibling task when inserting/moving by position.
@@ -587,7 +794,7 @@ pub fn order_key_adjacent(
 /// `Before`/`After` require the sibling to be in the same context; otherwise errors.
 pub fn move_task(conn: &Connection, id: &TaskId, target: MoveTarget) -> Result<TaskView> {
     let task = get(conn, id)?
-        .with_context(|| format!("task not found: {}", format_external_id(&id.alias, id.seq)))?;
+        .with_context(|| format!("task not found: {}", id.render()))?;
     let project_id = task.task.project_id;
     let parent_id = task.task.parent_id;
 
@@ -602,7 +809,7 @@ pub fn move_task(conn: &Connection, id: &TaskId, target: MoveTarget) -> Result<T
         }
         MoveTarget::Before(sib_id) => {
             let sib = get(conn, sib_id)?.with_context(|| {
-                format!("sibling not found: {}", format_external_id(&sib_id.alias, sib_id.seq))
+                format!("sibling not found: {}", sib_id.render())
             })?;
             ensure_same_context(&task, &sib)?;
             if sib.task.id == task.task.id {
@@ -620,7 +827,7 @@ pub fn move_task(conn: &Connection, id: &TaskId, target: MoveTarget) -> Result<T
         }
         MoveTarget::After(sib_id) => {
             let sib = get(conn, sib_id)?.with_context(|| {
-                format!("sibling not found: {}", format_external_id(&sib_id.alias, sib_id.seq))
+                format!("sibling not found: {}", sib_id.render())
             })?;
             ensure_same_context(&task, &sib)?;
             if sib.task.id == task.task.id {
@@ -720,7 +927,7 @@ fn neighbor_order(
 pub fn set_status(conn: &Connection, id: &TaskId, status: &str) -> Result<TaskView> {
     let closed = is_closed_status(conn, status)?;
     let existing = get(conn, id)?
-        .with_context(|| format!("task not found: {}", format_external_id(&id.alias, id.seq)))?;
+        .with_context(|| format!("task not found: {}", id.render()))?;
 
     conn.execute(
         "UPDATE tasks SET \
@@ -850,9 +1057,28 @@ mod tests {
 
     #[test]
     fn external_id_is_zero_padded() {
-        assert_eq!(format_external_id("HRM", 1), "HRM-0001");
-        assert_eq!(format_external_id("KDB", 120), "KDB-0120");
-        assert_eq!(format_external_id("SWF", 99999), "SWF-99999");
+        assert_eq!(format_external_id("HRM", &dotted_top(1)), "HRM-0001");
+        assert_eq!(format_external_id("KDB", &dotted_top(120)), "KDB-0120");
+        assert_eq!(format_external_id("SWF", &dotted_top(99999)), "SWF-99999");
+    }
+
+    #[test]
+    fn parse_dotted_task_id_round_trips() {
+        let id = TaskId::parse("KDB-0030.1.2").unwrap();
+        assert_eq!(id.alias, "KDB");
+        assert_eq!(id.seq, 30);
+        assert_eq!(id.child_path, vec![1, 2]);
+        assert_eq!(id.render(), "KDB-0030.1.2");
+
+        let id = TaskId::parse("kdb-0001").unwrap();
+        assert_eq!(id.alias, "KDB");
+        assert_eq!(id.child_path, Vec::<i64>::new());
+        assert_eq!(id.render(), "KDB-0001");
+
+        assert!(TaskId::parse("KDB-0030.").is_err());
+        assert!(TaskId::parse("KDB-0030..1").is_err());
+        assert!(TaskId::parse("KDB-0030.0").is_err());
+        assert!(TaskId::parse("KDB-0030.abc").is_err());
     }
 
     #[test]
@@ -873,7 +1099,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(a.task.seq, 1);
+        assert_eq!(a.task.seq, Some(1));
         assert_eq!(a.external_id(), "KDB-0001");
 
         let b = add(
@@ -891,7 +1117,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(b.task.seq, 120);
+        assert_eq!(b.task.seq, Some(120));
         assert_eq!(b.external_id(), "KDB-0120");
 
         let c = add(
@@ -909,7 +1135,104 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(c.task.seq, 121);
+        assert_eq!(c.task.seq, Some(121));
+    }
+
+    #[test]
+    fn child_does_not_consume_top_level_seq() {
+        let (_tmp, mut conn, pid) = setup();
+        let parent = add_task(&mut conn, pid, "parent", None);
+        let child = add_task(&mut conn, pid, "child", Some(parent.task.id));
+        let next_top = add_task(&mut conn, pid, "next", None);
+
+        assert_eq!(parent.task.seq, Some(1));
+        assert_eq!(parent.task.child_seq, None);
+        assert_eq!(child.task.seq, None);
+        assert_eq!(child.task.child_seq, Some(1));
+        assert_eq!(child.external_id(), "KDB-0001.1");
+        assert_eq!(next_top.task.seq, Some(2));
+        assert_eq!(next_top.external_id(), "KDB-0002");
+    }
+
+    #[test]
+    fn unparent_allocates_top_level_seq() {
+        let (_tmp, mut conn, pid) = setup();
+        let parent = add_task(&mut conn, pid, "parent", None);
+        let child = add_task(&mut conn, pid, "child", Some(parent.task.id));
+        assert_eq!(child.task.seq, None);
+
+        let id = TaskId::parse(&child.external_id()).unwrap();
+        let updated = edit(
+            &mut conn,
+            &id,
+            EditArgs {
+                parent_id: Some(None),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(updated.task.parent_id, None);
+        assert_eq!(updated.task.child_seq, None);
+        assert_eq!(updated.task.seq, Some(2));
+        assert_eq!(updated.external_id(), "KDB-0002");
+    }
+
+    #[test]
+    fn reparent_top_level_to_child_clears_seq() {
+        let (_tmp, mut conn, pid) = setup();
+        let a = add_task(&mut conn, pid, "a", None);
+        let b = add_task(&mut conn, pid, "b", None);
+        assert_eq!(b.task.seq, Some(2));
+
+        let b_id = TaskId::parse(&b.external_id()).unwrap();
+        let updated = edit(
+            &mut conn,
+            &b_id,
+            EditArgs {
+                parent_id: Some(Some(a.task.id)),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(updated.task.parent_id, Some(a.task.id));
+        assert_eq!(updated.task.seq, None);
+        assert_eq!(updated.task.child_seq, Some(1));
+        assert_eq!(updated.external_id(), "KDB-0001.1");
+    }
+
+    #[test]
+    fn reparent_between_parents_renumbers_child_seq() {
+        let (_tmp, mut conn, pid) = setup();
+        let a = add_task(&mut conn, pid, "a", None);
+        let b = add_task(&mut conn, pid, "b", None);
+        let _ax = add_task(&mut conn, pid, "ax", Some(a.task.id));
+        let bx = add_task(&mut conn, pid, "bx", Some(b.task.id));
+        assert_eq!(bx.task.child_seq, Some(1));
+
+        let bx_id = TaskId::parse(&bx.external_id()).unwrap();
+        let updated = edit(
+            &mut conn,
+            &bx_id,
+            EditArgs {
+                parent_id: Some(Some(a.task.id)),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(updated.task.parent_id, Some(a.task.id));
+        assert_eq!(updated.task.child_seq, Some(2));
+        assert_eq!(updated.external_id(), "KDB-0001.2");
+    }
+
+    #[test]
+    fn grandchild_dotted_id() {
+        let (_tmp, mut conn, pid) = setup();
+        let parent = add_task(&mut conn, pid, "parent", None);
+        let child = add_task(&mut conn, pid, "child", Some(parent.task.id));
+        let grand = add_task(&mut conn, pid, "grand", Some(child.task.id));
+        assert_eq!(child.external_id(), "KDB-0001.1");
+        assert_eq!(grand.external_id(), "KDB-0001.1.1");
+        assert_eq!(grand.task.child_seq, Some(1));
     }
 
     #[test]
@@ -1142,6 +1465,7 @@ mod tests {
                 cycle_key: None,
                 priority: None,
                 limit: None,
+                top_level_only: false,
             },
         )
         .unwrap();
@@ -1160,6 +1484,7 @@ mod tests {
                 cycle_key: None,
                 priority: None,
                 limit: None,
+                top_level_only: false,
             },
         )
         .unwrap();
@@ -1186,6 +1511,7 @@ mod tests {
                 cycle_key: None,
                 priority: None,
                 limit: None,
+                top_level_only: false,
             },
         )
         .unwrap();
@@ -1200,6 +1526,7 @@ mod tests {
                 cycle_key: None,
                 priority: None,
                 limit: None,
+                top_level_only: false,
             },
         )
         .unwrap();
