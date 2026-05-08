@@ -106,6 +106,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.0] — 2026-05-08
+
+### Changed
+
+- Subtasks (rows with `parent_id`) no longer consume the per-project `seq` counter. Top-level tasks keep `seq` and render as `KDB-0030`; children get a sibling-local `child_seq` and render with a dotted suffix walking the parent chain — `KDB-0030.1`, `KDB-0030.1.2`, arbitrary depth. `TaskId::parse` accepts the dotted form.
+- `kdb render` (and the auto-materialize triggered by `kdb tasks {add,edit,...}`) excludes subtasks from the project's `index.md`. Subtasks now appear inside their parent task's `T-NNNN.md` as a depth-first `## Subtasks (N)` table; they no longer get their own materialized files.
+- `kdb tasks list` hides subtasks by default. Pass `--include-children` to surface them.
+- `kdb tasks edit --parent` handles parent transitions atomically. Promoting a subtask to top-level allocates a fresh `seq = MAX(seq) + 1`. Demoting a top-level task to a child clears its `seq` (the original `KDB-0030` external id is permanently lost) and allocates a new `child_seq` under the new parent.
+- DB migration `0004_task_child_seq` adds the `child_seq` column with a CHECK invariant: top-level rows have `seq IS NOT NULL AND child_seq IS NULL`, children the inverse. Existing children are renumbered into compact `child_seq` values via `ROW_NUMBER() OVER (PARTITION BY parent_id ORDER BY "order", seq)` and their `seq` is dropped.
+
+### Migration notes
+
+- External ids of existing subtasks change. Anything that referenced a subtask by its old `KDB-0042`-style id (notes, scripts, links) needs updating to the new dotted form. Top-level tasks are unaffected.
+
 ## [0.31.0] — 2026-04-21
 
 ### Added
