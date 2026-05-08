@@ -9,7 +9,6 @@
 //! removed. `TODO.md` and other hand-written notes are left alone.
 
 use anyhow::{Context, Result};
-use chrono::Utc;
 use rusqlite::Connection;
 use std::collections::HashSet;
 use std::fs;
@@ -207,19 +206,6 @@ fn render_index(
     backlog_total: usize,
 ) -> String {
     let mut out = String::new();
-    let updated = Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
-
-    out.push_str("---\n");
-    out.push_str(&format!("project: {}\n", project.slug));
-    out.push_str(&format!("alias: {}\n", project.alias));
-    out.push_str(&format!(
-        "path: {}/{TASKS_DIR}/{INDEX_FILE}\n",
-        project.path,
-    ));
-    out.push_str(&format!("updated: {updated}\n"));
-    out.push_str("generated_by: kdb\n");
-    out.push_str("---\n\n");
-
     out.push_str(&format!("# {} — Tasks\n\n", project.slug));
     out.push_str(GENERATED_NOTE);
     out.push_str("\n\n");

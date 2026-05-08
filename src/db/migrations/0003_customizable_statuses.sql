@@ -59,10 +59,16 @@ DROP TABLE projects;
 ALTER TABLE projects_new RENAME TO projects;
 
 -- Rebuild tasks with an FK on status instead of a CHECK constraint.
+-- Subtasks (parent_id IS NOT NULL) hold a sibling-local `child_seq`
+-- and a NULL `seq`; top-level tasks hold `seq` and a NULL `child_seq`.
+-- Existing children must be backfilled with `child_seq` and have their
+-- `seq` cleared before this migration runs (or run the equivalent SQL
+-- manually on legacy DBs).
 CREATE TABLE tasks_new (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id  INTEGER NOT NULL REFERENCES projects(id),
-  seq         INTEGER NOT NULL,
+  seq         INTEGER,
+  child_seq   INTEGER,
   title       TEXT NOT NULL,
   body        TEXT,
   status      TEXT NOT NULL DEFAULT 'backlog'
@@ -74,13 +80,17 @@ CREATE TABLE tasks_new (
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   closed_at   TEXT,
-  UNIQUE (project_id, seq)
+  deleted_at  TEXT,
+  CHECK ((parent_id IS NULL AND seq IS NOT NULL AND child_seq IS NULL)
+      OR (parent_id IS NOT NULL AND seq IS NULL AND child_seq IS NOT NULL)),
+  UNIQUE (project_id, seq),
+  UNIQUE (parent_id, child_seq)
 );
 
-INSERT INTO tasks_new (id, project_id, seq, title, body, status, priority, "order",
-                       cycle_id, parent_id, created_at, updated_at, closed_at)
-  SELECT id, project_id, seq, title, body, status, priority, "order",
-         cycle_id, parent_id, created_at, updated_at, closed_at
+INSERT INTO tasks_new (id, project_id, seq, child_seq, title, body, status, priority,
+                       "order", cycle_id, parent_id, created_at, updated_at, closed_at, deleted_at)
+  SELECT id, project_id, seq, NULL, title, body, status, priority, "order",
+         cycle_id, parent_id, created_at, updated_at, closed_at, NULL
     FROM tasks;
 
 DROP TABLE tasks;

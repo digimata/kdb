@@ -39,10 +39,6 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0003_customizable_statuses",
         include_str!("migrations/0003_customizable_statuses.sql"),
     ),
-    (
-        "0004_task_child_seq",
-        include_str!("migrations/0004_task_child_seq.sql"),
-    ),
 ];
 
 /// Return the canonical db path for a workspace root.
