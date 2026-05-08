@@ -106,6 +106,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0] — 2026-05-08
+
+### Added
+
+- `kdb tasks delete --hard` permanently removes the row and its entire subtree.
+- `kdb tasks restore <id>` restores a soft-deleted task and its subtree (cleared `deleted_at`, `order` keys preserved).
+- `kdb tasks purge [-P slug] [-s status] [--deleted] [--dry-run]` permanently deletes rows matching the filters (and their subtrees). At least one of `--status` or `--deleted` must be set; refuses with no selector.
+- `rm` is now an alias for `tasks delete` (alongside `d`).
+- New `tasks.deleted_at` column. Soft-deleted rows are hidden from `tasks list`, `kdb render`, and the parent-task subtree view.
+
+### Changed
+
+- `kdb tasks delete` (and the `d` / `rm` aliases) now performs a real soft-delete via `deleted_at` instead of setting status to `parked`. Status is left untouched. `tasks restore` brings the row back; `tasks delete --hard` deletes permanently. Soft-delete and restore both cascade across the entire descendant subtree.
+- Materialized `index.md` no longer carries YAML frontmatter.
+- Per-task `T-NNNN.md` files no longer carry YAML frontmatter — heading + body + optional `## Subtasks` table only.
+- Migration `0004_task_child_seq` was folded into `0003_customizable_statuses` (the standalone migration is gone). The `tasks` schema in 0.33.0 also adds the `deleted_at TEXT` column.
+
+### Migration notes
+
+For DBs already on 0.32.0 (`user_version = 4`), apply locally:
+
+```sql
+ALTER TABLE tasks ADD COLUMN deleted_at TEXT;
+PRAGMA user_version = 3;
+```
+
+Fresh installs apply the consolidated 0003 migration in one shot.
+
 ## [0.32.0] — 2026-05-08
 
 ### Changed

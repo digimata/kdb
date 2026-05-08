@@ -298,31 +298,12 @@ fn escape_md_cell(s: &str) -> String {
     s.replace('|', "\\|").replace('\n', " ")
 }
 
-/// Render a single-task file: frontmatter + body + optional subtasks
+/// Render a single-task file: heading + body + optional subtasks
 /// table. Subtasks are listed as a flat depth-first table using the
 /// dotted external ids (`KDB-0030.1`, `KDB-0030.1.2`).
-fn render_task_file(project: &Project, t: &TaskView, subtree: &[TaskView]) -> String {
+fn render_task_file(_project: &Project, t: &TaskView, subtree: &[TaskView]) -> String {
     let id = t.external_id();
-    let file_name = task_file_name(top_seq(t));
     let mut out = String::new();
-    out.push_str("---\n");
-    out.push_str(&format!("id: {id}\n"));
-    out.push_str(&format!("title: {}\n", yaml_scalar(&t.task.title)));
-    out.push_str(&format!("status: {}\n", t.task.status));
-    out.push_str(&format!("priority: {}\n", t.task.priority));
-    out.push_str(&format!("project: {}\n", project.slug));
-    if let Some(c) = &t.cycle_key {
-        out.push_str(&format!("cycle: {c}\n"));
-    }
-    out.push_str(&format!("path: {}/{TASKS_DIR}/{file_name}\n", project.path));
-    out.push_str(&format!("created_at: {}\n", t.task.created_at));
-    out.push_str(&format!("updated_at: {}\n", t.task.updated_at));
-    if let Some(closed) = &t.task.closed_at {
-        out.push_str(&format!("closed_at: {closed}\n"));
-    }
-    out.push_str("generated_by: kdb\n");
-    out.push_str("---\n\n");
-
     out.push_str(&format!("# {id} — {}\n\n", t.task.title));
     out.push_str(GENERATED_NOTE);
     out.push_str("\n");
@@ -343,19 +324,6 @@ fn render_task_file(project: &Project, t: &TaskView, subtree: &[TaskView]) -> St
         push_table(&mut out, subtree, /* link */ false);
     }
     out
-}
-
-/// Wrap a scalar in double quotes if it contains yaml-significant chars.
-fn yaml_scalar(s: &str) -> String {
-    if s.contains([':', '#', '"', '\'', '\n'])
-        || s.starts_with([' ', '-', '[', '{', '&', '*', '|', '>', '!', '%', '?'])
-        || s.trim() != s
-    {
-        let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
-        format!("\"{escaped}\"")
-    } else {
-        s.to_string()
-    }
 }
 
 /// Delete `T-NNNN.md` files that no longer correspond to a row in the
@@ -452,9 +420,9 @@ mod tests {
         let task_file = tmp.path().join("projects/kdb/.tasks/T-0001.md");
         assert!(task_file.exists());
         let task_body = std::fs::read_to_string(&task_file).unwrap();
-        assert!(task_body.contains("id: KDB-0001"));
-        assert!(task_body.contains("title: first"));
+        assert!(task_body.contains("# KDB-0001 — first"));
         assert!(task_body.contains("Do the thing"));
+        assert!(!task_body.contains("---\n"));
     }
 
     #[test]

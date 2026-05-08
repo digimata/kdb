@@ -2345,7 +2345,7 @@ fn tasks_view_supports_show_alias_and_orders_children_by_order_key() {
 }
 
 #[test]
-fn tasks_delete_and_d_alias_soft_delete_to_parked() {
+fn tasks_delete_soft_hides_from_list_and_restore_brings_back() {
     let temp = tempdir().expect("tempdir");
     let root = temp.path();
 
@@ -2357,7 +2357,6 @@ fn tasks_delete_and_d_alias_soft_delete_to_parked() {
     assert!(init.status.success());
 
     fs::create_dir_all(root.join("projects/kdb")).expect("create project dir");
-
     let add_project = run(
         root,
         &[
@@ -2374,33 +2373,117 @@ fn tasks_delete_and_d_alias_soft_delete_to_parked() {
 
     let add_one = run(root, &["tasks", "add", "Delete me", "-P", "kdb"]);
     assert!(add_one.status.success());
+
+    // Soft-delete via `delete`.
     let delete_one = run(root, &["tasks", "delete", "KDB-0001"]);
     assert!(delete_one.status.success());
 
-    let first_json = run(root, &["tasks", "view", "KDB-0001", "--json"]);
-    assert!(first_json.status.success());
-    let first_payload: Value =
-        serde_json::from_slice(&first_json.stdout).expect("parse deleted task json");
+    // Default list should hide it.
+    let list_after = run(root, &["tasks", "list", "--json"]);
+    assert!(list_after.status.success());
+    let list_payload: Value =
+        serde_json::from_slice(&list_after.stdout).expect("parse list json");
+    let live: Vec<&Value> = list_payload.as_array().expect("list array").iter().collect();
+    assert_eq!(live.len(), 0, "soft-deleted tasks must not appear in list");
+
+    // View still works (status unchanged) and shows deleted_at populated.
+    let view_json = run(root, &["tasks", "view", "KDB-0001", "--json"]);
+    assert!(view_json.status.success());
+    let view_payload: Value = serde_json::from_slice(&view_json.stdout).expect("parse view json");
     assert_eq!(
-        first_payload.get("status").and_then(|value| value.as_str()),
-        Some("parked")
+        view_payload.get("status").and_then(Value::as_str),
+        Some("backlog"),
+        "soft-delete must not change status"
+    );
+    assert!(
+        view_payload
+            .get("deleted_at")
+            .map(|v| !v.is_null())
+            .unwrap_or(false),
+        "deleted_at must be populated after soft-delete"
     );
 
-    let add_two = run(root, &["tasks", "add", "Delete me too", "-P", "kdb"]);
+    // Restore brings the row back.
+    let restore = run(root, &["tasks", "restore", "KDB-0001"]);
+    assert!(restore.status.success());
+    let view_after = run(root, &["tasks", "view", "KDB-0001", "--json"]);
+    let view_after_payload: Value = serde_json::from_slice(&view_after.stdout).unwrap();
+    assert!(
+        view_after_payload
+            .get("deleted_at")
+            .map(Value::is_null)
+            .unwrap_or(false),
+        "deleted_at must be cleared after restore"
+    );
+
+    // `d` and `rm` aliases also soft-delete.
+    let add_two = run(root, &["tasks", "add", "Two", "-P", "kdb"]);
     assert!(add_two.status.success());
-    let delete_two = run(root, &["tasks", "d", "KDB-0002"]);
-    assert!(delete_two.status.success());
+    let alias_d = run(root, &["tasks", "d", "KDB-0002"]);
+    assert!(alias_d.status.success());
 
-    let second_json = run(root, &["tasks", "view", "KDB-0002", "--json"]);
-    assert!(second_json.status.success());
-    let second_payload: Value =
-        serde_json::from_slice(&second_json.stdout).expect("parse alias-deleted task json");
-    assert_eq!(
-        second_payload
-            .get("status")
-            .and_then(|value| value.as_str()),
-        Some("parked")
-    );
+    let add_three = run(root, &["tasks", "add", "Three", "-P", "kdb"]);
+    assert!(add_three.status.success());
+    let alias_rm = run(root, &["tasks", "rm", "KDB-0003"]);
+    assert!(alias_rm.status.success());
+}
+
+#[test]
+fn tasks_delete_hard_removes_row() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path();
+    let init = Command::new(bin()).arg("init").arg(root).output().unwrap();
+    assert!(init.status.success());
+    fs::create_dir_all(root.join("projects/kdb")).unwrap();
+    assert!(run(
+        root,
+        &["projects", "add", "kdb", "--alias", "KDB", "--path", "projects/kdb"],
+    )
+    .status
+    .success());
+    assert!(run(root, &["tasks", "add", "Goner", "-P", "kdb"]).status.success());
+    assert!(run(root, &["tasks", "delete", "KDB-0001", "--hard"])
+        .status
+        .success());
+    let view = run(root, &["tasks", "view", "KDB-0001", "--json"]);
+    assert!(!view.status.success(), "hard-deleted task must not be viewable");
+}
+
+#[test]
+fn tasks_purge_done_clears_done_tasks() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path();
+    let init = Command::new(bin()).arg("init").arg(root).output().unwrap();
+    assert!(init.status.success());
+    fs::create_dir_all(root.join("projects/kdb")).unwrap();
+    assert!(run(
+        root,
+        &["projects", "add", "kdb", "--alias", "KDB", "--path", "projects/kdb"],
+    )
+    .status
+    .success());
+    assert!(run(root, &["tasks", "add", "A", "-P", "kdb"]).status.success());
+    assert!(run(root, &["tasks", "add", "B", "-P", "kdb"]).status.success());
+    assert!(run(root, &["tasks", "done", "KDB-0001"]).status.success());
+
+    // Dry-run lists without deleting.
+    let dry = run(root, &["tasks", "purge", "--status", "done", "--dry-run"]);
+    assert!(dry.status.success());
+    let dry_out = String::from_utf8_lossy(&dry.stdout);
+    assert!(dry_out.contains("would purge"));
+    let view_after_dry = run(root, &["tasks", "view", "KDB-0001", "--json"]);
+    assert!(view_after_dry.status.success(), "dry-run must not delete");
+
+    // Real purge removes the done task.
+    assert!(run(root, &["tasks", "purge", "--status", "done"])
+        .status
+        .success());
+    let view_after = run(root, &["tasks", "view", "KDB-0001", "--json"]);
+    assert!(!view_after.status.success(), "purged row should be gone");
+
+    // Refuses with no selector.
+    let no_filter = run(root, &["tasks", "purge"]);
+    assert!(!no_filter.status.success(), "purge with no selector must fail");
 }
 
 fn titles_in_list(list_stdout: &str) -> Vec<&str> {

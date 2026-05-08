@@ -946,14 +946,73 @@ pub fn tasks_move(
     Ok(())
 }
 
-/// Soft-delete a task by parking it.
-pub fn tasks_delete(id: String) -> Result<()> {
+/// Delete a task. By default soft-deletes (sets `deleted_at`); pass
+/// `hard = true` to permanently remove the row and its subtree.
+pub fn tasks_delete(id: String, hard: bool) -> Result<()> {
     let ctx = CmdContext::from_path(None)?;
-    let conn = db::open(&ctx.workspace.root)?;
+    let mut conn = db::open(&ctx.workspace.root)?;
     let parsed = tasks::TaskId::parse(&id)?;
-    let view = tasks::set_status(&conn, &parsed, "parked")?;
+    if hard {
+        let existing = tasks::get_including_deleted(&conn, &parsed)?
+            .with_context(|| format!("task not found: {}", parsed.render()))?;
+        let project_slug = existing.project_slug.clone();
+        tasks::hard_delete(&mut conn, &parsed)?;
+        materialize::materialize_project(&conn, &ctx.workspace.root, &project_slug, None)?;
+        println!("hard-deleted {}", existing.external_id());
+    } else {
+        let view = tasks::soft_delete(&mut conn, &parsed)?;
+        materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
+        println!("deleted {}", view.external_id());
+    }
+    Ok(())
+}
+
+/// Restore a soft-deleted task and its subtree.
+pub fn tasks_restore(id: String) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let mut conn = db::open(&ctx.workspace.root)?;
+    let parsed = tasks::TaskId::parse(&id)?;
+    let view = tasks::restore(&mut conn, &parsed)?;
     materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
-    println!("soft-deleted {} -> parked", view.external_id());
+    println!("restored {}", view.external_id());
+    Ok(())
+}
+
+/// Permanently purge tasks matching filters.
+pub fn tasks_purge(
+    project: Option<String>,
+    status: Option<String>,
+    deleted: bool,
+    dry_run: bool,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let mut conn = db::open(&ctx.workspace.root)?;
+    let matches = tasks::purge(
+        &mut conn,
+        tasks::PurgeFilters {
+            project_slug: project.as_deref(),
+            status: status.as_deref(),
+            deleted_only: deleted,
+            dry_run,
+        },
+    )?;
+    if matches.is_empty() {
+        println!("(no tasks matched)");
+        return Ok(());
+    }
+    let action = if dry_run { "would purge" } else { "purged" };
+    println!("{action} {} tasks:", matches.len());
+    for m in &matches {
+        println!("  {}  {}", m.external_id(), m.task.title);
+    }
+    if !dry_run {
+        let mut slugs: Vec<&str> = matches.iter().map(|m| m.project_slug.as_str()).collect();
+        slugs.sort();
+        slugs.dedup();
+        for slug in slugs {
+            materialize::materialize_project(&conn, &ctx.workspace.root, slug, None)?;
+        }
+    }
     Ok(())
 }
 

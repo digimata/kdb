@@ -236,6 +236,9 @@ pub struct Task {
     pub created_at: String,
     pub updated_at: String,
     pub closed_at: Option<String>,
+    /// Soft-delete timestamp. `None` for live rows; ISO-8601 UTC for
+    /// rows hidden by `tasks delete`. Restored rows clear back to `None`.
+    pub deleted_at: Option<String>,
 }
 
 /// Task row joined with its project slug/alias, optional cycle key,
@@ -324,7 +327,7 @@ impl TaskId {
 const SELECT_COLS: &str = "t.id, t.project_id, t.seq, t.child_seq, t.title, t.body, \
     t.status, t.priority, \
     COALESCE(t.\"order\", printf('%012d', COALESCE(t.seq, t.child_seq))), \
-    t.cycle_id, t.parent_id, t.created_at, t.updated_at, t.closed_at, \
+    t.cycle_id, t.parent_id, t.created_at, t.updated_at, t.closed_at, t.deleted_at, \
     p.slug, p.alias, c.key, printf('%04d', cr.root_seq) || cr.suffix";
 
 const SELECT_JOINS: &str = "FROM tasks t \
@@ -348,13 +351,14 @@ fn view_from_row(row: &rusqlite::Row) -> rusqlite::Result<TaskView> {
         created_at: row.get(11)?,
         updated_at: row.get(12)?,
         closed_at: row.get(13)?,
+        deleted_at: row.get(14)?,
     };
     Ok(TaskView {
         task,
-        project_slug: row.get(14)?,
-        project_alias: row.get(15)?,
-        cycle_key: row.get(16)?,
-        dotted: row.get(17)?,
+        project_slug: row.get(15)?,
+        project_alias: row.get(16)?,
+        cycle_key: row.get(17)?,
+        dotted: row.get(18)?,
     })
 }
 
@@ -375,7 +379,7 @@ pub struct ListFilters<'a> {
 /// List tasks matching the filters, ordered by priority then updated_at desc.
 pub fn list(conn: &Connection, f: ListFilters) -> Result<Vec<TaskView>> {
     let mut sql = format!(
-        "{CHAIN_CTE} SELECT {SELECT_COLS} {SELECT_JOINS} WHERE 1=1"
+        "{CHAIN_CTE} SELECT {SELECT_COLS} {SELECT_JOINS} WHERE t.deleted_at IS NULL"
     );
     let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
@@ -492,6 +496,7 @@ pub fn descendants(conn: &Connection, root_task_id: i64) -> Result<Vec<TaskView>
              FROM tasks t JOIN walk w ON t.parent_id = w.id) \
          SELECT {SELECT_COLS} {SELECT_JOINS} \
          JOIN walk w ON w.id = t.id \
+         WHERE t.deleted_at IS NULL \
          ORDER BY w.sortkey ASC"
     );
     let mut stmt = conn.prepare(&sql)?;
@@ -510,7 +515,7 @@ pub fn children(conn: &Connection, parent_task_id: i64) -> Result<Vec<ChildTask>
          FROM tasks t \
          JOIN projects p ON p.id = t.project_id \
          JOIN crumbs cr ON cr.id = t.id \
-         WHERE t.parent_id = ? \
+         WHERE t.parent_id = ? AND t.deleted_at IS NULL \
          ORDER BY task_order ASC, t.child_seq ASC"
     );
     let mut stmt = conn.prepare(&sql)?;
@@ -940,6 +945,192 @@ pub fn set_status(conn: &Connection, id: &TaskId, status: &str) -> Result<TaskVi
         params![status, closed as i64, existing.task.id],
     )?;
     get(conn, id)?.context("task missing after status change")
+}
+
+/// Collect every row id in the subtree rooted at `root_task_id` (the
+/// root included), regardless of `deleted_at`. Used for cascade
+/// operations.
+fn subtree_ids(conn: &Connection, root_task_id: i64) -> Result<Vec<i64>> {
+    let mut stmt = conn.prepare(
+        "WITH RECURSIVE sub(id) AS ( \
+            SELECT ?1 \
+            UNION ALL \
+            SELECT t.id FROM tasks t JOIN sub s ON t.parent_id = s.id \
+         ) SELECT id FROM sub",
+    )?;
+    let rows = stmt.query_map(params![root_task_id], |r| r.get::<_, i64>(0))?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .context("failed to collect subtree ids")
+}
+
+/// Soft-delete a task and its entire subtree. Sets `deleted_at` to now
+/// on every descendant. Idempotent — already-deleted rows keep their
+/// existing timestamp.
+pub fn soft_delete(conn: &mut Connection, id: &TaskId) -> Result<TaskView> {
+    let existing = get(conn, id)?
+        .with_context(|| format!("task not found: {}", id.render()))?;
+    let ids = subtree_ids(conn, existing.task.id)?;
+    let tx = conn.transaction()?;
+    let placeholders = vec!["?"; ids.len()].join(",");
+    let sql = format!(
+        "UPDATE tasks SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), \
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') \
+         WHERE id IN ({placeholders}) AND deleted_at IS NULL"
+    );
+    let params_iter = rusqlite::params_from_iter(ids.iter());
+    tx.execute(&sql, params_iter)?;
+    tx.commit()?;
+    get_by_row_id(conn, existing.task.id)?.context("task missing after soft delete")
+}
+
+/// Restore a soft-deleted task and its subtree. Clears `deleted_at`
+/// on every descendant; `order` keys are preserved.
+pub fn restore(conn: &mut Connection, id: &TaskId) -> Result<TaskView> {
+    let row_id: i64 = {
+        let mut row_id: i64 = conn
+            .query_row(
+                "SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id \
+                 WHERE p.alias = ? AND t.seq = ?",
+                params![id.alias, id.seq],
+                |r| r.get(0),
+            )
+            .with_context(|| format!("task not found: {}", id.render()))?;
+        for n in &id.child_path {
+            row_id = conn
+                .query_row(
+                    "SELECT id FROM tasks WHERE parent_id = ? AND child_seq = ?",
+                    params![row_id, n],
+                    |r| r.get::<_, i64>(0),
+                )
+                .with_context(|| format!("task not found: {}", id.render()))?;
+        }
+        row_id
+    };
+    let ids = subtree_ids(conn, row_id)?;
+    let tx = conn.transaction()?;
+    let placeholders = vec!["?"; ids.len()].join(",");
+    let sql = format!(
+        "UPDATE tasks SET deleted_at = NULL, \
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') \
+         WHERE id IN ({placeholders})"
+    );
+    tx.execute(&sql, rusqlite::params_from_iter(ids.iter()))?;
+    tx.commit()?;
+    get_by_row_id(conn, row_id)?.context("task missing after restore")
+}
+
+/// Permanently remove a task and its entire subtree. The self-FK has
+/// no `ON DELETE CASCADE`, so we delete bottom-up inside a transaction
+/// with `defer_foreign_keys = ON`.
+pub fn hard_delete(conn: &mut Connection, id: &TaskId) -> Result<()> {
+    let existing = get_including_deleted(conn, id)?
+        .with_context(|| format!("task not found: {}", id.render()))?;
+    let ids = subtree_ids(conn, existing.task.id)?;
+    let tx = conn.transaction()?;
+    tx.pragma_update(None, "defer_foreign_keys", "ON")?;
+    let placeholders = vec!["?"; ids.len()].join(",");
+    let sql = format!("DELETE FROM tasks WHERE id IN ({placeholders})");
+    tx.execute(&sql, rusqlite::params_from_iter(ids.iter()))?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// Resolve an external id to a `TaskView` regardless of `deleted_at`.
+/// Used for `restore`/`hard_delete` where the row may be soft-deleted.
+pub fn get_including_deleted(conn: &Connection, id: &TaskId) -> Result<Option<TaskView>> {
+    let mut row_id: i64 = match conn
+        .query_row(
+            "SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id \
+             WHERE p.alias = ? AND t.seq = ?",
+            params![id.alias, id.seq],
+            |r| r.get(0),
+        )
+        .optional()?
+    {
+        Some(rid) => rid,
+        None => return Ok(None),
+    };
+    for n in &id.child_path {
+        row_id = match conn
+            .query_row(
+                "SELECT id FROM tasks WHERE parent_id = ? AND child_seq = ?",
+                params![row_id, n],
+                |r| r.get::<_, i64>(0),
+            )
+            .optional()?
+        {
+            Some(rid) => rid,
+            None => return Ok(None),
+        };
+    }
+    let sql = format!("{CHAIN_CTE} SELECT {SELECT_COLS} {SELECT_JOINS} WHERE t.id = ?");
+    let mut stmt = conn.prepare(&sql)?;
+    stmt.query_row(params![row_id], view_from_row)
+        .optional()
+        .context("failed to query task by row id (incl deleted)")
+}
+
+/// Selectors for [`purge`]. At least one of `status`, `deleted_only`
+/// must be set; callers also need `project_slug` to scope.
+pub struct PurgeFilters<'a> {
+    pub project_slug: Option<&'a str>,
+    pub status: Option<&'a str>,
+    pub deleted_only: bool,
+    pub dry_run: bool,
+}
+
+/// Permanently delete tasks matching the filters (and their subtrees).
+/// Returns the rows that matched (or would have matched, on dry-run).
+/// Refuses to run with no selector set.
+pub fn purge(conn: &mut Connection, f: PurgeFilters) -> Result<Vec<TaskView>> {
+    if f.status.is_none() && !f.deleted_only {
+        bail!("purge requires at least one selector (--status or --deleted)");
+    }
+
+    // Build the match query. Always at top level of the subtree —
+    // a matching subtask drags only its own subtree.
+    let mut sql = format!(
+        "{CHAIN_CTE} SELECT {SELECT_COLS} {SELECT_JOINS} WHERE 1=1"
+    );
+    let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    if let Some(slug) = f.project_slug {
+        sql.push_str(" AND p.slug = ?");
+        args.push(Box::new(slug.to_string()));
+    }
+    if let Some(status) = f.status {
+        sql.push_str(" AND t.status = ?");
+        args.push(Box::new(status.to_string()));
+    }
+    if f.deleted_only {
+        sql.push_str(" AND t.deleted_at IS NOT NULL");
+    }
+
+    let matches: Vec<TaskView> = {
+        let mut stmt = conn.prepare(&sql)?;
+        let params_iter = rusqlite::params_from_iter(args.iter().map(|b| b.as_ref()));
+        stmt.query_map(params_iter, view_from_row)?
+            .collect::<rusqlite::Result<Vec<_>>>()?
+    };
+
+    if f.dry_run || matches.is_empty() {
+        return Ok(matches);
+    }
+
+    let mut all_ids: Vec<i64> = Vec::new();
+    for m in &matches {
+        all_ids.extend(subtree_ids(conn, m.task.id)?);
+    }
+    all_ids.sort();
+    all_ids.dedup();
+
+    let tx = conn.transaction()?;
+    tx.pragma_update(None, "defer_foreign_keys", "ON")?;
+    let placeholders = vec!["?"; all_ids.len()].join(",");
+    let sql = format!("DELETE FROM tasks WHERE id IN ({placeholders})");
+    tx.execute(&sql, rusqlite::params_from_iter(all_ids.iter()))?;
+    tx.commit()?;
+
+    Ok(matches)
 }
 
 fn status_glyph(status: &str) -> &'static str {

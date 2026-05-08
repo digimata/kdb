@@ -335,9 +335,34 @@ enum TasksCmd {
         #[arg(long)]
         json: bool,
     },
-    /// Soft-delete a task (parks it).
-    #[command(alias = "d")]
-    Delete { id: String },
+    /// Delete a task. Soft-delete by default (sets `deleted_at`,
+    /// hides from list/render); `--hard` removes the row + subtree
+    /// permanently.
+    #[command(alias = "d", alias = "rm")]
+    Delete {
+        id: String,
+        /// Permanently delete the row and its entire subtree.
+        #[arg(long)]
+        hard: bool,
+    },
+    /// Restore a soft-deleted task (and its subtree).
+    Restore { id: String },
+    /// Permanently delete tasks matching filters (and their subtrees).
+    /// Requires at least one of `--status` or `--deleted`.
+    Purge {
+        /// Limit to a project slug.
+        #[arg(short = 'P', long)]
+        project: Option<String>,
+        /// Match tasks with this status (e.g. `done`).
+        #[arg(short = 's', long)]
+        status: Option<String>,
+        /// Match soft-deleted tasks (`deleted_at IS NOT NULL`).
+        #[arg(long)]
+        deleted: bool,
+        /// Show what would be deleted without making changes.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Mark a task as done.
     Done { id: String },
     /// Mark a task as parked.
@@ -660,7 +685,14 @@ async fn main() {
                 status,
             } => kdb::cmd::tasks_edit(id, title, body, priority, cycle, parent, status),
             TasksCmd::View { id, json } => kdb::cmd::tasks_view(id, json),
-            TasksCmd::Delete { id } => kdb::cmd::tasks_delete(id),
+            TasksCmd::Delete { id, hard } => kdb::cmd::tasks_delete(id, hard),
+            TasksCmd::Restore { id } => kdb::cmd::tasks_restore(id),
+            TasksCmd::Purge {
+                project,
+                status,
+                deleted,
+                dry_run,
+            } => kdb::cmd::tasks_purge(project, status, deleted, dry_run),
             TasksCmd::Done { id } => kdb::cmd::tasks_set_status(id, "done"),
             TasksCmd::Park { id } => kdb::cmd::tasks_set_status(id, "parked"),
             TasksCmd::Reopen { id } => kdb::cmd::tasks_set_status(id, "backlog"),
