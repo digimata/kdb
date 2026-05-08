@@ -249,16 +249,16 @@ fn render_index(
     out
 }
 
-/// Append a `| Task | Title | Cycle | p |` markdown table for the tasks
-/// (or an `_(none)_` line if empty). When `link` is true, the Task cell
-/// is a markdown link to the task's materialized file.
+/// Append a `| Task | Title | Priority |` markdown table for the
+/// tasks (or an `_(none)_` line if empty). When `link` is true, the
+/// Task cell is a markdown link to the task's materialized file.
 fn push_table(out: &mut String, tasks: &[TaskView], link: bool) {
     if tasks.is_empty() {
         out.push_str("_(none)_\n\n");
         return;
     }
-    out.push_str("| Task | Title | Cycle | p |\n");
-    out.push_str("|---|---|---|---|\n");
+    out.push_str("| Task | Title | Priority |\n");
+    out.push_str("|---|---|---|\n");
     for t in tasks {
         let id = t.external_id();
         let task_cell = if link {
@@ -266,10 +266,9 @@ fn push_table(out: &mut String, tasks: &[TaskView], link: bool) {
         } else {
             format!("`{id}`")
         };
-        let cycle = t.cycle_key.as_deref().unwrap_or("—");
         let title = escape_md_cell(&t.task.title);
         out.push_str(&format!(
-            "| {task_cell} | {title} | {cycle} | {pri} |\n",
+            "| {task_cell} | {title} | {pri} |\n",
             pri = t.task.priority,
         ));
     }
