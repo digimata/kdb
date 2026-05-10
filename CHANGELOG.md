@@ -106,6 +106,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.0] — 2026-05-10
+
+### Added
+
+- `is_hidden` column on `task_statuses` and `project_statuses` (migration `0004_status_hidden`). A hidden status renders in the index as a heading + count + summary command line — no table, no per-task files. Distinct from `is_closed`: `parked` is closed but still shown; `done` is now seeded as both closed and hidden so completed work doesn't blow up the index.
+- `kdb statuses add --hidden <bool>` and `kdb statuses edit --hidden <bool>`. Accepts `true/t/yes/y/1` and `false/f/no/n/0` (case-insensitive).
+- `kdb statuses list` / `show` surface the `hidden` flag.
+
+### Migration notes
+
+The `0004_status_hidden` migration runs automatically on next `kdb` invocation; it adds the column with `DEFAULT 0` and marks `done` as hidden.
+
 ## [0.34.0] — 2026-05-10
 
 ### Changed

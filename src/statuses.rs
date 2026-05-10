@@ -81,11 +81,13 @@ pub struct Status {
     pub color: Option<String>,
     pub flag: bool,
     pub sort_order: i64,
+    pub is_hidden: bool,
 }
 
 impl Status {
     fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         let flag: i64 = row.get(4)?;
+        let is_hidden: i64 = row.get(6)?;
         Ok(Self {
             slug: row.get(0)?,
             name: row.get(1)?,
@@ -93,11 +95,12 @@ impl Status {
             color: row.get(3)?,
             flag: flag != 0,
             sort_order: row.get(5)?,
+            is_hidden: is_hidden != 0,
         })
     }
 }
 
-const SELECT_COLS_FMT: &str = "slug, name, description, color, {flag}, sort_order";
+const SELECT_COLS_FMT: &str = "slug, name, description, color, {flag}, sort_order, is_hidden";
 
 /// List statuses of the given kind, ordered by `sort_order` then `slug`.
 pub fn list(conn: &Connection, kind: Kind) -> Result<Vec<Status>> {
@@ -132,6 +135,7 @@ pub struct AddArgs<'a> {
     pub color: Option<&'a str>,
     pub flag: bool,
     pub sort_order: Option<i64>,
+    pub is_hidden: bool,
 }
 
 /// Insert a new status. Fails if slug already exists.
@@ -152,15 +156,24 @@ pub fn add(conn: &Connection, kind: Kind, args: AddArgs) -> Result<Status> {
         .unwrap_or(0)
     });
     let flag = if args.flag { 1i64 } else { 0 };
+    let hidden = if args.is_hidden { 1i64 } else { 0 };
     let sql = format!(
-        "INSERT INTO {table} (slug, name, description, color, {flag_col}, sort_order) \
-         VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO {table} (slug, name, description, color, {flag_col}, sort_order, is_hidden) \
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
         table = kind.table(),
         flag_col = kind.flag_column(),
     );
     conn.execute(
         &sql,
-        params![args.slug, name, args.description, args.color, flag, sort_order],
+        params![
+            args.slug,
+            name,
+            args.description,
+            args.color,
+            flag,
+            sort_order,
+            hidden
+        ],
     )
     .with_context(|| format!("failed to insert into {}", kind.table()))?;
     get(conn, kind, args.slug)?
@@ -174,6 +187,7 @@ pub struct EditArgs<'a> {
     pub color: Option<&'a str>,
     pub flag: Option<bool>,
     pub sort_order: Option<i64>,
+    pub is_hidden: Option<bool>,
 }
 
 impl EditArgs<'_> {
@@ -183,6 +197,7 @@ impl EditArgs<'_> {
             && self.color.is_none()
             && self.flag.is_none()
             && self.sort_order.is_none()
+            && self.is_hidden.is_none()
     }
 }
 
@@ -198,13 +213,15 @@ pub fn edit(conn: &Connection, kind: Kind, slug: &str, args: EditArgs) -> Result
         validate_color(c)?;
     }
     let flag_int: Option<i64> = args.flag.map(|b| if b { 1 } else { 0 });
+    let hidden_int: Option<i64> = args.is_hidden.map(|b| if b { 1 } else { 0 });
     let sql = format!(
         "UPDATE {table} SET \
             name        = COALESCE(?, name), \
             description = COALESCE(?, description), \
             color       = COALESCE(?, color), \
             {flag_col}  = COALESCE(?, {flag_col}), \
-            sort_order  = COALESCE(?, sort_order) \
+            sort_order  = COALESCE(?, sort_order), \
+            is_hidden   = COALESCE(?, is_hidden) \
          WHERE slug = ?",
         table = kind.table(),
         flag_col = kind.flag_column(),
@@ -217,6 +234,7 @@ pub fn edit(conn: &Connection, kind: Kind, slug: &str, args: EditArgs) -> Result
             args.color,
             flag_int,
             args.sort_order,
+            hidden_int,
             slug
         ],
     )
@@ -278,18 +296,20 @@ pub fn render_list(statuses: &[Status], kind: Kind) -> String {
         .max(4);
     let flag_label = kind.flag_label();
     let flag_w = flag_label.len().max(5);
+    let hidden_w = "hidden".len();
 
     let mut out = String::new();
     out.push_str(&format!(
-        "{:<slug_w$}  {:<name_w$}  {:<flag_w$}  color\n",
-        "slug", "name", flag_label,
+        "{:<slug_w$}  {:<name_w$}  {:<flag_w$}  {:<hidden_w$}  color\n",
+        "slug", "name", flag_label, "hidden",
     ));
     for s in statuses {
         let slug_cell = color::pad_colored(&s.slug, s.color.as_deref(), slug_w);
         out.push_str(&format!(
-            "{slug_cell}  {:<name_w$}  {:<flag_w$}  {}\n",
+            "{slug_cell}  {:<name_w$}  {:<flag_w$}  {:<hidden_w$}  {}\n",
             s.name,
             if s.flag { "yes" } else { "no" },
+            if s.is_hidden { "yes" } else { "no" },
             s.color.as_deref().unwrap_or(""),
         ));
     }
@@ -306,6 +326,7 @@ pub fn render_show(s: &Status, kind: Kind) -> String {
         format!("{}:", kind.flag_label()),
         if s.flag { "yes" } else { "no" }
     ));
+    out.push_str(&format!("hidden:      {}\n", if s.is_hidden { "yes" } else { "no" }));
     out.push_str(&format!("sort_order:  {}\n", s.sort_order));
     if let Some(c) = &s.color {
         out.push_str(&format!("color:       {c}\n"));
@@ -365,6 +386,7 @@ mod tests {
                 color: Some("#ff00aa"),
                 flag: false,
                 sort_order: None,
+                is_hidden: false,
             },
         )
         .unwrap();
@@ -443,6 +465,7 @@ mod tests {
                 color: Some("not-a-color"),
                 flag: false,
                 sort_order: None,
+                is_hidden: false,
             },
         )
         .unwrap_err();

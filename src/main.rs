@@ -498,6 +498,19 @@ fn resolve_kind(arg: &StatusKindArg) -> kdb::statuses::Kind {
     }
 }
 
+/// Lenient boolean parser for CLI flags. Accepts `true/t/yes/y/1` and
+/// `false/f/no/n/0` (case-insensitive). Used so `--hidden 1` and
+/// `--hidden false` both work.
+fn parse_bool_flag(s: &str) -> Result<bool, String> {
+    match s.to_ascii_lowercase().as_str() {
+        "true" | "t" | "yes" | "y" | "1" => Ok(true),
+        "false" | "f" | "no" | "n" | "0" => Ok(false),
+        other => Err(format!(
+            "expected true/false/yes/no/1/0, got '{other}'"
+        )),
+    }
+}
+
 #[derive(Debug, Subcommand)]
 enum StatusesCmd {
     /// List statuses for the chosen kind.
@@ -532,6 +545,9 @@ enum StatusesCmd {
         /// Sort order (lower renders first). Defaults to MAX+1.
         #[arg(long)]
         order: Option<i64>,
+        /// Hidden status — section renders as a count + summary command line, no table.
+        #[arg(long, value_name = "BOOL", value_parser = parse_bool_flag)]
+        hidden: Option<bool>,
     },
     /// Edit an existing status.
     Edit {
@@ -557,6 +573,9 @@ enum StatusesCmd {
         /// Sort order (lower renders first).
         #[arg(long)]
         order: Option<i64>,
+        /// Hidden status — section renders as a count + summary command line, no table.
+        #[arg(long, value_name = "BOOL", value_parser = parse_bool_flag)]
+        hidden: Option<bool>,
     },
     /// Remove a status (fails if in use).
     Rm {
@@ -746,6 +765,7 @@ async fn main() {
                 closed,
                 archived,
                 order,
+                hidden,
             } => kdb::cmd::statuses_add(
                 slug,
                 resolve_kind(&kind),
@@ -755,6 +775,7 @@ async fn main() {
                 closed,
                 archived,
                 order,
+                hidden,
             ),
             StatusesCmd::Edit {
                 slug,
@@ -767,6 +788,7 @@ async fn main() {
                 archived,
                 no_archived,
                 order,
+                hidden,
             } => kdb::cmd::statuses_edit(
                 slug,
                 resolve_kind(&kind),
@@ -778,6 +800,7 @@ async fn main() {
                 archived,
                 no_archived,
                 order,
+                hidden,
             ),
             StatusesCmd::Rm { slug, kind } => kdb::cmd::statuses_rm(slug, resolve_kind(&kind)),
             StatusesCmd::Show { slug, kind, json } => {

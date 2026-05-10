@@ -109,12 +109,12 @@ fn materialize(
         by_status.entry(t.task.status.clone()).or_default().push(t.clone());
     }
 
-    // Materialize per-task files for every open (non-closed) status,
+    // Materialize per-task files for every open and non-hidden status,
     // truncated to top_n so a runaway status (typically backlog) can't
-    // blow up `.tasks/`. Closed statuses don't get files at all.
+    // blow up `.tasks/`. Closed or hidden statuses don't get files at all.
     let mut expected: HashSet<String> = HashSet::new();
     for status in &status_defs {
-        if status.flag {
+        if status.flag || status.is_hidden {
             continue;
         }
         let Some(tasks_in_status) = by_status.get(&status.slug) else {
@@ -172,6 +172,21 @@ fn render_index(
     for status in status_defs {
         let tasks = by_status.get(&status.slug).unwrap_or(&empty);
         let total = tasks.len();
+
+        // Hidden statuses collapse to a heading + count + a single
+        // command line — no table, no per-task files. Keeps the index
+        // readable when a status (e.g. `done`) grows without bound.
+        if status.is_hidden {
+            out.push_str(&format!("## {} ({})\n\n", status.name, total));
+            push_description(&mut out, status);
+            out.push_str(&format!(
+                "_`kdb tasks list -P {slug} -s {status_slug}`_\n\n",
+                slug = project.slug,
+                status_slug = status.slug,
+            ));
+            continue;
+        }
+
         let slice = truncate_to_top_n(tasks, top_n);
         let header = if total > slice.len() {
             format!("## {} (top {} of {})\n\n", status.name, slice.len(), total)
