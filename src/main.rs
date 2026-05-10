@@ -529,6 +529,9 @@ enum StatusesCmd {
         /// Mark as archived (hidden from default project list; only valid with --projects).
         #[arg(long)]
         archived: bool,
+        /// Sort order (lower renders first). Defaults to MAX+1.
+        #[arg(long)]
+        order: Option<i64>,
     },
     /// Edit an existing status.
     Edit {
@@ -551,6 +554,9 @@ enum StatusesCmd {
         archived: bool,
         #[arg(long, conflicts_with = "archived")]
         no_archived: bool,
+        /// Sort order (lower renders first).
+        #[arg(long)]
+        order: Option<i64>,
     },
     /// Remove a status (fails if in use).
     Rm {
@@ -739,6 +745,7 @@ async fn main() {
                 color,
                 closed,
                 archived,
+                order,
             } => kdb::cmd::statuses_add(
                 slug,
                 resolve_kind(&kind),
@@ -747,6 +754,7 @@ async fn main() {
                 color,
                 closed,
                 archived,
+                order,
             ),
             StatusesCmd::Edit {
                 slug,
@@ -758,6 +766,7 @@ async fn main() {
                 no_closed,
                 archived,
                 no_archived,
+                order,
             } => kdb::cmd::statuses_edit(
                 slug,
                 resolve_kind(&kind),
@@ -768,6 +777,7 @@ async fn main() {
                 no_closed,
                 archived,
                 no_archived,
+                order,
             ),
             StatusesCmd::Rm { slug, kind } => kdb::cmd::statuses_rm(slug, resolve_kind(&kind)),
             StatusesCmd::Show { slug, kind, json } => {

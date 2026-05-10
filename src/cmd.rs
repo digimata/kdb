@@ -1224,6 +1224,7 @@ pub fn statuses_add(
     color: Option<String>,
     closed: bool,
     archived: bool,
+    order: Option<i64>,
 ) -> Result<()> {
     let flag = resolve_add_flag(kind, closed, archived)?;
     let ctx = CmdContext::from_path(None)?;
@@ -1237,7 +1238,7 @@ pub fn statuses_add(
             description: description.as_deref(),
             color: color.as_deref(),
             flag,
-            sort_order: None,
+            sort_order: order,
         },
     )?;
     println!("added status {}", created.slug);
@@ -1274,6 +1275,7 @@ pub fn statuses_edit(
     no_closed: bool,
     archived: bool,
     no_archived: bool,
+    order: Option<i64>,
 ) -> Result<()> {
     let flag = resolve_edit_flag(kind, closed, no_closed, archived, no_archived)?;
     let ctx = CmdContext::from_path(None)?;
@@ -1287,7 +1289,7 @@ pub fn statuses_edit(
             description: description.as_deref(),
             color: color.as_deref(),
             flag,
-            sort_order: None,
+            sort_order: order,
         },
     )?;
     println!("updated status {}", updated.slug);

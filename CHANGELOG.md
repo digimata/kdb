@@ -106,6 +106,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0] — 2026-05-10
+
+### Changed
+
+- `kdb render` now drives the index sections from the live `task_statuses` table in `sort_order`, so custom statuses (e.g. `in_review`) render alongside the seeded ones. Previously the renderer hardcoded the five seeded slugs and silently dropped tasks in any other status.
+- Each section in the materialized `index.md` now shows the status's description as an italic line beneath the heading.
+- Section rendering is uniform across all statuses: `(top N of M)` truncation via `meta.top_n` is applied to every section, and rows are linked iff the status is open (`is_closed=0`). No more slug-specific behavior for `backlog` or `done`.
+
+### Added
+
+- `kdb statuses add --order N` and `kdb statuses edit --order N` for setting/updating `sort_order` from the CLI (the underlying lib already supported it).
+
 ## [0.33.0] — 2026-05-08
 
 ### Added
