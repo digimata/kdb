@@ -30,46 +30,58 @@ use rusqlite::Connection;
 // -----------------------------------------
 // projects/kdb/src/cmd.rs
 //
-// pub struct CmdContext                 L75
-//   pub fn from_path()                  L86
-//   pub fn build_index()                L96
-//   pub fn build_workspace_index()     L101
-//   pub fn rel_path()                  L109
-// pub fn init()                        L136
-// pub fn root()                        L191
-// pub fn check()                       L201
-// pub fn tree()                        L218
-// pub fn symbols()                     L266
-// pub fn refs()                        L327
-// pub fn deps()                        L398
-// pub fn graph()                       L433
-// pub fn render()                      L448
-// pub fn format()                      L498
-// pub fn update()                      L539
-// pub fn projects_list()               L545
-// pub fn projects_add()                L561
-// pub fn projects_edit()               L588
-// pub fn projects_show()               L614
-// fn resolve_project()                 L633
-// fn resolve_cycle()                   L651
-// fn resolve_parent()                  L665
-// fn parse_statuses()                  L678
-// pub fn tasks_list()                  L699
-// pub fn tasks_add()                   L740
-// pub fn tasks_edit()                  L774
-// pub fn tasks_view()                  L806
-// struct TaskViewOutput                L817
-// pub fn cycles_list()                 L834
-// pub fn cycles_add()                  L848
-// pub fn cycles_edit()                 L876
-// pub fn cycles_show()                 L901
-// pub fn labels_list()                 L917
-// pub fn labels_add()                  L931
-// pub fn labels_edit()                 L946
-// pub fn labels_show()                 L961
-// pub fn tasks_label_add()             L978
-// pub fn tasks_label_rm()              L997
-// pub fn tasks_set_status()           L1016
+// pub struct CmdContext                 L88
+//   pub fn from_path()                  L99
+//   pub fn build_index()               L109
+//   pub fn build_workspace_index()     L114
+//   pub fn rel_path()                  L122
+// pub fn init()                        L149
+// pub fn root()                        L204
+// pub fn check()                       L214
+// pub fn tree()                        L231
+// pub fn symbols()                     L279
+// pub fn refs()                        L340
+// pub fn deps()                        L411
+// pub fn graph()                       L446
+// pub fn render()                      L461
+// pub fn format()                      L511
+// pub fn update()                      L552
+// pub fn projects_list()               L558
+// pub fn projects_add()                L574
+// pub fn projects_edit()               L601
+// pub fn projects_show()               L627
+// fn resolve_project()                 L646
+// fn resolve_cycle()                   L664
+// fn resolve_parent()                  L678
+// fn parse_statuses()                  L691
+// pub fn tasks_list()                  L716
+// pub fn tasks_add()                   L759
+// fn resolve_add_position()            L811
+// pub fn tasks_edit()                  L837
+// pub fn tasks_view()                  L888
+// struct TaskViewOutput                L899
+// pub fn tasks_move()                  L919
+// pub fn tasks_delete()                L963
+// pub fn tasks_restore()               L983
+// pub fn tasks_purge()                 L994
+// pub fn cycles_list()                L1032
+// pub fn cycles_add()                 L1046
+// pub fn cycles_edit()                L1074
+// pub fn cycles_show()                L1099
+// pub fn labels_list()                L1115
+// pub fn labels_add()                 L1129
+// pub fn labels_edit()                L1144
+// pub fn labels_show()                L1159
+// pub fn tasks_label_add()            L1176
+// pub fn tasks_label_rm()             L1195
+// pub fn statuses_list()              L1214
+// pub fn statuses_add()               L1231
+// fn resolve_add_flag()               L1262
+// pub fn statuses_edit()              L1282
+// fn resolve_edit_flag()              L1315
+// pub fn statuses_rm()                L1351
+// pub fn statuses_show()              L1360
+// pub fn tasks_set_status()           L1376
 // -----------------------------------------
 
 /// CLI command context: resolved start path + workspace state.
@@ -287,7 +299,7 @@ pub fn symbols(
     if selectors.is_empty() {
         let mut all_rows: Vec<(PathBuf, Vec<symbols::display::SymbolRow>)> = Vec::new();
         for (abs, rel) in &files {
-            let mut rows = symbols::query::collect_rows(&ctx.workspace.root, abs, rel)?;
+            let mut rows = symbols::query::collect_rows(abs, rel)?;
             if public_only {
                 rows.retain(|row| row.is_public);
             }

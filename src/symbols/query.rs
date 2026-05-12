@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
-use crate::index::{VaultIndex, parse_markdown, section_byte_bounds, section_line_bounds};
+use crate::index::{parse_markdown, section_byte_bounds, section_line_bounds};
 use crate::lang::CodeLanguage;
-use crate::workspace::{self, WorkspaceContext, config};
+use crate::workspace::{self, WorkspaceContext};
 
 use super::display::{self, SymbolBodyRow, SymbolRow};
 use super::{Symbol, extract_symbols};
@@ -14,7 +14,7 @@ use super::{Symbol, extract_symbols};
 // ----------------------------------------
 // projects/kdb/src/symbols/query.rs
 //
-// pub fn collect_rows()                L34
+// pub fn collect_rows()                L39
 // pub fn collect_body_rows()           L84
 // fn collect_code_body_rows()         L123
 // fn collect_markdown_body_rows()     L167
@@ -31,20 +31,20 @@ use super::{Symbol, extract_symbols};
 // ----------------------------------------
 
 /// Collect symbol rows for a single file (headings for markdown, declarations for code).
-pub fn collect_rows(root: &Path, file_abs: &Path, rel_path: &Path) -> Result<Vec<SymbolRow>> {
+///
+/// Markdown files are parsed in isolation — only `file_abs` is read, never the
+/// rest of the workspace. (An earlier implementation built the whole-vault
+/// index here just to look up one file's headings, which made `kdb outline` on
+/// any file inside a large workspace cost hundreds of ms; see iss-0064.)
+pub fn collect_rows(file_abs: &Path, rel_path: &Path) -> Result<Vec<SymbolRow>> {
     let is_markdown = is_markdown_file(rel_path);
 
     let rows: Vec<SymbolRow> = if is_markdown {
-        let ignore_patterns = config::load_index_ignores(root)?;
-        let index = VaultIndex::build_with_ignores(root, &ignore_patterns)?;
-        let file_entry = index.files.get(rel_path).with_context(|| {
-            format!(
-                "file {} is not an indexed markdown file",
-                rel_path.display()
-            )
-        })?;
+        let source = fs::read_to_string(file_abs)
+            .with_context(|| format!("failed to read {}", file_abs.display()))?;
+        let parsed = parse_markdown(&source);
 
-        file_entry
+        parsed
             .headings
             .iter()
             .map(|heading| SymbolRow {

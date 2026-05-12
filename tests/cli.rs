@@ -5,85 +5,98 @@ use std::path::Path;
 use std::process::Command;
 use tempfile::tempdir;
 
-// ---------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------
 // projects/kdb/tests/cli.rs
 //
-// fn write_file()                                                               L87
-// fn bin()                                                                      L95
-// fn write_root_config()                                                        L99
-// fn write_symbol_refs_rust_fixture()                                          L103
-// fn check_exits_zero_for_clean_vault()                                        L147
-// fn check_exits_one_for_broken_links()                                        L165
-// fn check_respects_index_ignore_patterns_from_config()                        L183
-// fn check_respects_gitignore_rules()                                          L210
-// fn check_orphan_only_shows_orphan_count_hint_without_listing()               L234
-// fn check_orphans_flag_lists_orphan_files()                                   L256
-// fn check_scopes_output_to_explicit_subtree_path()                            L278
-// fn check_scoped_subtree_still_validates_cross_subtree_links()                L303
-// fn check_errors_when_root_marker_missing()                                   L331
-// fn fmt_generates_code_index_headers_for_supported_files()                    L347
-// fn fmt_warns_when_nonstandard_index_rows_are_removed()                       L369
-// fn fmt_scopes_to_explicit_file_path()                                        L392
-// fn fmt_respects_gitignore_rules()                                            L416
-// fn fmt_explicit_path_can_format_gitignored_file()                            L438
-// fn tree_prints_filtered_directory_structure()                                L459
-// fn tree_level_option_matches_tree_l_flag()                                   L493
-// fn tree_json_dirs_only_and_all_flags_are_supported()                         L515
-// fn tree_full_path_flag_prints_full_relative_paths()                          L541
-// fn tree_ignore_pattern_flag_excludes_matches()                               L559
-// fn tree_pattern_flag_includes_only_matching_subtrees()                       L580
-// fn symbols_prints_markdown_heading_symbols()                                 L604
-// fn symbols_supports_public_filter_for_code_files()                           L630
-// fn symbols_json_outputs_structured_rows()                                    L662
-// fn symbols_selector_prints_multiple_matching_bodies()                        L690
-// fn symbols_selector_shows_line_number_gutter()                               L734
-// fn symbols_selector_accepts_multiple_selectors()                             L767
-// fn symbols_selector_includes_doc_comments()                                  L802
-// fn symbols_selector_includes_attributes_with_docs()                          L837
-// fn symbols_selector_supports_qualified_names()                               L866
-// fn symbols_selector_json_outputs_body_and_metadata()                         L913
-// fn symbols_selector_respects_public_filter()                                 L958
-// fn symbols_selector_extracts_markdown_sections_by_slug()                     L999
-// fn symbols_selector_markdown_json_outputs_body_and_metadata()               L1033
-// fn symbols_selector_markdown_slug_not_found_errors()                        L1078
-// fn refs_lists_inbound_references_for_file_target()                          L1102
-// fn refs_lists_inbound_references_for_heading_target()                       L1129
-// fn refs_count_prints_number_of_inbound_references()                         L1160
-// fn refs_json_outputs_structured_rows()                                      L1181
-// fn refs_symbol_lists_inbound_references_for_code_symbol()                   L1208
-// fn refs_symbol_count_prints_number_of_references()                          L1232
-// fn refs_symbol_json_outputs_structured_rows()                               L1252
-// fn refs_symbol_context_shows_surrounding_lines_in_text_output()             L1282
-// fn refs_symbol_context_zero_keeps_single_line_output()                      L1307
-// fn refs_markdown_context_flag_errors_without_symbol()                       L1330
-// fn refs_symbol_json_ignores_context_flag()                                  L1351
-// fn refs_symbol_count_ignores_context_flag()                                 L1378
-// fn deps_lists_outbound_dependencies_for_file_target()                       L1400
-// fn deps_json_outputs_structured_rows()                                      L1433
-// fn deps_supports_rust_code_file_targets()                                   L1470
-// fn deps_supports_rust_nested_crate_roots_in_monorepos()                     L1497
-// fn deps_supports_rust_workspace_sibling_crate_imports()                     L1538
-// fn deps_supports_rust_workspace_renamed_path_dependencies()                 L1584
-// fn deps_supports_rust_custom_lib_path_mod_declarations()                    L1630
-// fn deps_supports_rust_custom_bin_path_mod_declarations()                    L1654
-// fn deps_supports_rust_custom_lib_path_cross_crate_fallback()                L1678
-// fn deps_supports_typescript_code_file_targets()                             L1719
-// fn deps_supports_typescript_tsconfig_path_aliases()                         L1747
-// fn deps_supports_typescript_monorepo_per_package_tsconfig_path_aliases()    L1775
-// fn refs_resolves_typescript_monorepo_per_package_tsconfig_path_aliases()    L1820
-// fn deps_supports_typescript_workspace_package_imports()                     L1866
-// fn deps_supports_python_code_file_targets()                                 L1914
-// fn deps_supports_python_pyproject_src_layout_package_imports()              L1950
-// fn deps_supports_python_setup_py_src_layout_fallback()                      L1988
-// fn deps_supports_python_poetry_src_namespace_packages()                     L2013
-// fn deps_python_canonicalizes_resolved_file_case_on_case_insensitive_fs()    L2048
-// fn deps_supports_go_code_file_targets()                                     L2090
-// fn deps_supports_go_workspace_use_cross_module_imports()                    L2119
-// fn deps_supports_go_workspace_replace_local_path_overrides()                L2149
-// fn graph_is_stubbed_with_clear_message()                                    L2188
-// fn init_creates_kdb_directory_and_default_config()                          L2201
-// fn init_errors_if_kdb_directory_already_exists()                            L2227
-// ---------------------------------------------------------------------------------
+// fn write_file()                                                               L101
+// fn bin()                                                                      L109
+// fn run()                                                                      L113
+// fn write_root_config()                                                        L121
+// fn write_symbol_refs_rust_fixture()                                           L129
+// fn check_exits_zero_for_clean_vault()                                         L173
+// fn check_exits_one_for_broken_links()                                         L191
+// fn check_respects_index_ignore_patterns_from_config()                         L209
+// fn check_respects_gitignore_rules()                                           L236
+// fn check_orphan_only_shows_orphan_count_hint_without_listing()                L260
+// fn check_orphans_flag_lists_orphan_files()                                    L282
+// fn check_scopes_output_to_explicit_subtree_path()                             L304
+// fn check_scoped_subtree_still_validates_cross_subtree_links()                 L329
+// fn check_errors_when_root_marker_missing()                                    L357
+// fn fmt_generates_code_index_headers_for_supported_files()                     L373
+// fn fmt_warns_when_nonstandard_index_rows_are_removed()                        L395
+// fn fmt_scopes_to_explicit_file_path()                                         L418
+// fn fmt_respects_gitignore_rules()                                             L442
+// fn fmt_explicit_path_can_format_gitignored_file()                             L464
+// fn tree_prints_filtered_directory_structure()                                 L485
+// fn tree_level_option_matches_tree_l_flag()                                    L519
+// fn tree_json_dirs_only_and_all_flags_are_supported()                          L541
+// fn tree_full_path_flag_prints_full_relative_paths()                           L567
+// fn tree_ignore_pattern_flag_excludes_matches()                                L585
+// fn tree_pattern_flag_includes_only_matching_subtrees()                        L606
+// fn symbols_prints_markdown_heading_symbols()                                  L630
+// fn outline_markdown_parses_file_in_isolation_without_vault_index()            L656
+// fn symbols_supports_public_filter_for_code_files()                            L679
+// fn symbols_json_outputs_structured_rows()                                     L711
+// fn symbols_selector_prints_multiple_matching_bodies()                         L739
+// fn symbols_selector_shows_line_number_gutter()                                L783
+// fn symbols_selector_accepts_multiple_selectors()                              L816
+// fn symbols_selector_includes_doc_comments()                                   L851
+// fn symbols_selector_includes_attributes_with_docs()                           L886
+// fn symbols_selector_supports_qualified_names()                                L915
+// fn symbols_selector_json_outputs_body_and_metadata()                          L962
+// fn symbols_selector_respects_public_filter()                                 L1007
+// fn symbols_selector_extracts_markdown_sections_by_slug()                     L1048
+// fn symbols_selector_markdown_json_outputs_body_and_metadata()                L1082
+// fn symbols_selector_markdown_slug_not_found_errors()                         L1127
+// fn refs_lists_inbound_references_for_file_target()                           L1151
+// fn refs_lists_inbound_references_for_heading_target()                        L1178
+// fn refs_count_prints_number_of_inbound_references()                          L1209
+// fn refs_json_outputs_structured_rows()                                       L1230
+// fn refs_symbol_lists_inbound_references_for_code_symbol()                    L1257
+// fn refs_symbol_count_prints_number_of_references()                           L1281
+// fn refs_symbol_json_outputs_structured_rows()                                L1301
+// fn refs_symbol_context_shows_surrounding_lines_in_text_output()              L1331
+// fn refs_symbol_context_zero_keeps_single_line_output()                       L1356
+// fn refs_markdown_context_flag_errors_without_symbol()                        L1379
+// fn refs_symbol_json_ignores_context_flag()                                   L1400
+// fn refs_symbol_count_ignores_context_flag()                                  L1427
+// fn deps_lists_outbound_dependencies_for_file_target()                        L1449
+// fn deps_json_outputs_structured_rows()                                       L1482
+// fn deps_supports_rust_code_file_targets()                                    L1519
+// fn deps_supports_rust_nested_crate_roots_in_monorepos()                      L1546
+// fn deps_supports_rust_workspace_sibling_crate_imports()                      L1587
+// fn deps_supports_rust_workspace_renamed_path_dependencies()                  L1633
+// fn deps_supports_rust_custom_lib_path_mod_declarations()                     L1679
+// fn deps_supports_rust_custom_bin_path_mod_declarations()                     L1703
+// fn deps_supports_rust_custom_lib_path_cross_crate_fallback()                 L1727
+// fn deps_supports_typescript_code_file_targets()                              L1768
+// fn deps_supports_typescript_tsconfig_path_aliases()                          L1796
+// fn deps_supports_typescript_monorepo_per_package_tsconfig_path_aliases()     L1824
+// fn refs_resolves_typescript_monorepo_per_package_tsconfig_path_aliases()     L1869
+// fn deps_supports_typescript_workspace_package_imports()                      L1915
+// fn deps_supports_python_code_file_targets()                                  L1963
+// fn deps_supports_python_pyproject_src_layout_package_imports()               L1999
+// fn deps_supports_python_setup_py_src_layout_fallback()                       L2037
+// fn deps_supports_python_poetry_src_namespace_packages()                      L2062
+// fn deps_python_canonicalizes_resolved_file_case_on_case_insensitive_fs()     L2097
+// fn deps_supports_go_code_file_targets()                                      L2139
+// fn deps_supports_go_workspace_use_cross_module_imports()                     L2168
+// fn deps_supports_go_workspace_replace_local_path_overrides()                 L2198
+// fn graph_is_stubbed_with_clear_message()                                     L2237
+// fn init_creates_kdb_directory_and_default_config()                           L2250
+// fn init_errors_if_kdb_directory_already_exists()                             L2282
+// fn tasks_view_supports_show_alias_and_orders_children_by_order_key()         L2298
+// fn tasks_delete_soft_hides_from_list_and_restore_brings_back()               L2384
+// fn tasks_delete_hard_removes_row()                                           L2468
+// fn tasks_purge_done_clears_done_tasks()                                      L2489
+// fn titles_in_list()                                                          L2525
+// fn setup_kdb_project()                                                       L2535
+// fn tasks_move_before_reorders_project_list()                                 L2559
+// fn tasks_move_top_and_bottom_moves_to_ends()                                 L2578
+// fn tasks_add_after_inserts_between_neighbors()                               L2599
+// fn tasks_list_hides_children_by_default_and_include_children_shows_them()    L2615
+// fn tasks_move_rejects_cross_parent_target()                                  L2639
+// ----------------------------------------------------------------------------------
 
 fn write_file(root: &Path, rel_path: &str, content: &str) {
     let path = root.join(rel_path);
@@ -637,6 +650,29 @@ fn symbols_prints_markdown_heading_symbols() {
     assert!(stdout.contains("L1"));
     assert!(stdout.contains("L3"));
     assert!(stdout.contains("L5"));
+}
+
+#[test]
+fn outline_markdown_parses_file_in_isolation_without_vault_index() {
+    // Regression for iss-0064: `kdb outline` on a markdown file must parse only
+    // that file, never build the whole-vault index. A file excluded from
+    // indexing (here via .gitignore) therefore still produces an outline,
+    // exactly like a code file passed by explicit path.
+    let temp = tempdir().expect("tempdir");
+    write_root_config(temp.path());
+    write_file(temp.path(), ".gitignore", "private/\n");
+    write_file(temp.path(), "private/page.md", "# Secret\n\n## Detail\n");
+
+    let output = Command::new(bin())
+        .arg("outline")
+        .arg(temp.path().join("private/page.md"))
+        .output()
+        .expect("run kdb outline private/page.md");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("# Secret"));
+    assert!(stdout.contains("## Detail"));
 }
 
 #[test]
