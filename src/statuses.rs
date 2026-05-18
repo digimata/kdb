@@ -12,26 +12,36 @@ use serde::Serialize;
 
 use crate::color;
 
-// ---------------------------------------
+// ------------------------------------------------
 // projects/kdb/src/statuses.rs
 //
-// pub enum Kind                       L31
-//   pub fn table()                    L37
-//   pub fn flag_column()              L45
-//   pub fn flag_label()               L53
-//   pub fn as_arg()                   L61
-// pub struct Status                   L72
-//   fn from_row()                     L82
-// const SELECT_COLS                   L92
-// pub fn list()                       L95
-// pub fn get()                       L110
-// pub struct AddArgs                 L124
-// pub fn add()                       L132
-// pub struct EditArgs                L158
-// pub fn edit()                      L172
-// pub fn remove()                    L206
-// pub fn render_list()               L225
-// ---------------------------------------
+// pub enum Kind                                L48
+//   pub fn table()                             L54
+//   pub fn flag_column()                       L62
+//   pub fn flag_label()                        L70
+//   pub fn as_arg()                            L78
+// pub struct Status                            L87
+//   fn from_row()                              L98
+// const SELECT_COLS_FMT                       L113
+// pub fn list()                               L116
+// pub fn get()                                L129
+// pub struct AddArgs                          L141
+// pub fn add()                                L152
+// pub struct EditArgs                         L194
+//   fn is_empty()                             L204
+// pub fn edit()                               L215
+// pub fn remove()                             L257
+// fn validate_color()                         L283
+// pub fn render_list()                        L291
+// pub fn render_show()                        L330
+// mod tests                                   L351
+// fn setup()                                  L357
+// fn default_task_statuses_are_seeded()       L365
+// fn default_project_statuses_are_seeded()    L377
+// fn add_edit_remove_roundtrip()              L387
+// fn remove_blocks_if_in_use()                L430
+// fn add_rejects_bad_color()                  L466
+// ------------------------------------------------
 
 /// Whether a status applies to the `projects` or `tasks` table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

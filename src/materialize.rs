@@ -18,32 +18,33 @@ use crate::projects::{self, Project};
 use crate::statuses::{self, Status};
 use crate::tasks::{self, ListFilters, TaskView};
 
-// -------------------------------------------------
+// -----------------------------------------------------
 // projects/kdb/src/materialize.rs
 //
-// const TASKS_DIR                               L49
-// const INDEX_FILE                              L50
-// const GENERATED_NOTE                          L53
-// struct Counts                                 L57
-// pub fn materialize_project()                  L67
-// pub fn materialize_all()                      L79
-// fn materialize()                              L88
-// fn read_top_n()                              L157
-// fn count_by_status()                         L175
-// fn render_index()                            L189
-// fn push_table()                              L250
-// fn task_file_name()                          L279
-// fn escape_md_cell()                          L283
-// fn render_task_file()                        L289
-// fn yaml_scalar()                             L329
-// fn clean_stale_task_files()                  L345
-// const PREFIX                                 L346
-// mod tests                                    L377
-// fn setup()                                   L385
-// fn materialize_writes_todo_and_per_task()    L393
-// fn stale_task_files_are_cleaned()            L440
-// fn top_n_truncates_open_list()               L486
-// -------------------------------------------------
+// const TASKS_DIR                                   L50
+// const INDEX_FILE                                  L51
+// const GENERATED_NOTE                              L54
+// pub fn materialize_project()                      L59
+// pub fn materialize_all()                          L71
+// fn materialize()                                  L80
+// fn read_top_n()                                  L143
+// fn render_index()                                L161
+// fn push_description()                            L216
+// fn truncate_to_top_n()                           L227
+// fn push_table()                                  L238
+// fn top_seq()                                     L264
+// fn task_file_name()                              L275
+// fn escape_md_cell()                              L279
+// fn render_task_file()                            L286
+// fn clean_stale_task_files()                      L315
+// const PREFIX                                     L316
+// mod tests                                        L347
+// fn setup()                                       L355
+// fn materialize_writes_todo_and_per_task()        L363
+// fn stale_task_files_are_cleaned()                L411
+// fn top_n_truncates_open_list()                   L458
+// fn subtasks_render_in_parent_file_not_index()    L498
+// -----------------------------------------------------
 
 /// Subdir under each project's path where materialized files live.
 const TASKS_DIR: &str = ".tasks";

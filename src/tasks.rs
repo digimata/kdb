@@ -15,61 +15,80 @@ use serde::Serialize;
 // -------------------------------------------------------------
 // projects/kdb/src/tasks.rs
 //
-// pub const DEFAULT_STATUSES                                L72
-// pub fn is_closed_status()                                 L76
-// pub const SEQ_WIDTH                                       L87
-// pub const ORDER_KEY_WIDTH                                 L90
-// pub fn format_external_id()                               L79
-// pub fn default_order_key()                                L84
-// const ALPHABET                                            L91
-// fn rank()                                                 L93
-// pub fn between()                                         L104
-// fn key_before()                                          L116
-// fn key_after()                                           L129
-// fn key_between_two()                                     L144
-// pub struct Task                                          L183
-// pub struct TaskView                                      L201
-//   pub fn external_id()                                   L211
-// pub struct TaskId                                        L218
-//   pub fn parse()                                         L225
-// const SELECT_COLS                                        L243
-// fn view_from_row()                                       L247
-// pub struct ListFilters                                   L273
-// pub fn list()                                            L282
-// pub fn get()                                             L329
-// pub struct ChildTask                                     L344
-// pub fn children()                                        L353
-// pub struct AddArgs                                       L379
-// pub fn add()                                             L397
-// pub struct EditArgs                                      L469
-//   fn is_empty()                                          L478
-// pub fn edit()                                            L489
-// pub enum Side                                            L533
-// pub enum MoveTarget                                      L540
-// pub fn order_key_adjacent()                              L549
-// pub fn move_task()                                       L577
-// fn ensure_same_context()                                 L640
-// enum Direction                                           L659
-// fn neighbor_order()                                      L668
-// pub fn set_status()                                      L709
-// fn status_glyph()                                        L733
-// pub fn render_list()                                     L744
-// pub fn render_show()                                     L767
-// mod tests                                                L810
-// fn setup()                                               L817
-// fn parse_task_id_uppercases_alias()                      L836
-// fn external_id_is_zero_padded()                          L846
-// fn add_auto_seq_then_explicit_seq()                      L853
-// fn add_with_status()                                     L910
-// fn set_status_transitions()                              L932
-// fn children_are_ordered_by_order_key()                   L961
-// fn render_show_includes_children_section()              L1029
-// fn add_task()                                           L1069
-// fn between_sits_strictly_between_various_pairs()        L1088
-// fn move_task_before_and_after_reorders()                L1119
-// fn move_task_top_and_bottom()                           L1167
-// fn move_task_rejects_different_parent()                 L1204
-// fn order_key_adjacent_after_sits_between_neighbors()    L1221
+// pub const DEFAULT_STATUSES                                L96
+// pub fn is_closed_status()                                L100
+// pub const SEQ_WIDTH                                      L112
+// pub const ORDER_KEY_WIDTH                                L115
+// pub fn format_external_id()                              L120
+// pub fn dotted_top()                                      L125
+// pub fn default_order_key()                               L130
+// pub const CHAIN_CTE                                      L138
+// const ALPHABET                                           L147
+// fn rank()                                                L149
+// pub fn between()                                         L160
+// fn key_before()                                          L172
+// fn key_after()                                           L185
+// fn key_between_two()                                     L200
+// pub struct Task                                          L239
+// pub struct TaskView                                      L266
+//   pub fn external_id()                                   L281
+// pub struct TaskId                                        L292
+//   pub fn parse()                                         L300
+//   pub fn render()                                        L336
+// const SELECT_COLS                                        L346
+// const SELECT_JOINS                                       L352
+// fn view_from_row()                                       L357
+// pub struct ListFilters                                   L386
+// pub fn list()                                            L399
+// pub fn get()                                             L447
+// pub fn get_by_row_id()                                   L479
+// pub struct ChildTask                                     L491
+// pub fn descendants()                                     L503
+// pub fn children()                                        L528
+// pub struct AddArgs                                       L558
+// pub fn add()                                             L578
+// pub struct EditArgs                                      L657
+//   fn is_empty()                                          L666
+// pub fn edit()                                            L686
+// pub enum Side                                            L775
+// pub enum MoveTarget                                      L782
+// pub fn order_key_adjacent()                              L791
+// pub fn move_task()                                       L819
+// fn ensure_same_context()                                 L882
+// enum Direction                                           L901
+// fn neighbor_order()                                      L910
+// pub fn set_status()                                      L951
+// fn subtree_ids()                                         L972
+// pub fn soft_delete()                                     L988
+// pub fn restore()                                        L1007
+// pub fn hard_delete()                                    L1044
+// pub fn get_including_deleted()                          L1059
+// pub struct PurgeFilters                                 L1094
+// pub fn purge()                                          L1104
+// fn status_glyph()                                       L1155
+// pub fn render_list()                                    L1167
+// pub fn render_show()                                    L1190
+// mod tests                                               L1233
+// fn setup()                                              L1240
+// fn parse_task_id_uppercases_alias()                     L1259
+// fn external_id_is_zero_padded()                         L1269
+// fn parse_dotted_task_id_round_trips()                   L1276
+// fn add_auto_seq_then_explicit_seq()                     L1295
+// fn child_does_not_consume_top_level_seq()               L1352
+// fn unparent_allocates_top_level_seq()                   L1368
+// fn reparent_top_level_to_child_clears_seq()             L1391
+// fn reparent_between_parents_renumbers_child_seq()       L1414
+// fn grandchild_dotted_id()                               L1438
+// fn add_with_status()                                    L1449
+// fn set_status_transitions()                             L1471
+// fn children_are_ordered_by_order_key()                  L1500
+// fn render_show_includes_children_section()              L1568
+// fn add_task()                                           L1608
+// fn between_sits_strictly_between_various_pairs()        L1627
+// fn move_task_before_and_after_reorders()                L1658
+// fn move_task_top_and_bottom()                           L1708
+// fn move_task_rejects_different_parent()                 L1747
+// fn order_key_adjacent_after_sits_between_neighbors()    L1764
 // -------------------------------------------------------------
 
 /// Default seeded statuses. Users can add, rename, or remove these via

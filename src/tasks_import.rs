@@ -20,18 +20,18 @@ use crate::tasks::{self, AddArgs};
 // pub struct SkipReason             L51
 // struct ParsedFile                 L56
 // pub fn import_dir()               L65
-// fn parse_task_file()             L142
-// fn split_frontmatter()           L172
-// fn parse_frontmatter()           L193
-// fn unquote_scalar()              L227
-// fn parse_seq()                   L241
-// fn map_status()                  L251
-// fn map_priority()                L260
-// fn strip_leading_heading()       L276
-// mod tests                        L291
-// fn parses_basic_frontmatter()    L295
-// fn maps_priorities()             L306
-// fn maps_statuses()               L314
+// fn parse_task_file()             L143
+// fn split_frontmatter()           L173
+// fn parse_frontmatter()           L194
+// fn unquote_scalar()              L228
+// fn parse_seq()                   L242
+// fn map_status()                  L252
+// fn map_priority()                L262
+// fn strip_leading_heading()       L278
+// mod tests                        L293
+// fn parses_basic_frontmatter()    L297
+// fn maps_priorities()             L308
+// fn maps_statuses()               L316
 // -------------------------------------
 
 /// Result of an import run.

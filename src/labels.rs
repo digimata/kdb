@@ -12,26 +12,26 @@ use crate::color;
 // ----------------------------------------
 // projects/kdb/src/labels.rs
 //
-// pub struct Label                     L36
-//   fn from_row()                      L44
-// const SELECT_COLS                    L54
-// pub fn list()                        L57
-// pub fn get_by_slug()                 L66
-// pub fn for_task()                    L75
-// pub struct AddArgs                   L87
-// pub fn add()                         L94
-// pub struct EditArgs                 L106
-//   fn is_empty()                     L112
-// pub fn edit()                       L117
-// pub fn attach()                     L136
-// pub fn detach()                     L146
-// pub fn upsert_by_slug()             L158
-// pub fn render_list()                L172
-// pub fn render_show()                L205
-// mod tests                           L216
-// fn setup()                          L224
-// fn attach_detach_label_to_task()    L232
-// fn add_edit()                       L273
+// pub struct Label                     L38
+//   fn from_row()                      L46
+// const SELECT_COLS                    L56
+// pub fn list()                        L59
+// pub fn get_by_slug()                 L68
+// pub fn for_task()                    L77
+// pub struct AddArgs                   L89
+// pub fn add()                         L96
+// pub struct EditArgs                 L108
+//   fn is_empty()                     L114
+// pub fn edit()                       L119
+// pub fn attach()                     L138
+// pub fn detach()                     L148
+// pub fn upsert_by_slug()             L160
+// pub fn render_list()                L174
+// pub fn render_show()                L207
+// mod tests                           L219
+// fn setup()                          L227
+// fn attach_detach_label_to_task()    L235
+// fn add_edit()                       L277
 // ----------------------------------------
 
 #[derive(Debug, Clone, Serialize)]

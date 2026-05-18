@@ -5,16 +5,18 @@
 
 use std::io::IsTerminal;
 
-// -------------------------------------
+// ---------------------------------------------------
 // projects/kdb/src/color.rs
 //
-// pub fn stdout_is_tty()           L17
-// pub fn parse_hex()               L22
-// pub fn ansi_fg()                 L44
-// pub fn colorize_for_stdout()     L50
-// pub fn pad_colored()             L59
-// mod tests                        L72
-// -------------------------------------
+// pub fn stdout_is_tty()                          L22
+// pub fn parse_hex()                              L27
+// fn ansi_fg()                                    L39
+// pub fn colorize_for_stdout()                    L45
+// pub fn pad_colored()                            L57
+// mod tests                                       L69
+// fn parse_hex_accepts_with_and_without_hash()    L73
+// fn parse_hex_rejects_bad_input()                L80
+// ---------------------------------------------------
 
 /// True when stdout is attached to a terminal.
 pub fn stdout_is_tty() -> bool {

@@ -16,23 +16,23 @@ use std::path::Path;
 // pub struct Project                         L39
 //   fn from_row()                            L52
 // const SELECT_COLS                          L67
-// pub fn list()                              L72
-// pub fn get_by_slug()                       L88
-// pub fn get_by_alias()                      L97
-// pub struct AddArgs                        L105
-// pub fn add()                              L114
-// pub struct EditArgs                       L128
-//   fn is_empty()                           L137
-// pub fn edit()                             L147
-// pub fn resolve_active()                   L179
-// pub fn render_list()                      L201
-// pub fn render_show()                      L245
-// mod tests                                 L261
-// fn setup()                                L267
-// fn add_then_list_and_show()               L275
-// fn alias_lowercased_input_is_upcased()    L296
-// fn duplicate_alias_errors()               L313
-// fn edit_updates_fields_and_timestamp()    L340
+// pub fn list()                              L73
+// pub fn get_by_slug()                       L90
+// pub fn get_by_alias()                      L99
+// pub struct AddArgs                        L107
+// pub fn add()                              L116
+// pub struct EditArgs                       L130
+//   fn is_empty()                           L139
+// pub fn edit()                             L149
+// pub fn resolve_active()                   L181
+// pub fn render_list()                      L203
+// pub fn render_show()                      L247
+// mod tests                                 L263
+// fn setup()                                L269
+// fn add_then_list_and_show()               L277
+// fn alias_lowercased_input_is_upcased()    L298
+// fn duplicate_alias_errors()               L315
+// fn edit_updates_fields_and_timestamp()    L342
 // ----------------------------------------------
 
 #[derive(Debug, Clone, Serialize)]
