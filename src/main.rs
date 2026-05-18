@@ -1,18 +1,24 @@
 use clap::{Args, Parser, Subcommand};
+use kdb::search::FType;
 use std::path::PathBuf;
 
-// -------------------------
+// ----------------------------
 // projects/kdb/src/main.rs
 //
-// struct Cli            L24
-// enum Command          L30
-// enum ProjectsCmd     L178
-// enum TasksCmd        L233
-// enum TaskLabelCmd    L313
-// enum CyclesCmd       L331
-// enum LabelsCmd       L380
-// async fn main()      L415
-// -------------------------
+// struct Cli               L30
+// enum Command             L36
+// enum CollectionCmd      L220
+// enum ProjectsCmd        L234
+// enum TasksCmd           L290
+// enum TaskLabelCmd       L431
+// enum CyclesCmd          L449
+// enum LabelsCmd          L498
+// struct StatusKindArg    L535
+// fn resolve_kind()       L544
+// fn parse_bool_flag()    L555
+// enum StatusesCmd        L566
+// async fn main()         L648
+// ----------------------------
 
 #[derive(Debug, Parser)]
 #[command(
@@ -177,6 +183,51 @@ enum Command {
         #[command(subcommand)]
         action: StatusesCmd,
     },
+    /// Full-text search the workspace corpus (prose by default).
+    Search {
+        /// Search terms (treated as keywords; punctuation is safe).
+        query: String,
+        /// File classes to search: docs (default), code, or all.
+        #[arg(long, value_enum, default_value_t = FType::Docs)]
+        ftype: FType,
+        /// Constrain to a registered collection (see `kdb collection`).
+        #[arg(short = 'C', long)]
+        collection: Option<String>,
+        /// Constrain to an ad-hoc directory (no registration needed).
+        #[arg(short = 'p', long, conflicts_with = "collection")]
+        path: Option<PathBuf>,
+        /// Show N file lines around each match instead of the snippet.
+        #[arg(short = 'c', long = "context")]
+        context: Option<usize>,
+        /// Maximum number of results.
+        #[arg(short = 'n', long, default_value_t = 20)]
+        limit: i64,
+    },
+    /// Refresh the full-text search index (incremental unless --rebuild).
+    Index {
+        /// Discard and rebuild the entire index from scratch.
+        #[arg(long)]
+        rebuild: bool,
+    },
+    /// Manage named search collections used to scope `kdb search`.
+    Collection {
+        #[command(subcommand)]
+        action: CollectionCmd,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum CollectionCmd {
+    /// Register (or update) a collection by directory path.
+    Add {
+        /// Directory path inside the workspace.
+        path: PathBuf,
+        /// Name to reference the collection by.
+        #[arg(long)]
+        name: String,
+    },
+    /// List registered collections.
+    List,
 }
 
 #[derive(Debug, Subcommand)]
@@ -240,9 +291,9 @@ enum TasksCmd {
     /// List tasks.
     #[command(alias = "ls")]
     List {
-        /// Comma-separated status slugs (default seeded set: backlog,cycle,
-        /// in_progress,parked,done) or "all".
-        #[arg(short = 's', long, default_value = "backlog,cycle,in_progress")]
+        /// Comma-separated status slugs, or "open" (every non-closed status,
+        /// resolved at runtime — the default) or "all".
+        #[arg(short = 's', long, default_value = "open")]
         status: String,
         /// Filter by project slug (defaults to the active project).
         #[arg(short = 'P', long)]
@@ -666,7 +717,7 @@ async fn main() {
             ProjectsCmd::Show { slug, json } => kdb::cmd::projects_show(slug, json),
         },
         Command::Tasks { action } => match action.unwrap_or(TasksCmd::List {
-            status: "backlog,cycle,in_progress".to_string(),
+            status: "open".to_string(),
             project: None,
             cycle: None,
             priority: None,
@@ -806,6 +857,19 @@ async fn main() {
             StatusesCmd::Show { slug, kind, json } => {
                 kdb::cmd::statuses_show(slug, resolve_kind(&kind), json)
             }
+        },
+        Command::Search {
+            query,
+            ftype,
+            collection,
+            path,
+            context,
+            limit,
+        } => kdb::cmd::search(query, ftype, collection, path, context, limit),
+        Command::Index { rebuild } => kdb::cmd::index(rebuild),
+        Command::Collection { action } => match action {
+            CollectionCmd::Add { path, name } => kdb::cmd::collection_add(name, path),
+            CollectionCmd::List => kdb::cmd::collection_list(),
         },
     };
 

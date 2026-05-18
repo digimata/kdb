@@ -15,11 +15,11 @@ use crate::workspace::root::ROOT_MARKER;
 //
 // pub const DB_FILE                             L26
 // const MIGRATIONS                              L29
-// pub fn db_path()                              L35
-// pub fn open()                                 L40
-// fn migrate()                                  L53
-// mod tests                                     L72
-// fn open_creates_schema_and_is_idempotent()    L77
+// pub fn db_path()                              L54
+// pub fn open()                                 L59
+// fn migrate()                                  L72
+// mod tests                                     L91
+// fn open_creates_schema_and_is_idempotent()    L96
 // -------------------------------------------------
 
 /// Database filename inside `.kdb/`.
@@ -42,6 +42,11 @@ const MIGRATIONS: &[(&str, &str)] = &[
     (
         "0004_status_hidden",
         include_str!("migrations/0004_status_hidden.sql"),
+    ),
+    ("0005_search", include_str!("migrations/0005_search.sql")),
+    (
+        "0006_search_kind",
+        include_str!("migrations/0006_search_kind.sql"),
     ),
 ];
 

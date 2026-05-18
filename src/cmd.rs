@@ -18,6 +18,7 @@ use crate::lang::CodeLanguage;
 use crate::materialize;
 use crate::projects;
 use crate::render;
+use crate::search;
 use crate::statuses;
 use crate::symbols;
 use crate::tasks;
@@ -27,62 +28,73 @@ use crate::workspace::{self, WorkspaceContext};
 
 use rusqlite::Connection;
 
-// -----------------------------------------
+// -----------------------------------------------------------
 // projects/kdb/src/cmd.rs
 //
-// pub struct CmdContext                 L88
-//   pub fn from_path()                  L99
-//   pub fn build_index()               L109
-//   pub fn build_workspace_index()     L114
-//   pub fn rel_path()                  L122
-// pub fn init()                        L149
-// pub fn root()                        L204
-// pub fn check()                       L214
-// pub fn tree()                        L231
-// pub fn symbols()                     L279
-// pub fn refs()                        L340
-// pub fn deps()                        L411
-// pub fn graph()                       L446
-// pub fn render()                      L461
-// pub fn format()                      L511
-// pub fn update()                      L552
-// pub fn projects_list()               L558
-// pub fn projects_add()                L574
-// pub fn projects_edit()               L601
-// pub fn projects_show()               L627
-// fn resolve_project()                 L646
-// fn resolve_cycle()                   L664
-// fn resolve_parent()                  L678
-// fn parse_statuses()                  L691
-// pub fn tasks_list()                  L716
-// pub fn tasks_add()                   L759
-// fn resolve_add_position()            L811
-// pub fn tasks_edit()                  L837
-// pub fn tasks_view()                  L888
-// struct TaskViewOutput                L899
-// pub fn tasks_move()                  L919
-// pub fn tasks_delete()                L963
-// pub fn tasks_restore()               L983
-// pub fn tasks_purge()                 L994
-// pub fn cycles_list()                L1032
-// pub fn cycles_add()                 L1046
-// pub fn cycles_edit()                L1074
-// pub fn cycles_show()                L1099
-// pub fn labels_list()                L1115
-// pub fn labels_add()                 L1129
-// pub fn labels_edit()                L1144
-// pub fn labels_show()                L1159
-// pub fn tasks_label_add()            L1176
-// pub fn tasks_label_rm()             L1195
-// pub fn statuses_list()              L1214
-// pub fn statuses_add()               L1231
-// fn resolve_add_flag()               L1262
-// pub fn statuses_edit()              L1282
-// fn resolve_edit_flag()              L1315
-// pub fn statuses_rm()                L1351
-// pub fn statuses_show()              L1360
-// pub fn tasks_set_status()           L1376
-// -----------------------------------------
+// pub struct CmdContext                                  L100
+//   pub fn from_path()                                   L111
+//   pub fn build_index()                                 L121
+//   pub fn build_workspace_index()                       L126
+//   pub fn rel_path()                                    L134
+// pub fn init()                                          L161
+// pub fn root()                                          L216
+// pub fn check()                                         L226
+// pub fn tree()                                          L243
+// pub fn symbols()                                       L291
+// pub fn refs()                                          L352
+// pub fn deps()                                          L423
+// pub fn graph()                                         L458
+// pub fn render()                                        L473
+// pub fn format()                                        L523
+// pub fn update()                                        L564
+// pub fn projects_list()                                 L570
+// pub fn projects_add()                                  L586
+// pub fn projects_edit()                                 L613
+// pub fn projects_show()                                 L639
+// fn resolve_project()                                   L658
+// fn resolve_cycle()                                     L676
+// fn resolve_parent()                                    L690
+// fn parse_statuses()                                    L703
+// pub fn tasks_list()                                    L741
+// pub fn tasks_add()                                     L784
+// fn resolve_add_position()                              L836
+// pub fn tasks_edit()                                    L862
+// pub fn tasks_view()                                    L913
+// struct TaskViewOutput                                  L924
+// pub fn tasks_move()                                    L944
+// pub fn tasks_delete()                                  L988
+// pub fn tasks_restore()                                L1008
+// pub fn tasks_purge()                                  L1019
+// pub fn cycles_list()                                  L1057
+// pub fn cycles_add()                                   L1071
+// pub fn cycles_edit()                                  L1099
+// pub fn cycles_show()                                  L1124
+// pub fn labels_list()                                  L1140
+// pub fn labels_add()                                   L1154
+// pub fn labels_edit()                                  L1169
+// pub fn labels_show()                                  L1184
+// pub fn tasks_label_add()                              L1201
+// pub fn tasks_label_rm()                               L1220
+// pub fn statuses_list()                                L1239
+// pub fn statuses_add()                                 L1256
+// fn resolve_add_flag()                                 L1287
+// pub fn statuses_edit()                                L1307
+// fn resolve_edit_flag()                                L1340
+// pub fn statuses_rm()                                  L1376
+// pub fn statuses_show()                                L1385
+// pub fn tasks_set_status()                             L1401
+// pub fn search()                                       L1412
+// fn print_line_context()                               L1497
+// pub fn index()                                        L1525
+// pub fn collection_add()                               L1540
+// pub fn collection_list()                              L1557
+// mod tests                                             L1572
+// fn setup()                                            L1577
+// fn open_selector_resolves_to_non_closed_statuses()    L1585
+// fn all_selector_means_no_filter()                     L1594
+// fn unknown_status_is_rejected()                       L1600
+// fn open_default_survives_seeded_status_removal()      L1606
+// -----------------------------------------------------------
 
 /// CLI command context: resolved start path + workspace state.
 pub struct CmdContext {
@@ -692,20 +704,33 @@ fn parse_statuses(conn: &Connection, s: &str) -> Result<Option<Vec<String>>> {
     if s == "all" {
         return Ok(None);
     }
+    let known = statuses::list(conn, statuses::Kind::Task)?;
+    // "open" is a runtime-resolved selector: every task status that is not
+    // closed (is_closed = false). Resolving against the live status table
+    // keeps the default correct after seeded statuses are renamed or
+    // removed — a hardcoded slug list does not (see the `cycle` removal bug).
+    if s == "open" {
+        let open: Vec<String> = known
+            .into_iter()
+            .filter(|st| !st.flag)
+            .map(|st| st.slug)
+            .collect();
+        return Ok(Some(open));
+    }
     let parts: Vec<String> = s
         .split(',')
         .map(|p| p.trim().to_string())
         .filter(|p| !p.is_empty())
         .collect();
-    let known: Vec<String> = statuses::list(conn, statuses::Kind::Task)?
-        .into_iter()
-        .map(|s| s.slug)
-        .collect();
     for p in &parts {
-        if !known.iter().any(|k| k == p) {
+        if !known.iter().any(|k| k.slug == *p) {
             bail!(
-                "invalid status '{p}' (expected {} or 'all')",
-                known.join(", ")
+                "invalid status '{p}' (expected {} or 'all'/'open')",
+                known
+                    .iter()
+                    .map(|k| k.slug.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
         }
     }
@@ -1381,4 +1406,211 @@ pub fn tasks_set_status(id: String, status: &str) -> Result<()> {
     materialize::materialize_project(&conn, &ctx.workspace.root, &view.project_slug, None)?;
     println!("{} -> {}", view.external_id(), view.task.status);
     Ok(())
+}
+
+/// Full-text search the workspace. Syncs the index incrementally first.
+pub fn search(
+    query: String,
+    ftype: search::FType,
+    collection: Option<String>,
+    path: Option<PathBuf>,
+    context: Option<usize>,
+    limit: i64,
+) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    search::sync(&conn, &ctx.workspace.root, &ctx.workspace.ignore_set)?;
+
+    // Scope by a registered collection OR an ad-hoc directory (clap keeps
+    // them mutually exclusive). Both reduce to a workspace-relative path
+    // prefix; normalize to a directory boundary so `foo` doesn't match
+    // `foobar/`.
+    let (prefix, scope_label) = match (collection.as_deref(), path.as_deref()) {
+        (Some(name), _) => (
+            Some(search::resolve_collection(&conn, name)?),
+            format!("  ·  collection: {name}"),
+        ),
+        (_, Some(dir)) => {
+            let abs = workspace::root::make_absolute(dir)?;
+            let rel = abs.strip_prefix(&ctx.workspace.root).map_err(|_| {
+                anyhow::anyhow!(
+                    "--path must be inside the workspace ({})",
+                    ctx.workspace.root.display()
+                )
+            })?;
+            let rel = rel.to_string_lossy().to_string();
+            (Some(rel.clone()), format!("  ·  path: {rel}"))
+        }
+        (None, None) => (None, String::new()),
+    };
+    let prefix = prefix.map(|p| {
+        if p.is_empty() || p.ends_with('/') {
+            p
+        } else {
+            format!("{p}/")
+        }
+    });
+
+    let hits = search::query(&conn, &query, ftype, prefix.as_deref(), limit)?;
+
+    let scope = match ftype {
+        search::FType::Docs => "docs",
+        search::FType::Code => "code",
+        search::FType::All => "all",
+    };
+    if hits.is_empty() {
+        println!("No matches for \"{query}\" in {scope}{scope_label}.");
+        if ftype == search::FType::Docs {
+            println!("Tip: add --ftype all to include code & config.");
+        }
+        return Ok(());
+    }
+
+    let plural = if hits.len() == 1 { "result" } else { "results" };
+    let scoped = scope_label;
+    println!(
+        "{} {plural} for \"{query}\"  ·  ftype: {scope}{scoped}\n",
+        hits.len()
+    );
+    let needles = search::terms(&query);
+    for (i, hit) in hits.iter().enumerate() {
+        let tag = if hit.kind == "code" { " [code]" } else { "" };
+        println!("{:>3}. {}{tag}   rel {:.1}", i + 1, hit.path, hit.score);
+        // With --context N, show N file lines around the first matching
+        // line; otherwise the compact FTS snippet. Fall back to the
+        // snippet if the file can't be read or no line matches literally
+        // (e.g. the hit came from a stemmed term).
+        let printed = match context {
+            Some(n) => print_line_context(&ctx.workspace.root, &hit.path, &needles, n),
+            None => false,
+        };
+        if !printed {
+            let snippet = hit.snippet.replace('\n', " ");
+            println!("     {}\n", snippet.trim());
+        }
+    }
+    Ok(())
+}
+
+/// Print up to `n` lines of file context around the first line containing
+/// any of `needles`. Returns false if nothing was printed.
+fn print_line_context(root: &Path, rel: &str, needles: &[String], n: usize) -> bool {
+    let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
+        return false;
+    };
+    let lines: Vec<&str> = text.lines().collect();
+    let Some(hit_idx) = lines.iter().position(|l| {
+        let lc = l.to_lowercase();
+        needles.iter().any(|t| lc.contains(t.as_str()))
+    }) else {
+        return false;
+    };
+    let start = hit_idx.saturating_sub(n);
+    let end = (hit_idx + n + 1).min(lines.len());
+    let width = (end).to_string().len();
+    for (idx, line) in lines.iter().enumerate().take(end).skip(start) {
+        let marker = if idx == hit_idx { '>' } else { ' ' };
+        println!(
+            "   {marker} {:>width$} | {}",
+            idx + 1,
+            line,
+            width = width
+        );
+    }
+    println!();
+    true
+}
+
+/// Refresh the search index. Incremental unless `rebuild` is set.
+pub fn index(rebuild: bool) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    if rebuild {
+        search::rebuild(&conn)?;
+    }
+    let s = search::sync(&conn, &ctx.workspace.root, &ctx.workspace.ignore_set)?;
+    println!(
+        "index synced: {} added, {} updated, {} removed, {} unchanged",
+        s.added, s.updated, s.removed, s.unchanged
+    );
+    Ok(())
+}
+
+/// Register (or update) a search collection by directory path.
+pub fn collection_add(name: String, path: PathBuf) -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let abs = workspace::root::make_absolute(&path)?;
+    let rel = abs.strip_prefix(&ctx.workspace.root).map_err(|_| {
+        anyhow::anyhow!(
+            "collection path must be inside the workspace ({})",
+            ctx.workspace.root.display()
+        )
+    })?;
+    let rel = rel.to_string_lossy();
+    search::collection_add(&conn, &name, &rel)?;
+    println!("collection {name:?} -> {rel}");
+    Ok(())
+}
+
+/// List registered search collections.
+pub fn collection_list() -> Result<()> {
+    let ctx = CmdContext::from_path(None)?;
+    let conn = db::open(&ctx.workspace.root)?;
+    let cols = search::collection_list(&conn)?;
+    if cols.is_empty() {
+        println!("(no collections — add one with `kdb collection add <path> --name <name>`)");
+        return Ok(());
+    }
+    for (name, path) in cols {
+        println!("{name:<16} {path}");
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::workspace::root::ROOT_MARKER;
+    use tempfile::TempDir;
+
+    fn setup() -> (TempDir, Connection) {
+        let tmp = TempDir::new().unwrap();
+        std::fs::create_dir(tmp.path().join(ROOT_MARKER)).unwrap();
+        let conn = db::open(tmp.path()).unwrap();
+        (tmp, conn)
+    }
+
+    #[test]
+    fn open_selector_resolves_to_non_closed_statuses() {
+        let (_tmp, conn) = setup();
+        let got = parse_statuses(&conn, "open").unwrap().unwrap();
+        // Seeded set is backlog,cycle,in_progress,parked,done; parked+done
+        // are is_closed=true, so "open" must exclude exactly those two.
+        assert_eq!(got, vec!["backlog", "cycle", "in_progress"]);
+    }
+
+    #[test]
+    fn all_selector_means_no_filter() {
+        let (_tmp, conn) = setup();
+        assert!(parse_statuses(&conn, "all").unwrap().is_none());
+    }
+
+    #[test]
+    fn unknown_status_is_rejected() {
+        let (_tmp, conn) = setup();
+        assert!(parse_statuses(&conn, "nonexistent").is_err());
+    }
+
+    #[test]
+    fn open_default_survives_seeded_status_removal() {
+        // Regression: the old hardcoded default "backlog,cycle,in_progress"
+        // broke `kdb tasks list` once a user removed the seeded `cycle`
+        // status. The runtime-resolved "open" selector must not.
+        let (_tmp, conn) = setup();
+        statuses::remove(&conn, statuses::Kind::Task, "cycle").unwrap();
+        let got = parse_statuses(&conn, "open").unwrap().unwrap();
+        assert_eq!(got, vec!["backlog", "in_progress"]);
+        assert!(!got.iter().any(|s| s == "cycle"));
+    }
 }

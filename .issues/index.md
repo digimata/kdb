@@ -10,6 +10,7 @@ Local issue tracker for this kdb repo. Sorted by (status, priority).
 
 | Issue | Label | Status | Priority |
 | --- | --- | --- | --- |
+| [0064 — Full-Text Search (`kdb search <query>`)](iss-0064-fulltext-search.md) | feat | in_progress | medium |
 | [0063 — Relational Layer (projects, cycles, tasks, labels)](iss-0063-relational-layer.md) | feat | in_progress | high |
 | [0060 — Transclusion Includes & kdb render](iss-0060-transclusion-and-render.md) | enhancement | done | high |
 | [0059 — Prosaic Syntax Highlighting](iss-0059-prosaic-syntax-highlighting.md) | enhancement | done | medium |

@@ -35,6 +35,7 @@ pub mod materialize;
 pub mod projects;
 pub mod render;
 pub mod resolve;
+pub mod search;
 pub mod statuses;
 pub mod symbols;
 pub mod tasks;
@@ -60,12 +61,13 @@ pub mod workspace;
 // pub mod projects        L35
 // pub mod render          L36
 // pub mod resolve         L37
-// pub mod statuses        L38
-// pub mod symbols         L39
-// pub mod tasks           L40
-// pub mod tasks_import    L41
-// pub mod tree            L42
-// pub mod update          L43
-// pub mod workspace       L44
+// pub mod search          L38
+// pub mod statuses        L39
+// pub mod symbols         L40
+// pub mod tasks           L41
+// pub mod tasks_import    L42
+// pub mod tree            L43
+// pub mod update          L44
+// pub mod workspace       L45
 // ---------------------------
 
