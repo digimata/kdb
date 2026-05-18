@@ -1,16 +1,17 @@
 ---
 path: projects/kdb/README.md
 outline: |
-  • kdb                           L16
-    ◦ Overview                    L22
-      ▪ Supported languages       L30
-    ◦ Quickstart                  L38
-    ◦ Commands                    L67
-      ▪ Markdown links            L95
-      ▪ Transclusion             L104
-      ▪ LSP                      L115
-    ◦ Development                L133
-    ◦ License                    L137
+  • kdb                           L17
+    ◦ Overview                    L23
+      ▪ Supported languages       L31
+    ◦ Quickstart                  L39
+    ◦ Commands                    L68
+      ▪ Markdown links           L109
+      ▪ Transclusion             L118
+      ▪ Full-text search         L129
+      ▪ LSP                      L151
+    ◦ Development                L169
+    ◦ License                    L173
 ---
 
 # kdb
@@ -96,6 +97,13 @@ kdb statuses {list|add|edit|rm|show} --tasks|--projects
                         # --tasks: --closed marks a status as closed (stamps closed_at)
                         # --projects: --archived hides the status from `projects list`
                         # slug/name/color are colorized in list output when stdout is a TTY
+kdb search <query>      # full-text search the corpus (prose by default)
+                        # --ftype docs|code|all  scope by file class (docs default)
+                        # -C <name> | -p <dir>   scope to a collection or directory
+                        # -c <N>                 show N lines of file context per hit
+kdb index [--rebuild]   # refresh the search index (incremental; --rebuild = full)
+kdb collection {add|list}
+                        # named directories to scope `kdb search` via -C <name>
 ```
 
 ### Markdown links
@@ -117,6 +125,28 @@ Embed content from other files using Obsidian-style syntax:
 ```
 
 `kdb render` resolves embeds recursively and prints the result to stdout. Useful for composing documents from canonical sources at runtime.
+
+### Full-text search
+
+`kdb search` runs BM25-ranked, porter-stemmed full-text search over the workspace using SQLite FTS5 — no external service or daemon. The index lives in `.kdb/` and is kept fresh **incrementally**: only files whose size/mtime changed since the last run are re-read, so search after edits is near-instant.
+
+```
+kdb search "read-only ceiling"            # prose (md/markdown/txt) by default
+kdb search "parse_statuses" --ftype code  # opt into code & config
+kdb search "fn sync" -p src --ftype code  # scope to an ad-hoc directory
+kdb search "thesis" -c 3                   # 3 lines of file context per hit
+```
+
+Search defaults to prose; code/config is opt-in via `--ftype code|all`. Data/build files (`json`, `yaml`) and files over 256 KB are excluded. Query input is treated as plain keywords — punctuation is safe.
+
+Register **collections** once to scope by name instead of a path:
+
+```
+kdb collection add research --name research
+kdb search "substrate" -C research
+```
+
+`kdb index` refreshes the index out of band (`--rebuild` forces a full reindex); `kdb search` also syncs incrementally on every run, so an explicit `kdb index` is rarely needed.
 
 ### LSP
 
